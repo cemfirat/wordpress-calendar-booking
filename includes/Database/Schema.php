@@ -1,0 +1,182 @@
+<?php
+namespace Cemb\Database;
+
+class Schema {
+    public static function install(): void {
+        global $wpdb;
+        require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        $charset = $wpdb->get_charset_collate();
+        $prefix = $wpdb->prefix . 'cemb_';
+
+        $sql = [];
+        $sql[] = "CREATE TABLE {$prefix}bookings (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            booking_uuid varchar(64) NOT NULL,
+            booking_type_id bigint unsigned NOT NULL,
+            slot_start datetime NOT NULL,
+            slot_end datetime NOT NULL,
+            status varchar(50) NOT NULL,
+            full_name varchar(190) DEFAULT NULL,
+            email varchar(190) NOT NULL,
+            phone varchar(100) DEFAULT NULL,
+            notes longtext DEFAULT NULL,
+            admin_notes longtext DEFAULT NULL,
+            source varchar(50) DEFAULT 'frontend',
+            lang varchar(10) DEFAULT 'de',
+            confirmed_at datetime DEFAULT NULL,
+            approved_at datetime DEFAULT NULL,
+            cancelled_at datetime DEFAULT NULL,
+            updated_at_user datetime DEFAULT NULL,
+            reserved_until datetime DEFAULT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY  (id),
+            KEY status (status),
+            KEY slot_start (slot_start),
+            KEY slot_end (slot_end),
+            KEY booking_type_id (booking_type_id),
+            KEY reserved_until (reserved_until)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}booking_meta (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            booking_id bigint unsigned NOT NULL,
+            meta_key varchar(190) NOT NULL,
+            meta_value longtext DEFAULT NULL,
+            PRIMARY KEY (id),
+            KEY booking_id (booking_id),
+            KEY meta_key (meta_key)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}booking_types (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            name varchar(190) NOT NULL,
+            slug varchar(190) NOT NULL,
+            description text DEFAULT NULL,
+            duration_minutes int NOT NULL,
+            buffer_before_minutes int NOT NULL DEFAULT 0,
+            buffer_after_minutes int NOT NULL DEFAULT 0,
+            is_active tinyint(1) NOT NULL DEFAULT 1,
+            is_public tinyint(1) NOT NULL DEFAULT 1,
+            sort_order int NOT NULL DEFAULT 0,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY slug (slug)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}form_fields (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            field_key varchar(190) NOT NULL,
+            label varchar(190) NOT NULL,
+            field_type varchar(50) NOT NULL,
+            is_required tinyint(1) NOT NULL DEFAULT 0,
+            is_active tinyint(1) NOT NULL DEFAULT 1,
+            options_json longtext DEFAULT NULL,
+            validation_rules_json longtext DEFAULT NULL,
+            sort_order int NOT NULL DEFAULT 0,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY field_key (field_key)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}availability_rules (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            scope_type varchar(50) NOT NULL DEFAULT 'global',
+            scope_id bigint unsigned DEFAULT NULL,
+            weekday tinyint NOT NULL,
+            start_time time NOT NULL,
+            end_time time NOT NULL,
+            slot_duration_minutes int NOT NULL DEFAULT 30,
+            buffer_before_minutes int NOT NULL DEFAULT 0,
+            buffer_after_minutes int NOT NULL DEFAULT 0,
+            min_notice_minutes int NOT NULL DEFAULT 0,
+            max_days_in_advance int NOT NULL DEFAULT 30,
+            is_active tinyint(1) NOT NULL DEFAULT 1,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY scope (scope_type, scope_id),
+            KEY weekday (weekday)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}exceptions (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            type varchar(50) NOT NULL,
+            title varchar(190) NOT NULL,
+            date_start datetime NOT NULL,
+            date_end datetime NOT NULL,
+            all_day tinyint(1) NOT NULL DEFAULT 0,
+            booking_type_id bigint unsigned DEFAULT NULL,
+            is_active tinyint(1) NOT NULL DEFAULT 1,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY date_range (date_start, date_end),
+            KEY booking_type_id (booking_type_id)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}tokens (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            booking_id bigint unsigned NOT NULL,
+            token_type varchar(50) NOT NULL,
+            token_hash varchar(255) NOT NULL,
+            expires_at datetime NOT NULL,
+            used_at datetime DEFAULT NULL,
+            created_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY booking_id (booking_id),
+            KEY token_type (token_type),
+            KEY expires_at (expires_at)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}booking_status_log (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            booking_id bigint unsigned NOT NULL,
+            old_status varchar(50) DEFAULT NULL,
+            new_status varchar(50) NOT NULL,
+            context varchar(100) DEFAULT NULL,
+            changed_by varchar(50) DEFAULT NULL,
+            note text DEFAULT NULL,
+            created_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY booking_id (booking_id),
+            KEY new_status (new_status)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}sync_jobs (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            booking_id bigint unsigned NOT NULL,
+            job_type varchar(50) NOT NULL,
+            payload_json longtext DEFAULT NULL,
+            status varchar(20) NOT NULL DEFAULT 'pending',
+            attempts int NOT NULL DEFAULT 0,
+            last_error text DEFAULT NULL,
+            available_at datetime NOT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY booking_id (booking_id),
+            KEY status_available (status, available_at),
+            KEY job_type (job_type)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}sync_log (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            job_id bigint unsigned DEFAULT NULL,
+            booking_id bigint unsigned DEFAULT NULL,
+            level varchar(20) NOT NULL,
+            message text NOT NULL,
+            created_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY booking_id (booking_id),
+            KEY level (level),
+            KEY created_at (created_at)
+        ) {$charset};";
+
+        foreach ($sql as $statement) {
+            dbDelta($statement);
+        }
+    }
+}
