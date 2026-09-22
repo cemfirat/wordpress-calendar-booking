@@ -36,6 +36,7 @@ class Actions {
         add_action('wp_ajax_nopriv_cemb_get_slots', [$this, 'ajaxSlots']);
         add_action('cemb_hourly_reminders', [$this, 'expireReservations'], 5);
         add_action('cemb_hourly_reminders', [$this, 'sendReminders'], 10);
+        add_action('cemb_hourly_reminders', [$this, 'cleanupTokens'], 20);
         if (!wp_next_scheduled('cemb_hourly_reminders')) {
             wp_schedule_event(time() + 300, 'hourly', 'cemb_hourly_reminders');
         }
@@ -439,6 +440,10 @@ class Actions {
 
     public function expireReservations(): void {
         (new BookingTransitionService())->expireReservations();
+    }
+
+    public function cleanupTokens(): void {
+        (new TokenService())->cleanup();
     }
 
     public function sendReminders(): void {
