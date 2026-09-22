@@ -17,6 +17,7 @@ class Admin {
         add_action('admin_menu', [$this, 'menu']);
         add_action('admin_init', [$this, 'handlePost']);
         add_action('admin_enqueue_scripts', [$this, 'assets']);
+        add_action('admin_post_cemb_export_bookings', [$this, 'exportBookings']);
     }
 
     public function assets(): void {
@@ -331,8 +332,32 @@ class Admin {
         echo '<h1>Buchungen</h1>';
         $repo = new BookingRepository();
         $machine = new BookingStateMachine();
-        $items = $repo->all();
+        $filters = $this->bookingFilters($_GET);
+        $items = $repo->all($filters);
         $privacy = new PrivacyService();
+        $types = (new BookingTypeRepository())->all(false);
+        echo '<form method="get" style="margin:12px 0;padding:12px;background:#fff;border:1px solid #ccd0d4">';
+        echo '<input type="hidden" name="page" value="cemb_bookings">';
+        echo '<label>Von <input type="date" name="from" value="' . esc_attr($filters['from_date'] ?? '') . '"></label> ';
+        echo '<label>Bis <input type="date" name="to" value="' . esc_attr($filters['to_date'] ?? '') . '"></label> ';
+        echo '<label>Status <select name="status"><option value="">alle</option>';
+        foreach (\Cemb\Booking\BookingStatus::all() as $status) {
+            echo '<option value="' . esc_attr($status) . '" ' . selected($filters['status'] ?? '', $status, false) . '>' . esc_html($status) . '</option>';
+        }
+        echo '</select></label> <label>Terminart <select name="booking_type_id"><option value="0">alle</option>';
+        foreach ($types as $type) {
+            echo '<option value="' . (int)$type->id . '" ' . selected((int)($filters['booking_type_id'] ?? 0), (int)$type->id, false) . '>' . esc_html($type->name) . '</option>';
+        }
+        echo '</select></label> <button class="button">Filtern</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=cemb_bookings')) . '">Zurücksetzen</a></form>';
+        $exportArgs = [
+            'action' => 'cemb_export_bookings',
+            '_wpnonce' => wp_create_nonce('cemb_export_bookings'),
+            'from' => $filters['from_date'] ?? '',
+            'to' => $filters['to_date'] ?? '',
+            'status' => $filters['status'] ?? '',
+            'booking_type_id' => (int)($filters['booking_type_id'] ?? 0),
+        ];
+        echo '<p><a class="button button-primary" href="' . esc_url(add_query_arg($exportArgs, admin_url('admin-post.php'))) . '">CSV exportieren</a></p>';
         echo '<table class="widefat striped"><thead><tr><th>ID</th><th>Name</th><th>E-Mail</th><th>Termin</th><th>Status</th><th>Aufbewahrung</th><th>Sync</th><th>Aktion</th></tr></thead><tbody>';
         foreach ($items as $item) {
             $meta = $repo->getMeta((int)$item->id);
@@ -360,6 +385,82 @@ class Admin {
         echo '</tbody></table>';
         $this->formEnd();
     }
+    public function exportBookings(): void {
+        if (!current_user_can('manage_options')) {
+            wp_die('Nicht erlaubt.', 403);
+        }
+        check_admin_referer('cemb_export_bookings');
+        $filters = $this->bookingFilters($_GET);
+        $items = (new BookingRepository())->all($filters);
+        $history = get_option('cemb_booking_export_audit', []);
+        if (!is_array($history)) {
+            $history = [];
+        }
+        array_unshift($history, [
+            'exported_at' => current_time('mysql', true),
+            'user_id' => get_current_user_id(),
+            'filters' => [
+                'from' => $filters['from_date'] ?? '',
+                'to' => $filters['to_date'] ?? '',
+                'status' => $filters['status'] ?? '',
+                'booking_type_id' => (int)($filters['booking_type_id'] ?? 0),
+            ],
+            'row_count' => count($items),
+        ]);
+        update_option('cemb_booking_export_audit', array_slice($history, 0, 50), false);
+
+        nocache_headers();
+        header('Content-Type: text/csv; charset=UTF-8');
+        header('Content-Disposition: attachment; filename="calendar-bookings-' . gmdate('Y-m-d-His') . '.csv"');
+        $out = fopen('php://output', 'wb');
+        if (!$out) {
+            wp_die('CSV-Ausgabe konnte nicht geöffnet werden.');
+        }
+        fwrite($out, "\xEF\xBB\xBF");
+        fputcsv($out, ['ID', 'Terminart-ID', 'Start (UTC)', 'Ende (UTC)', 'Status', 'Name', 'E-Mail', 'Telefon', 'Notiz', 'Quelle', 'Sprache', 'Erstellt (UTC)']);
+        foreach ($items as $item) {
+            fputcsv($out, [
+                (int)$item->id,
+                (int)$item->booking_type_id,
+                (string)$item->slot_start,
+                (string)$item->slot_end,
+                (string)$item->status,
+                (string)$item->full_name,
+                (string)$item->email,
+                (string)$item->phone,
+                (string)$item->notes,
+                (string)$item->source,
+                (string)$item->lang,
+                (string)$item->created_at,
+            ]);
+        }
+        fclose($out);
+        exit;
+    }
+
+    private function bookingFilters(array $input): array {
+        $filters = [];
+        $status = sanitize_key(wp_unslash($input['status'] ?? ''));
+        if ($status !== '' && in_array($status, \Cemb\Booking\BookingStatus::all(), true)) {
+            $filters['status'] = $status;
+        }
+        $bookingTypeId = absint($input['booking_type_id'] ?? 0);
+        if ($bookingTypeId > 0) {
+            $filters['booking_type_id'] = $bookingTypeId;
+        }
+        $from = sanitize_text_field(wp_unslash($input['from'] ?? ''));
+        if (preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $from)) {
+            $filters['from_date'] = $from;
+            $filters['from'] = Time::localToUtc($from . ' 00:00:00');
+        }
+        $to = sanitize_text_field(wp_unslash($input['to'] ?? ''));
+        if (preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $to)) {
+            $filters['to_date'] = $to;
+            $filters['to'] = Time::localToUtc($to . ' 23:59:59');
+        }
+        return $filters;
+    }
+
     public function emails(): void {
         $templates = get_option('cemb_email_templates', []);
         $this->formStart(); echo '<h1>E-Mail-Vorlagen</h1><form method="post">'; wp_nonce_field('cemb_admin_action'); echo '<input type="hidden" name="cemb_admin_action" value="save_emails">';
