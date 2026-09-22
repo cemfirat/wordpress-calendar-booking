@@ -77,11 +77,11 @@ jobs:
         run: |
           set -euo pipefail
           fixture="$(wp eval-file "$GITHUB_WORKSPACE/tests/create-reservation-fixture.php" --path="$RUNNER_TEMP/wordpress")"
-          export CEMB_TYPE_ID="${fixture%%|*}"
-          export CEMB_SLOT_TOKEN="${fixture#*|}"
-          echo "Fixture type: $CEMB_TYPE_ID"
-          echo "Slot token length: ${#CEMB_SLOT_TOKEN}"
-          printf '%s' "$CEMB_SLOT_TOKEN" | grep -Eq '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
+          export CEMB_TEST_TYPE_ID="${fixture%%|*}"
+          export CEMB_TEST_SLOT_TOKEN="${fixture#*|}"
+          echo "Fixture type: $CEMB_TEST_TYPE_ID"
+          echo "Slot token length: ${#CEMB_TEST_SLOT_TOKEN}"
+          printf '%s' "$CEMB_TEST_SLOT_TOKEN" | grep -Eq '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
 
           token_check="$(wp eval-file "$GITHUB_WORKSPACE/tests/verify-slot-token.php" --path="$RUNNER_TEMP/wordpress")"
           echo "$token_check"
