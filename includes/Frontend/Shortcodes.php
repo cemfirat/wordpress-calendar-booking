@@ -7,6 +7,7 @@ use Cemb\Forms\FieldRepository;
 use Cemb\Calendar\IcloudProvider;
 use Cemb\Calendar\PublicBusyPresenter;
 use Cemb\Admin\Settings;
+use Cemb\Support\Time;
 
 class Shortcodes {
     public function boot(): void {
@@ -115,8 +116,8 @@ class Shortcodes {
         wp_enqueue_style('cemb-frontend');
         $settings = Settings::get();
         $provider = new IcloudProvider();
-        $from = current_time('Y-m-d H:i:s');
-        $to = date_i18n('Y-m-d H:i:s', strtotime('+60 days', current_time('timestamp')));
+        $from = Time::formatUtc(Time::nowUtc());
+        $to = Time::formatUtc(Time::nowUtc()->modify('+60 days'));
         $events = $provider->events($from, $to);
         usort($events, static fn($a, $b) => strcmp($a['start'], $b['start']));
         $events = array_slice($events, 0, (int)$settings['show_calendar_limit']);
@@ -130,7 +131,7 @@ class Shortcodes {
                 $busy = $presenter->externalEvent($event);
                 echo '<div class="cemb-calendar-item uk-card uk-card-default uk-card-body">';
                 echo '<strong>' . esc_html($busy['title']) . '</strong><br>';
-                echo esc_html(wp_date($settings['date_format'] . ' ' . $settings['time_format'], strtotime($busy['start']))) . ' - ' . esc_html(wp_date($settings['time_format'], strtotime($busy['end'])));
+                echo esc_html(Time::display((string)$busy['start'], $settings['date_format'] . ' ' . $settings['time_format'])) . ' - ' . esc_html(Time::display((string)$busy['end'], $settings['time_format']));
                 echo '</div>';
             }
         }
@@ -141,9 +142,9 @@ class Shortcodes {
     public function bookingCalendar(array $atts = []): string {
         wp_enqueue_style('cemb-frontend');
         wp_enqueue_script('cemb-frontend');
-        $atts = shortcode_atts(['month' => current_time('Y-m')], $atts, 'cemb_booking_calendar');
+        $atts = shortcode_atts(['month' => Time::nowLocal()->format('Y-m')], $atts, 'cemb_booking_calendar');
         $requestedMonth = isset($_GET['cemb_month']) ? sanitize_text_field(wp_unslash($_GET['cemb_month'])) : (string)$atts['month'];
-        $month = preg_match('/^\d{4}-\d{2}$/', $requestedMonth) ? $requestedMonth : current_time('Y-m');
+        $month = preg_match('/^\d{4}-\d{2}$/', $requestedMonth) ? $requestedMonth : Time::nowLocal()->format('Y-m');
         $slotService = new SlotService();
         $display = $slotService->getMonthDisplay($month);
         $weeks = array_chunk($display['days'], 7);
@@ -167,7 +168,7 @@ class Shortcodes {
                         if (!$day['in_month']) $classes[] = 'is-outside';
                         if ($day['is_past']) $classes[] = 'is-past';
                         if ($day['is_weekend']) $classes[] = 'is-weekend';
-                        if ($day['date'] === current_time('Y-m-d')) $classes[] = 'is-today';
+                        if ($day['date'] === Time::nowLocal()->format('Y-m-d')) $classes[] = 'is-today';
                     ?>
                         <div class="<?php echo esc_attr(implode(' ', $classes)); ?>">
                             <div class="cemb-day-head"><span class="cemb-day-number"><?php echo esc_html(wp_date('j', strtotime($day['date']))); ?></span></div>
