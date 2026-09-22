@@ -6,6 +6,7 @@ use Cemb\Support\Time;
 class JobRepository {
     private string $jobsTable;
     private string $logTable;
+    private const MAX_ATTEMPTS = 5;
 
     public function __construct() {
         global $wpdb;
@@ -13,81 +14,213 @@ class JobRepository {
         $this->logTable = $wpdb->prefix . 'cemb_sync_log';
     }
 
-    public function enqueue(string $jobType, int $bookingId, array $payload = []): int {
+    public function enqueue(string $jobType, int $bookingId, array $payload = [], string $idempotencyKey = ''): int {
         global $wpdb;
-        $existing = $wpdb->get_var($wpdb->prepare(
-            "SELECT id FROM {$this->jobsTable} WHERE booking_id = %d AND job_type = %s AND status IN ('pending','running') ORDER BY id DESC LIMIT 1",
-            $bookingId,
-            $jobType
-        ));
-        if ($existing) {
-            return (int)$existing;
+
+        if ($idempotencyKey !== '') {
+            $existing = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT id FROM {$this->jobsTable} WHERE idempotency_key = %s LIMIT 1",
+                    $idempotencyKey
+                )
+            );
+            if ($existing) {
+                return (int)$existing;
+            }
         }
-        $wpdb->insert($this->jobsTable, [
+
+        $now = Time::formatUtc(Time::nowUtc());
+        $inserted = $wpdb->insert($this->jobsTable, [
             'booking_id' => $bookingId,
             'job_type' => $jobType,
             'payload_json' => wp_json_encode($payload),
             'status' => 'pending',
             'attempts' => 0,
-            'available_at' => Time::formatUtc(Time::nowUtc()),
-            'created_at' => Time::formatUtc(Time::nowUtc()),
-            'updated_at' => Time::formatUtc(Time::nowUtc()),
+            'last_error' => '',
+            'idempotency_key' => $idempotencyKey !== '' ? $idempotencyKey : null,
+            'lease_owner' => null,
+            'lease_expires_at' => null,
+            'available_at' => $now,
+            'created_at' => $now,
+            'updated_at' => $now,
         ]);
+
+        if ($inserted === false && $idempotencyKey !== '') {
+            $existing = $wpdb->get_var(
+                $wpdb->prepare(
+                    "SELECT id FROM {$this->jobsTable} WHERE idempotency_key = %s LIMIT 1",
+                    $idempotencyKey
+                )
+            );
+            return $existing ? (int)$existing : 0;
+        }
+
         $id = (int)$wpdb->insert_id;
-        $this->log($id, $bookingId, 'info', 'Job angelegt: ' . $jobType);
+        if ($id > 0) {
+            $this->log($id, $bookingId, 'info', 'Job queued: ' . $jobType);
+        }
         return $id;
     }
 
-    public function nextPending(int $limit = 10): array {
+    /**
+     * Atomically claim pending work and stale running work for one worker.
+     */
+    public function claim(string $workerId, int $limit = 10, int $leaseSeconds = 120): array {
         global $wpdb;
-        $sql = $wpdb->prepare(
-            "SELECT * FROM {$this->jobsTable} WHERE status = 'pending' AND available_at <= %s ORDER BY id ASC LIMIT %d",
-            Time::formatUtc(Time::nowUtc()),
-            $limit
+        $workerId = substr(preg_replace('/[^A-Za-z0-9._:-]/', '', $workerId), 0, 64);
+        if ($workerId === '') {
+            return [];
+        }
+
+        $now = Time::formatUtc(Time::nowUtc());
+        $leaseUntil = Time::formatUtc(Time::nowUtc()->modify('+' . max(30, $leaseSeconds) . ' seconds'));
+        $limit = max(1, min(100, $limit));
+
+        $candidateIds = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT id FROM {$this->jobsTable}
+                 WHERE attempts < %d
+                   AND (
+                     (status = 'pending' AND available_at <= %s)
+                     OR (status = 'running' AND lease_expires_at IS NOT NULL AND lease_expires_at < %s)
+                   )
+                 ORDER BY available_at ASC, id ASC
+                 LIMIT %d",
+                self::MAX_ATTEMPTS,
+                $now,
+                $now,
+                $limit * 3
+            )
         );
-        return $wpdb->get_results($sql);
+
+        $claimed = [];
+        foreach ($candidateIds as $jobId) {
+            if (count($claimed) >= $limit) {
+                break;
+            }
+            $updated = $wpdb->query(
+                $wpdb->prepare(
+                    "UPDATE {$this->jobsTable}
+                     SET status = 'running',
+                         attempts = attempts + 1,
+                         lease_owner = %s,
+                         lease_expires_at = %s,
+                         updated_at = %s
+                     WHERE id = %d
+                       AND attempts < %d
+                       AND (
+                         (status = 'pending' AND available_at <= %s)
+                         OR (status = 'running' AND lease_expires_at IS NOT NULL AND lease_expires_at < %s)
+                       )",
+                    $workerId,
+                    $leaseUntil,
+                    $now,
+                    (int)$jobId,
+                    self::MAX_ATTEMPTS,
+                    $now,
+                    $now
+                )
+            );
+
+            if ($updated === 1) {
+                $job = $wpdb->get_row(
+                    $wpdb->prepare(
+                        "SELECT * FROM {$this->jobsTable} WHERE id = %d AND lease_owner = %s LIMIT 1",
+                        (int)$jobId,
+                        $workerId
+                    )
+                );
+                if ($job) {
+                    $claimed[] = $job;
+                }
+            }
+        }
+
+        return $claimed;
     }
 
-    public function markRunning(int $jobId): void {
+    public function markDone(int $jobId, int $bookingId, string $workerId, string $message = ''): bool {
         global $wpdb;
-        $wpdb->query($wpdb->prepare(
-            "UPDATE {$this->jobsTable} SET status = 'running', attempts = attempts + 1, updated_at = %s WHERE id = %d",
-            Time::formatUtc(Time::nowUtc()),
-            $jobId
-        ));
+        $now = Time::formatUtc(Time::nowUtc());
+        $updated = $wpdb->query(
+            $wpdb->prepare(
+                "UPDATE {$this->jobsTable}
+                 SET status = 'done',
+                     last_error = '',
+                     lease_owner = NULL,
+                     lease_expires_at = NULL,
+                     updated_at = %s
+                 WHERE id = %d AND status = 'running' AND lease_owner = %s",
+                $now,
+                $jobId,
+                $workerId
+            )
+        );
+        if ($updated === 1) {
+            $this->log($jobId, $bookingId, 'success', $message ?: 'Job completed');
+            return true;
+        }
+        return false;
     }
 
-    public function markDone(int $jobId, int $bookingId, string $message = ''): void {
+    public function markFailed(int $jobId, int $bookingId, string $workerId, string $message): bool {
         global $wpdb;
-        $wpdb->update($this->jobsTable, [
-            'status' => 'done',
-            'last_error' => '',
-            'updated_at' => Time::formatUtc(Time::nowUtc()),
-        ], ['id' => $jobId]);
-        $this->log($jobId, $bookingId, 'success', $message ?: 'Job abgeschlossen');
-    }
+        $attempts = (int)$wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT attempts FROM {$this->jobsTable} WHERE id = %d AND lease_owner = %s LIMIT 1",
+                $jobId,
+                $workerId
+            )
+        );
+        if ($attempts < 1) {
+            return false;
+        }
 
-    public function markFailed(int $jobId, int $bookingId, string $message, int $delayMinutes = 10): void {
-        global $wpdb;
-        $attempts = (int)$wpdb->get_var($wpdb->prepare("SELECT attempts FROM {$this->jobsTable} WHERE id = %d", $jobId));
-        $status = $attempts >= 5 ? 'failed' : 'pending';
-        $wpdb->update($this->jobsTable, [
-            'status' => $status,
-            'last_error' => $message,
-            'available_at' => Time::formatUtc(Time::nowUtc()->modify('+' . max(0, $delayMinutes) . ' minutes')),
-            'updated_at' => Time::formatUtc(Time::nowUtc()),
-        ], ['id' => $jobId]);
-        $this->log($jobId, $bookingId, $status === 'failed' ? 'error' : 'warning', $message);
+        $terminal = $attempts >= self::MAX_ATTEMPTS;
+        $status = $terminal ? 'failed' : 'pending';
+        $delayMinutes = $terminal ? 0 : min(60, (int)pow(2, max(0, $attempts - 1)) * 2);
+        $available = Time::formatUtc(Time::nowUtc()->modify('+' . $delayMinutes . ' minutes'));
+        $error = $this->sanitizeError($message);
+
+        $updated = $wpdb->query(
+            $wpdb->prepare(
+                "UPDATE {$this->jobsTable}
+                 SET status = %s,
+                     last_error = %s,
+                     available_at = %s,
+                     lease_owner = NULL,
+                     lease_expires_at = NULL,
+                     updated_at = %s
+                 WHERE id = %d AND status = 'running' AND lease_owner = %s",
+                $status,
+                $error,
+                $available,
+                Time::formatUtc(Time::nowUtc()),
+                $jobId,
+                $workerId
+            )
+        );
+
+        if ($updated === 1) {
+            $this->log($jobId, $bookingId, $terminal ? 'error' : 'warning', $error);
+            return true;
+        }
+        return false;
     }
 
     public function pendingCount(): int {
         global $wpdb;
-        return (int)$wpdb->get_var("SELECT COUNT(*) FROM {$this->jobsTable} WHERE status IN ('pending','running')");
+        return (int)$wpdb->get_var(
+            "SELECT COUNT(*) FROM {$this->jobsTable} WHERE status IN ('pending','running')"
+        );
     }
 
     public function recentLogs(int $limit = 50): array {
         global $wpdb;
-        $sql = $wpdb->prepare("SELECT * FROM {$this->logTable} ORDER BY id DESC LIMIT %d", $limit);
+        $sql = $wpdb->prepare(
+            "SELECT * FROM {$this->logTable} ORDER BY id DESC LIMIT %d",
+            max(1, $limit)
+        );
         return $wpdb->get_results($sql);
     }
 
@@ -97,8 +230,15 @@ class JobRepository {
             'job_id' => $jobId,
             'booking_id' => $bookingId,
             'level' => $level,
-            'message' => $message,
+            'message' => $this->sanitizeError($message),
             'created_at' => Time::formatUtc(Time::nowUtc()),
         ]);
+    }
+
+    private function sanitizeError(string $message): string {
+        $message = wp_strip_all_tags($message);
+        $message = preg_replace('/Authorization:\s*[^\s]+/i', 'Authorization: [redacted]', $message);
+        $message = preg_replace('/Bearer\s+[A-Za-z0-9._~-]+/i', 'Bearer [redacted]', $message);
+        return mb_substr((string)$message, 0, 1500);
     }
 }
