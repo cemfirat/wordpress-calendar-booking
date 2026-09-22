@@ -80,4 +80,86 @@ $off_end = date( 'Y-m-d H:i:s', strtotime( $slot['end'] . ' +5 minutes' ) );
 $off_grid_token = $token_service->issue( $type_id, $off_start, $off_end );
 cemb_smoke_assert( null === $selection_service->resolve( $off_grid_token, $type_id ), 'A signed but non-canonical off-grid slot is rejected.' );
 
+
+$public_presenter = new Cemb\Calendar\PublicBusyPresenter();
+$private_external = [
+	'start' => current_time( 'Y-m-d' ) . ' 10:00:00',
+	'end' => current_time( 'Y-m-d' ) . ' 11:00:00',
+	'summary' => 'PRIVATE EXTERNAL TITLE',
+	'location' => 'PRIVATE EXTERNAL LOCATION',
+	'description' => 'PRIVATE EXTERNAL DESCRIPTION',
+];
+$public_external = $public_presenter->externalEvent( $private_external );
+cemb_smoke_assert( 'Besetzt' === $public_external['title'], 'External events become a generic public busy label.' );
+cemb_smoke_assert( false === strpos( wp_json_encode( $public_external ), 'PRIVATE EXTERNAL' ), 'Public external-event model contains no private event details.' );
+
+$settings_before_privacy_test = get_option( 'cemb_settings', [] );
+$test_calendar_url = 'https://example.test/cemb-private-calendar.ics';
+$privacy_settings = Cemb\Admin\Settings::get();
+$privacy_settings['calendar_urls'] = $test_calendar_url;
+$privacy_settings['calendar_url'] = $test_calendar_url;
+$privacy_settings['show_calendar_limit'] = 20;
+update_option( 'cemb_settings', $privacy_settings );
+delete_transient( 'cemb_ical_' . md5( $test_calendar_url ) );
+
+$ics_start = gmdate( 'Ymd\\THis\\Z', time() + DAY_IN_SECONDS );
+$ics_end = gmdate( 'Ymd\\THis\\Z', time() + DAY_IN_SECONDS + HOUR_IN_SECONDS );
+$private_ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:cemb-private-test\r\nDTSTART:{$ics_start}\r\nDTEND:{$ics_end}\r\nSUMMARY:PRIVATE EXTERNAL TITLE\r\nLOCATION:PRIVATE EXTERNAL LOCATION\r\nDESCRIPTION:PRIVATE EXTERNAL DESCRIPTION\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+$privacy_http_filter = static function ( $preempt, $args, $url ) use ( $test_calendar_url, $private_ics ) {
+	if ( $url === $test_calendar_url ) {
+		return [
+			'headers' => [],
+			'response' => [ 'code' => 200 ],
+			'body' => $private_ics,
+		];
+	}
+	return $preempt;
+};
+add_filter( 'pre_http_request', $privacy_http_filter, 10, 3 );
+$calendar_html = ( new Cemb\Frontend\Shortcodes() )->calendarList();
+remove_filter( 'pre_http_request', $privacy_http_filter, 10 );
+cemb_smoke_assert( false !== strpos( $calendar_html, 'Besetzt' ), 'Public calendar list shows busy status.' );
+cemb_smoke_assert( false === strpos( $calendar_html, 'PRIVATE EXTERNAL TITLE' ), 'Public calendar list does not expose external event titles.' );
+cemb_smoke_assert( false === strpos( $calendar_html, 'PRIVATE EXTERNAL LOCATION' ), 'Public calendar list does not expose external event locations.' );
+cemb_smoke_assert( false === strpos( $calendar_html, 'PRIVATE EXTERNAL DESCRIPTION' ), 'Public calendar list does not expose external event descriptions.' );
+update_option( 'cemb_settings', $settings_before_privacy_test );
+delete_transient( 'cemb_ical_' . md5( $test_calendar_url ) );
+
+$private_booking_date = date( 'Y-m-d', strtotime( 'first monday of ' . current_time( 'Y-m' ) . '-01' ) );
+$private_booking_start = $private_booking_date . ' 12:00:00';
+$private_booking_end = $private_booking_date . ' 12:30:00';
+$private_booking_repo = new Cemb\Booking\BookingRepository();
+$private_booking_id = $private_booking_repo->create(
+	[
+		'booking_uuid' => wp_generate_uuid4(),
+		'booking_type_id' => $type_id,
+		'slot_start' => $private_booking_start,
+		'slot_end' => $private_booking_end,
+		'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+		'full_name' => 'PRIVATE CUSTOMER NAME',
+		'email' => 'privacy-test@example.com',
+		'phone' => 'PRIVATE PHONE',
+		'notes' => 'PRIVATE NOTES',
+		'source' => 'ci',
+		'lang' => 'en',
+		'created_at' => current_time( 'mysql' ),
+		'updated_at' => current_time( 'mysql' ),
+	],
+	[
+		'gender' => 'PRIVATE GENDER',
+		'last_name' => 'PRIVATE LAST NAME',
+		'subject' => 'PRIVATE SUBJECT',
+		'location' => 'PRIVATE BOOKING LOCATION',
+	]
+);
+$private_month = ( new Cemb\Availability\SlotService() )->getMonthDisplay( current_time( 'Y-m' ) );
+$private_month_json = wp_json_encode( $private_month );
+cemb_smoke_assert( false !== strpos( $private_month_json, 'Besetzt' ), 'Public month model exposes busy status for internal bookings.' );
+foreach ( [ 'PRIVATE CUSTOMER', 'PRIVATE PHONE', 'PRIVATE NOTES', 'PRIVATE GENDER', 'PRIVATE LAST NAME', 'PRIVATE SUBJECT', 'PRIVATE BOOKING LOCATION' ] as $private_marker ) {
+	cemb_smoke_assert( false === strpos( $private_month_json, $private_marker ), 'Public month model does not expose ' . $private_marker . '.' );
+}
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $private_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $private_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $private_booking_id ] );
+
 WP_CLI::success( 'WordPress Calendar Booking smoke test passed on WordPress ' . get_bloginfo( 'version' ) . ' / PHP ' . PHP_VERSION . '.' );
