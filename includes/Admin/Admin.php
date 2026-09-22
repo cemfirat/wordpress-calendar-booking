@@ -3,6 +3,8 @@ namespace Cemb\Admin;
 
 use Cemb\Booking\BookingRepository;
 use Cemb\Booking\BookingTypeRepository;
+use Cemb\Booking\BookingStateMachine;
+use Cemb\Booking\BookingTransitionService;
 use Cemb\Sync\IcloudSyncService;
 use Cemb\Sync\QueueService;
 use Cemb\Sync\JobRepository;
@@ -190,39 +192,17 @@ class Admin {
                 update_option('cemb_email_templates', $data);
                 break;
             case 'booking_status':
-                $repo = new BookingRepository();
-                $id = absint($_POST['id']);
-                $status = sanitize_text_field(wp_unslash($_POST['status'] ?? ''));
-                $repo->updateStatus($id, $status, 'admin', 'admin', 'Status manuell geändert');
-                if ($status === 'confirmed') {
-                    $repo->update($id, ['approved_at' => current_time('mysql')]);
+                $id = absint($_POST['id'] ?? 0);
+                $event = sanitize_key(wp_unslash($_POST['event'] ?? ''));
+                $result = (new BookingTransitionService())->apply(
+                    $id,
+                    $event,
+                    'admin',
+                    'Admin booking action'
+                );
+                if (is_wp_error($result)) {
+                    wp_die(esc_html($result->get_error_message()));
                 }
-                $booking = (array) $repo->find($id);
-                $meta = $repo->getMeta($id);
-                $tokenService = new \Cemb\Tokens\TokenService();
-                $cancelToken = $tokenService->create($id, 'cancel', 60 * 24 * 30);
-                $updateToken = $tokenService->create($id, 'update', 60 * 24 * 30);
-                $links = [
-                    'cancel' => add_query_arg(['cemb_action' => 'cancel', 'cemb_token' => rawurlencode($cancelToken)], home_url('/')),
-                    'update' => add_query_arg(['cemb_action' => 'update', 'cemb_token' => rawurlencode($updateToken)], home_url('/')),
-                ];
-                $mailer = new \Cemb\Mail\Mailer();
-                if ($status === 'confirmed') {
-                    $queue = new QueueService();
-                    $queue->enqueueCreate($id);
-                    $queue->runNow();
-                    $mailer->sendTemplate('approved', $booking, $meta, $links, true);
-                } elseif ($status === 'rejected') {
-                    $mailer->sendTemplate('rejected', $booking, $meta, [], false);
-                } elseif ($status === 'cancelled') {
-                    if (!empty(Settings::get()['icloud_sync_cancellations'])) {
-                        $queue = new QueueService();
-                        $queue->enqueueCancel($id);
-                        $queue->runNow();
-                    }
-                    $mailer->sendTemplate('cancelled', $booking, $meta, [], false);
-                }
-                $mailer->sendInternal($booking, $meta);
                 break;
         }
         wp_safe_redirect(add_query_arg(['page' => sanitize_text_field(wp_unslash($_GET['page'] ?? 'cemb_dashboard')), 'updated' => 1], admin_url('admin.php')));
@@ -309,12 +289,31 @@ class Admin {
         $this->formStart(); echo '<h1>Verfügbarkeit</h1>'; $this->renderRulesTable($rules); $this->renderRuleForm(); echo '<hr><h2>Ausnahmen / Sperren</h2>'; $this->renderExceptionsTable($exceptions); $this->renderExceptionForm(); $this->formEnd();
     }
     public function bookings(): void {
-        $this->formStart(); echo '<h1>Buchungen</h1>'; $repo = new BookingRepository(); $items = $repo->all(); echo '<table class="widefat striped"><thead><tr><th>ID</th><th>Name</th><th>E-Mail</th><th>Termin</th><th>Status</th><th>Sync</th><th>Aktion</th></tr></thead><tbody>';
+        $this->formStart();
+        echo '<h1>Buchungen</h1>';
+        $repo = new BookingRepository();
+        $machine = new BookingStateMachine();
+        $items = $repo->all();
+        echo '<table class="widefat striped"><thead><tr><th>ID</th><th>Name</th><th>E-Mail</th><th>Termin</th><th>Status</th><th>Sync</th><th>Aktion</th></tr></thead><tbody>';
         foreach ($items as $item) {
-            $meta = $repo->getMeta((int) $item->id);
-            echo '<tr><td>' . (int)$item->id . '</td><td>' . esc_html($item->full_name) . '</td><td>' . esc_html($item->email) . '</td><td>' . esc_html($item->slot_start) . '</td><td>' . esc_html($item->status) . '</td><td>' . esc_html((string)($meta['sync_status'] ?? '')) . (!empty($meta['sync_error']) ? '<br><small>' . esc_html((string)$meta['sync_error']) . '</small>' : '') . '</td><td><form method="post">'; wp_nonce_field('cemb_admin_action'); echo '<input type="hidden" name="cemb_admin_action" value="booking_status"><input type="hidden" name="id" value="' . (int)$item->id . '"><select name="status"><option value="confirmed">bestätigt</option><option value="pending_admin_approval">wartet auf Freigabe</option><option value="rejected">abgelehnt</option><option value="cancelled">storniert</option></select> <button class="button">Speichern</button></form></td></tr>';
+            $meta = $repo->getMeta((int)$item->id);
+            $events = $machine->adminEventsFor((string)$item->status);
+            echo '<tr><td>' . (int)$item->id . '</td><td>' . esc_html($item->full_name) . '</td><td>' . esc_html($item->email) . '</td><td>' . esc_html($item->slot_start) . '</td><td>' . esc_html($item->status) . '</td><td>' . esc_html((string)($meta['sync_status'] ?? '')) . (!empty($meta['sync_error']) ? '<br><small>' . esc_html((string)$meta['sync_error']) . '</small>' : '') . '</td><td>';
+            if ($events) {
+                echo '<form method="post">';
+                wp_nonce_field('cemb_admin_action');
+                echo '<input type="hidden" name="cemb_admin_action" value="booking_status"><input type="hidden" name="id" value="' . (int)$item->id . '"><select name="event">';
+                foreach ($events as $event => $label) {
+                    echo '<option value="' . esc_attr($event) . '">' . esc_html($label) . '</option>';
+                }
+                echo '</select> <button class="button">Ausführen</button></form>';
+            } else {
+                echo '<span class="description">Keine Aktion verfügbar</span>';
+            }
+            echo '</td></tr>';
         }
-        echo '</tbody></table>'; $this->formEnd();
+        echo '</tbody></table>';
+        $this->formEnd();
     }
     public function emails(): void {
         $templates = get_option('cemb_email_templates', []);
