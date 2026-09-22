@@ -24,6 +24,11 @@ define('CEMB_DIR', plugin_dir_path(__FILE__));
 define('CEMB_URL', plugin_dir_url(__FILE__));
 define('CEMB_BASENAME', plugin_basename(__FILE__));
 
+$cemb_vendor_autoload = CEMB_DIR . 'vendor/autoload.php';
+if (is_file($cemb_vendor_autoload)) {
+    require_once $cemb_vendor_autoload;
+}
+
 require_once CEMB_DIR . 'includes/Core/Autoloader.php';
 Cemb\Core\Autoloader::register();
 
