@@ -16,6 +16,7 @@ use Cemb\Yootheme\Integration;
 use Cemb\Calendar\GoogleOAuthController;
 use Cemb\Calendar\MicrosoftOAuthController;
 use Cemb\Calendar\CalDavController;
+use Cemb\Calendar\ProviderDiagnosticsController;
 
 class Plugin {
     public function boot(): void {
@@ -30,6 +31,7 @@ class Plugin {
         (new GoogleOAuthController())->boot();
         (new MicrosoftOAuthController())->boot();
         (new CalDavController())->boot();
+        (new ProviderDiagnosticsController())->boot();
         (new Integration())->boot();
         (new Shortcodes())->boot();
         (new Actions())->boot();
