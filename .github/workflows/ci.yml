@@ -72,3 +72,47 @@ jobs:
           wp plugin activate wordpress-calendar-booking --path="$WP_ROOT"
       - name: Run WordPress smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Verify concurrent reservation serialization
+        if: matrix.wordpress == 'latest'
+        run: |
+          set -euo pipefail
+          fixture="$(wp eval '
+            $types = (new Cemb\\Booking\\BookingTypeRepository())->all(true);
+            $type = $types[0] ?? null;
+            if (!$type) { exit(1); }
+            $slots = (new Cemb\\Availability\\SlotService())->getSlots((int)$type->id, 21);
+            if (!$slots) { exit(2); }
+            $slot = $slots[0];
+            echo (int)$type->id . "|" . (new Cemb\\Tokens\\SlotTokenService())->issue((int)$type->id, $slot["start"], $slot["end"]);
+          ' --path="$RUNNER_TEMP/wordpress")"
+          export CEMB_TYPE_ID="${fixture%%|*}"
+          export CEMB_SLOT_TOKEN="${fixture#*|}"
+
+          CEMB_TEST_EMAIL=first@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-a.txt" &
+          first_pid=$!
+          CEMB_TEST_EMAIL=second@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-b.txt" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+          cat "$RUNNER_TEMP/reserve-a.txt" "$RUNNER_TEMP/reserve-b.txt"
+          reserved_count="$(awk '/^RESERVED /{n++} END{print n+0}' "$RUNNER_TEMP/reserve-a.txt" "$RUNNER_TEMP/reserve-b.txt")"
+          rejected_count="$(awk '/^REJECTED /{n++} END{print n+0}' "$RUNNER_TEMP/reserve-a.txt" "$RUNNER_TEMP/reserve-b.txt")"
+          test "$reserved_count" -eq 1
+          test "$rejected_count" -eq 1
+
+          booking_count="$(wp eval 'global $wpdb; echo (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}cemb_bookings");' --path="$RUNNER_TEMP/wordpress")"
+          test "$booking_count" -eq 1
+
+          wp eval '
+            global $wpdb;
+            $past = date("Y-m-d H:i:s", current_time("timestamp") - 60);
+            $wpdb->query($wpdb->prepare("UPDATE {$wpdb->prefix}cemb_bookings SET reserved_until = %s", $past));
+          ' --path="$RUNNER_TEMP/wordpress"
+
+          CEMB_TEST_EMAIL=after-expiry@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-after-expiry.txt"
+          cat "$RUNNER_TEMP/reserve-after-expiry.txt"
+          grep -q '^RESERVED ' "$RUNNER_TEMP/reserve-after-expiry.txt"
+
+          booking_count="$(wp eval 'global $wpdb; echo (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}cemb_bookings");' --path="$RUNNER_TEMP/wordpress")"
+          test "$booking_count" -eq 2
