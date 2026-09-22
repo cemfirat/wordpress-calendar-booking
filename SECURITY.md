@@ -2,7 +2,15 @@
 
 ## Supported versions
 
-Until the first stable 2.0 release, the repository should be treated as active development. Do not deploy development branches to production without reviewing the open release-blocker issues.
+Security fixes are provided for the current stable 2.0.x release line.
+
+| Version | Security support |
+| --- | --- |
+| 2.0.x | Supported |
+| Imported / prototype 1.x | Not supported |
+| Development branches | Not supported for production use |
+
+Sites running an imported 1.x prototype should upgrade to the latest stable 2.0.x release. Development branches may contain unfinished migrations or behavior and should not be deployed to production.
 
 ## Reporting a vulnerability
 
