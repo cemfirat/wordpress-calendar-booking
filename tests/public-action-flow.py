@@ -82,6 +82,7 @@ def assert_state(booking_id, status=None, slot_start=None):
     return state
 
 
+created_booking_ids = []
 log = open(pathlib.Path(os.environ["RUNNER_TEMP"]) / "cemb-public-http.log", "w")
 server = subprocess.Popen(
     ["php", "-S", "127.0.0.1:8080", "-t", str(wp_root)],
@@ -100,6 +101,7 @@ try:
 
     # Double Opt-In: GET and failed CSRF are read-only; valid POST confirms once.
     confirm = wp_fixture("create_confirm")
+    created_booking_ids.append(confirm["booking_id"])
     before = assert_state(confirm["booking_id"], "reserved_unconfirmed")
     page, _ = get(confirm["url"])
     assert "Terminbuchung bestätigen" in page
@@ -134,6 +136,7 @@ try:
 
     # Cancellation: scanners can GET safely; POST consumes the token once.
     cancel = wp_fixture("create_cancel")
+    created_booking_ids.append(cancel["booking_id"])
     cancel_before = assert_state(cancel["booking_id"], "confirmed")
     cancel_page, _ = get(cancel["url"])
     assert "Termin stornieren" in cancel_page
@@ -156,6 +159,7 @@ try:
 
     # Reschedule: canonical slot token is required and the lifecycle state stays confirmed.
     update = wp_fixture("create_update")
+    created_booking_ids.append(update["booking_id"])
     update_before = assert_state(update["booking_id"], "confirmed")
     update_page, _ = get(update["url"])
     assert "Termin ändern" in update_page
@@ -201,6 +205,7 @@ try:
 
     # Expired links are status-only and never mutate the booking.
     expired = wp_fixture("create_expired")
+    created_booking_ids.append(expired["booking_id"])
     expired_before = assert_state(expired["booking_id"], "reserved_unconfirmed")
     expired_page, _ = get(expired["url"])
     assert "Link abgelaufen" in expired_page
@@ -208,6 +213,11 @@ try:
     print("PASS: Expired links render a non-destructive status screen.")
 
 finally:
+    for booking_id in created_booking_ids:
+        try:
+            wp_fixture("cleanup", booking_id)
+        except Exception:
+            pass
     server.terminate()
     try:
         server.wait(timeout=5)
