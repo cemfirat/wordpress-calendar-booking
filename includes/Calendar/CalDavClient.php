@@ -176,47 +176,65 @@ final class CalDavClient {
             return $response;
         }
 
-        $xml = $this->xml((string)wp_remote_retrieve_body($response));
-        if (!$xml) {
+        $xpath = $this->domXPath((string)wp_remote_retrieve_body($response));
+        if (!$xpath) {
             return new \WP_Error('cemb_caldav_xml', 'CalDAV discovery returned unreadable XML.');
         }
+
         $out = [];
-        foreach ($xml->xpath('//*[local-name()="response"]') ?: [] as $node) {
-            $hrefNodes = $node->xpath('./*[local-name()="href"]') ?: [];
-            $calendarNodes = $node->xpath('.//*[local-name()="calendar"]') ?: [];
-            if (!$hrefNodes || !$calendarNodes) {
+        foreach ($xpath->query('//*[local-name()="response"]') ?: [] as $node) {
+            $hrefNode = $xpath->query('./*[local-name()="href"]', $node)->item(0);
+            $calendarNode = $xpath->query('.//*[local-name()="calendar"]', $node)->item(0);
+            if (!$hrefNode || !$calendarNode) {
                 continue;
             }
-            $displayNodes = $node->xpath('.//*[local-name()="displayname"]') ?: [];
-            $url = $this->absoluteUrl((string)$hrefNodes[0]);
+            $displayNode = $xpath->query('.//*[local-name()="displayname"]', $node)->item(0);
+            $url = $this->absoluteUrl(trim((string)$hrefNode->textContent));
+            if ($url === '') {
+                continue;
+            }
+            $name = $displayNode ? trim((string)$displayNode->textContent) : '';
             $out[] = [
                 'url' => rtrim($url, '/') . '/',
-                'name' => trim((string)($displayNodes[0] ?? '')) ?: basename(trim($url, '/')),
+                'name' => $name !== '' ? $name : basename(trim($url, '/')),
             ];
         }
         return $out;
     }
 
     private function parseCalendarDataResponses(string $body): array {
-        $xml = $this->xml($body);
-        if (!$xml) {
+        $xpath = $this->domXPath($body);
+        if (!$xpath) {
             return [];
         }
+
         $out = [];
-        foreach ($xml->xpath('//*[local-name()="response"]') ?: [] as $node) {
-            $hrefNodes = $node->xpath('./*[local-name()="href"]') ?: [];
-            $etagNodes = $node->xpath('.//*[local-name()="getetag"]') ?: [];
-            $dataNodes = $node->xpath('.//*[local-name()="calendar-data"]') ?: [];
-            if (!$hrefNodes || !$dataNodes) {
+        foreach ($xpath->query('//*[local-name()="response"]') ?: [] as $node) {
+            $hrefNode = $xpath->query('./*[local-name()="href"]', $node)->item(0);
+            $dataNode = $xpath->query('.//*[local-name()="calendar-data"]', $node)->item(0);
+            if (!$hrefNode || !$dataNode) {
                 continue;
             }
+            $etagNode = $xpath->query('.//*[local-name()="getetag"]', $node)->item(0);
             $out[] = [
-                'href' => $this->absoluteUrl((string)$hrefNodes[0]),
-                'etag' => trim((string)($etagNodes[0] ?? '')),
-                'ics' => (string)$dataNodes[0],
+                'href' => $this->absoluteUrl(trim((string)$hrefNode->textContent)),
+                'etag' => $etagNode ? trim((string)$etagNode->textContent) : '',
+                'ics' => (string)$dataNode->textContent,
             ];
         }
         return $out;
+    }
+
+    private function domXPath(string $body): ?\DOMXPath {
+        if ($body === '' || !class_exists('DOMDocument')) {
+            return null;
+        }
+        $old = libxml_use_internal_errors(true);
+        $document = new \DOMDocument();
+        $loaded = $document->loadXML($body, LIBXML_NONET | LIBXML_NOERROR | LIBXML_NOWARNING);
+        libxml_clear_errors();
+        libxml_use_internal_errors($old);
+        return $loaded ? new \DOMXPath($document) : null;
     }
 
     private function extractHref(string $body, string $element): ?string {
