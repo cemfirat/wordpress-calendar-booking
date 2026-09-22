@@ -11,6 +11,7 @@ use Cemb\Sync\JobRepository;
 use Cemb\Calendar\IcloudProvider;
 use Cemb\Support\Time;
 use Cemb\Privacy\PrivacyService;
+use Cemb\Reliability\SchedulerHealth;
 
 class Admin {
     public function boot(): void {
@@ -31,6 +32,7 @@ class Admin {
         add_submenu_page('cemb_dashboard', 'Verfügbarkeit', 'Verfügbarkeit', 'manage_options', 'cemb_availability', [$this, 'availability']);
         add_submenu_page('cemb_dashboard', 'Buchungen', 'Buchungen', 'manage_options', 'cemb_bookings', [$this, 'bookings']);
         add_submenu_page('cemb_dashboard', 'E-Mail-Vorlagen', 'E-Mail-Vorlagen', 'manage_options', 'cemb_emails', [$this, 'emails']);
+        add_submenu_page('cemb_dashboard', 'Systemstatus', 'Systemstatus', 'manage_options', 'cemb_system_health', [$this, 'schedulerHealth']);
         add_submenu_page('cemb_dashboard', 'Sync-Protokoll', 'Sync-Protokoll', 'manage_options', 'cemb_sync_log', [$this, 'syncLog']);
     }
 
@@ -99,6 +101,9 @@ class Admin {
                 break;
             case 'process_sync_queue':
                 (new QueueService())->runNow();
+                break;
+            case 'run_hourly_tasks':
+                do_action('cemb_hourly_reminders');
                 break;
             case 'save_type':
                 $table = $wpdb->prefix . 'cemb_booking_types';
@@ -381,6 +386,45 @@ class Admin {
     private function renderRuleForm(): void { $types = (new BookingTypeRepository())->all(false); echo '<h2>Neue Regel</h2><form method="post">'; wp_nonce_field('cemb_admin_action'); echo '<input type="hidden" name="cemb_admin_action" value="save_rule"><table class="form-table">'; $options='<option value="global">global</option><option value="booking_type">Terminart</option>'; $this->row('Scope','<select name="scope_type">'.$options.'</select>'); $typeOptions='<option value="0">-</option>'; foreach($types as $type){ $typeOptions .= '<option value="'.(int)$type->id.'">'.esc_html($type->name).'</option>'; } $this->row('Terminart-ID','<select name="scope_id">'.$typeOptions.'</select>'); $this->row('Wochentag (1=Mo)','<input type="number" name="weekday" value="1" min="1" max="7">'); $this->row('Startzeit','<input type="time" name="start_time" value="09:00">'); $this->row('Endzeit','<input type="time" name="end_time" value="17:00">'); $this->row('Slot-Dauer','<input type="number" name="slot_duration_minutes" value="30">'); $this->row('Puffer davor','<input type="number" name="buffer_before_minutes" value="0">'); $this->row('Puffer danach','<input type="number" name="buffer_after_minutes" value="15">'); $this->row('Vorlaufzeit (Min.)','<input type="number" name="min_notice_minutes" value="120">'); $this->row('Max. Tage im Voraus','<input type="number" name="max_days_in_advance" value="30">'); $this->row('Aktiv','<label><input type="checkbox" name="is_active" value="1" checked> ja</label>'); echo '</table><p><button class="button button-primary">Speichern</button></p></form>'; }
     private function renderExceptionsTable(array $items): void { echo '<table class="widefat striped"><thead><tr><th>Titel</th><th>Typ</th><th>Von</th><th>Bis</th></tr></thead><tbody>'; foreach($items as $i){ echo '<tr><td>'.esc_html($i->title).'</td><td>'.esc_html($i->type).'</td><td>'.esc_html($i->date_start).'</td><td>'.esc_html($i->date_end).'</td></tr>'; } echo '</tbody></table>'; }
     private function renderExceptionForm(): void { $types = (new BookingTypeRepository())->all(false); echo '<h2>Neue Ausnahme / Sperre</h2><form method="post">'; wp_nonce_field('cemb_admin_action'); echo '<input type="hidden" name="cemb_admin_action" value="save_exception"><table class="form-table">'; $this->row('Typ','<select name="type"><option value="holiday">Feiertag</option><option value="blocked_day">Gesperrter Tag</option><option value="blocked_range">Gesperrter Zeitraum</option><option value="vacation">Urlaub</option></select>'); $this->row('Titel','<input type="text" name="title" required>'); $this->row('Von','<input type="datetime-local" name="date_start" required>'); $this->row('Bis','<input type="datetime-local" name="date_end" required>'); $typeOptions='<option value="0">alle Terminarten</option>'; foreach($types as $type){ $typeOptions .= '<option value="'.(int)$type->id.'">'.esc_html($type->name).'</option>'; } $this->row('Terminart','<select name="booking_type_id">'.$typeOptions.'</select>'); $this->row('Ganztägig','<label><input type="checkbox" name="all_day" value="1" checked> ja</label>'); $this->row('Aktiv','<label><input type="checkbox" name="is_active" value="1" checked> ja</label>'); echo '</table><p><button class="button button-primary">Speichern</button></p></form>'; }
+
+    public function schedulerHealth(): void {
+        $this->formStart();
+        $health = (new SchedulerHealth())->snapshot();
+        echo '<h1>Systemstatus</h1>';
+        if ($health['healthy']) {
+            echo '<div class="notice notice-success inline"><p>WP-Cron und Queue-Verarbeitung wirken gesund.</p></div>';
+        } else {
+            echo '<div class="notice notice-warning inline"><p><strong>Scheduler-Warnungen:</strong></p><ul>';
+            foreach ($health['warnings'] as $warning) {
+                echo '<li>' . esc_html($warning) . '</li>';
+            }
+            echo '</ul></div>';
+        }
+        echo '<table class="widefat striped" style="max-width:900px"><tbody>';
+        echo '<tr><th>Letzter Queue-Lauf (UTC)</th><td>' . esc_html($health['last_queue_run'] ?: 'noch keiner') . '</td></tr>';
+        echo '<tr><th>Nächster Queue-Lauf (UTC)</th><td>' . esc_html($health['next_queue_run'] ?: 'nicht geplant') . '</td></tr>';
+        echo '<tr><th>Letzter Stundenlauf (UTC)</th><td>' . esc_html($health['last_reminder_run'] ?: 'noch keiner') . '</td></tr>';
+        echo '<tr><th>Nächster Stundenlauf (UTC)</th><td>' . esc_html($health['next_reminder_run'] ?: 'nicht geplant') . '</td></tr>';
+        echo '<tr><th>Queue pending / running / failed</th><td>'
+            . (int)$health['counts']['pending'] . ' / '
+            . (int)$health['counts']['running'] . ' / '
+            . (int)$health['counts']['failed'] . '</td></tr>';
+        echo '<tr><th>Abgelaufene Leases</th><td>' . (int)$health['stale_leases'] . '</td></tr>';
+        echo '</tbody></table>';
+
+        echo '<p style="margin-top:16px">';
+        echo '<form method="post" style="display:inline-block;margin-right:8px">';
+        wp_nonce_field('cemb_admin_action');
+        echo '<input type="hidden" name="cemb_admin_action" value="process_sync_queue">';
+        echo '<button class="button button-primary">Sync-Queue jetzt ausführen</button></form>';
+        echo '<form method="post" style="display:inline-block">';
+        wp_nonce_field('cemb_admin_action');
+        echo '<input type="hidden" name="cemb_admin_action" value="run_hourly_tasks">';
+        echo '<button class="button">Stündliche Aufgaben jetzt ausführen</button></form>';
+        echo '</p>';
+        echo '<p class="description">Für zuverlässige Produktion sollte WP-Cron durch einen echten System-Cron angestoßen werden. Siehe <code>docs/OPERATIONS.md</code>.</p>';
+        $this->formEnd();
+    }
 
     public function syncLog(): void {
         $this->formStart();
