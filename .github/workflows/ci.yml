@@ -60,6 +60,13 @@ jobs:
           extensions: mysqli, dom, sodium, zip, mbstring
           tools: wp-cli:2.12.0, composer
           coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build local UIkit fallback
+        run: |
+          npm install --no-audit --no-fund
+          npm run build:assets
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --no-dev
       - name: Install WordPress and plugin
