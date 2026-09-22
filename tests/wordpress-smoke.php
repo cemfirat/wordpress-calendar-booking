@@ -952,4 +952,117 @@ $wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $private_b
 $wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $private_booking_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $private_booking_id ] );
 
+
+/* WordPress privacy exporter / eraser / retention integration. */
+$privacy_service = new Cemb\Privacy\PrivacyService();
+cemb_smoke_assert( false !== has_filter( 'wp_privacy_personal_data_exporters' ), 'Personal-data exporter is registered with WordPress.' );
+cemb_smoke_assert( false !== has_filter( 'wp_privacy_personal_data_erasers' ), 'Personal-data eraser is registered with WordPress.' );
+cemb_smoke_assert( false !== has_action( 'cemb_privacy_retention' ), 'Daily privacy retention maintenance is registered.' );
+
+$privacy_email = 'privacy-export@example.com';
+$privacy_repo = new Cemb\Booking\BookingRepository();
+$privacy_now = Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc() );
+$privacy_booking_id = $privacy_repo->create(
+	[
+		'booking_uuid' => wp_generate_uuid4(),
+		'booking_type_id' => $type_id,
+		'slot_start' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '+10 days' ) ),
+		'slot_end' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '+10 days +30 minutes' ) ),
+		'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+		'full_name' => 'Privacy Export Person',
+		'email' => $privacy_email,
+		'phone' => '+43 123',
+		'notes' => 'PERSONAL BOOKING NOTE',
+		'admin_notes' => 'PERSONAL ADMIN NOTE',
+		'source' => 'ci',
+		'lang' => 'en',
+		'created_at' => $privacy_now,
+		'updated_at' => $privacy_now,
+	],
+	[
+		'company' => 'PERSONAL COMPANY',
+		'message' => 'PERSONAL FORM MESSAGE',
+		'icloud_uid' => 'TECHNICAL-UID-MUST-NOT-EXPORT',
+		'sync_error' => 'TECHNICAL-SYNC-MUST-NOT-EXPORT',
+	]
+);
+$privacy_token = ( new Cemb\Tokens\TokenService() )->create( $privacy_booking_id, 'cancel', 60 );
+$export = $privacy_service->exporter( $privacy_email, 1 );
+$export_json = wp_json_encode( $export );
+cemb_smoke_assert( false !== strpos( $export_json, 'Privacy Export Person' ), 'Privacy exporter returns guest booking identity data by email.' );
+cemb_smoke_assert( false !== strpos( $export_json, 'PERSONAL COMPANY' ), 'Privacy exporter includes personal dynamic form fields.' );
+cemb_smoke_assert( false === strpos( $export_json, 'TECHNICAL-UID-MUST-NOT-EXPORT' ), 'Privacy exporter excludes provider identifiers.' );
+cemb_smoke_assert( false === strpos( $export_json, 'TECHNICAL-SYNC-MUST-NOT-EXPORT' ), 'Privacy exporter excludes internal sync diagnostics.' );
+cemb_smoke_assert( false === strpos( $export_json, 'icloud_sync_password' ), 'Privacy exporter never contains provider credential settings.' );
+
+$erase = $privacy_service->eraser( $privacy_email, 1 );
+cemb_smoke_assert( ! empty( $erase['items_removed'] ) && ! empty( $erase['done'] ), 'Privacy eraser anonymizes all erasable bookings for the guest email.' );
+$erased_booking = $privacy_repo->find( $privacy_booking_id );
+cemb_smoke_assert( '' === (string)$erased_booking->full_name && '' === (string)$erased_booking->phone && '' === (string)$erased_booking->notes, 'Privacy eraser removes direct personal booking fields.' );
+cemb_smoke_assert( false !== strpos( (string)$erased_booking->email, '@example.invalid' ), 'Privacy eraser replaces the lookup email with a non-deliverable anonymized address.' );
+$erased_meta = $privacy_repo->getMeta( $privacy_booking_id );
+cemb_smoke_assert( ! isset( $erased_meta['company'], $erased_meta['message'] ), 'Privacy eraser removes personal form metadata.' );
+cemb_smoke_assert( isset( $erased_meta['icloud_uid'], $erased_meta['sync_error'] ), 'Privacy eraser retains operational sync metadata without exporting it.' );
+cemb_smoke_assert(
+	0 === (int)$wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}cemb_tokens WHERE booking_id = %d", $privacy_booking_id ) ),
+	'Privacy erasure revokes guest action tokens.'
+);
+
+$hold_email = 'privacy-hold@example.com';
+$hold_booking_id = $privacy_repo->create(
+	[
+		'booking_uuid' => wp_generate_uuid4(),
+		'booking_type_id' => $type_id,
+		'slot_start' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-90 days' ) ),
+		'slot_end' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-90 days +30 minutes' ) ),
+		'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+		'full_name' => 'Retention Hold Person',
+		'email' => $hold_email,
+		'source' => 'ci',
+		'lang' => 'en',
+		'created_at' => $privacy_now,
+		'updated_at' => $privacy_now,
+	],
+	[ 'subject' => 'KEEP ME' ]
+);
+$privacy_service->setRetention( $hold_booking_id, true );
+$hold_erase = $privacy_service->eraser( $hold_email, 1 );
+cemb_smoke_assert( ! empty( $hold_erase['items_retained'] ) && ! empty( $hold_erase['done'] ), 'Explicit retention hold blocks privacy erasure and reports retained data.' );
+cemb_smoke_assert( $hold_email === (string)$privacy_repo->find( $hold_booking_id )->email, 'Retention-held booking remains identifiable.' );
+
+$retention_email = 'privacy-retention@example.com';
+$retention_booking_id = $privacy_repo->create(
+	[
+		'booking_uuid' => wp_generate_uuid4(),
+		'booking_type_id' => $type_id,
+		'slot_start' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-60 days' ) ),
+		'slot_end' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-60 days +30 minutes' ) ),
+		'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+		'full_name' => 'Retention Expired Person',
+		'email' => $retention_email,
+		'source' => 'ci',
+		'lang' => 'en',
+		'created_at' => $privacy_now,
+		'updated_at' => $privacy_now,
+	],
+	[ 'message' => 'RETENTION PERSONAL DATA' ]
+);
+$settings_before_retention = get_option( 'cemb_settings', [] );
+$retention_settings = Cemb\Admin\Settings::get();
+$retention_settings['retention_enabled'] = 1;
+$retention_settings['retention_days'] = 30;
+update_option( 'cemb_settings', $retention_settings );
+$retention_count = $privacy_service->runRetention();
+cemb_smoke_assert( $retention_count >= 1, 'Enabled retention maintenance anonymizes bookings older than the configured period.' );
+cemb_smoke_assert( false !== strpos( (string)$privacy_repo->find( $retention_booking_id )->email, '@example.invalid' ), 'Retention maintenance anonymizes old personal booking data.' );
+cemb_smoke_assert( $hold_email === (string)$privacy_repo->find( $hold_booking_id )->email, 'Retention maintenance skips bookings with an explicit retention hold.' );
+update_option( 'cemb_settings', $settings_before_retention );
+
+foreach ( [ $privacy_booking_id, $hold_booking_id, $retention_booking_id ] as $cleanup_booking_id ) {
+	$wpdb->delete( $wpdb->prefix . 'cemb_tokens', [ 'booking_id' => $cleanup_booking_id ] );
+	$wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $cleanup_booking_id ] );
+	$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $cleanup_booking_id ] );
+	$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $cleanup_booking_id ] );
+}
+
 WP_CLI::success( 'WordPress Calendar Booking smoke test passed on WordPress ' . get_bloginfo( 'version' ) . ' / PHP ' . PHP_VERSION . '.' );
