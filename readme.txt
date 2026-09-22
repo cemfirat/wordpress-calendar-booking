@@ -2,22 +2,34 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: trunk
+Stable tag: 2.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 Calendar availability and appointment booking with Double Opt-In, optional admin approval, ICS attachments and configurable slots.
 
-== Development status ==
+== Description ==
 
-The imported 1.x code is a development baseline for the public 2.0 rewrite. There is currently no stable public release. See the GitHub issue tracker for release blockers.
+WordPress Calendar Booking provides configurable availability, server-validated appointment slots, Double Opt-In, optional administrator approval, ICS attachments and privacy-conscious calendar blocking.
 
-== Current prototype ==
-
-The prototype includes configurable booking types/slots, Double Opt-In, optional admin approval, notifications, ICS attachments and initial iCloud/CalDAV integration.
+Core features include:
+* Signed short-lived slot tokens with server-side availability revalidation
+* Atomic reservation protection against overlapping concurrent bookings
+* UTC storage with an explicit IANA booking timezone and DST-safe slot generation
+* Recurring ICS busy-time handling with RRULE, EXDATE and overrides
+* Busy-only public calendar output
+* Explicit booking lifecycle transitions
+* POST-only confirmation, cancellation and rescheduling actions
+* Indexed one-time action tokens
+* Authenticated provider-secret storage
+* Retryable/idempotent calendar and notification queues
+* WordPress personal-data exporter/eraser and optional retention anonymization
+* Shared UIkit frontend components with native YOOtheme Pro Builder elements
+* Locally bundled UIkit fallback when YOOtheme Pro is not active
 
 Shortcodes:
 [cemb_calendar]
 [cemb_booking_form]
+[cemb_booking_calendar]
 
-Known architectural/security/privacy limitations are tracked publicly without weaponized reproduction details. A stable release will not be published until the P0 tracker is complete.
+Stable releases are distributed from the public GitHub repository.
