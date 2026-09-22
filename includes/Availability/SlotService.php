@@ -4,21 +4,21 @@ namespace Cemb\Availability;
 use Cemb\Booking\BookingRepository;
 use Cemb\Booking\BookingTypeRepository;
 use Cemb\Calendar\IcloudProvider;
-use Cemb\Support\BookingFormatter;
+use Cemb\Calendar\PublicBusyPresenter;
 
 class SlotService {
     private AvailabilityRepository $repo;
     private BookingRepository $bookings;
     private IcloudProvider $calendar;
     private BookingTypeRepository $types;
-    private BookingFormatter $formatter;
+    private PublicBusyPresenter $publicBusy;
 
     public function __construct() {
         $this->repo = new AvailabilityRepository();
         $this->bookings = new BookingRepository();
         $this->calendar = new IcloudProvider();
         $this->types = new BookingTypeRepository();
-        $this->formatter = new BookingFormatter();
+        $this->publicBusy = new PublicBusyPresenter();
     }
 
     public function getSlots(int $typeId, int $days = 14, ?int $ignoreBookingId = null): array {
@@ -69,28 +69,11 @@ class SlotService {
         $itemsByDay = [];
         foreach ($externalEvents as $event) {
             $day = substr((string)$event['start'], 0, 10);
-            $itemsByDay[$day][] = [
-                'start' => $event['start'],
-                'end' => $event['end'],
-                'title' => $event['summary'] ?: 'Besetzt',
-                'label' => wp_date('H:i', strtotime((string)$event['start'])) . ' Besetzt',
-                'type_id' => 0,
-                'class' => 'cemb-event-external',
-                'source' => 'external',
-            ];
+            $itemsByDay[$day][] = $this->publicBusy->externalEvent($event);
         }
         foreach ($internalBookings as $booking) {
-            $meta = $this->bookings->getMeta((int)$booking->id);
             $day = substr((string)$booking->slot_start, 0, 10);
-            $itemsByDay[$day][] = [
-                'start' => $booking->slot_start,
-                'end' => $booking->slot_end,
-                'title' => $this->formatter->summary((array)$booking, $meta),
-                'label' => wp_date('H:i', strtotime((string)$booking->slot_start)) . ' ' . $this->formatter->summary((array)$booking, $meta),
-                'type_id' => (int)$booking->booking_type_id,
-                'class' => 'cemb-event-booking ' . $this->formatter->typeColorClass((int)$booking->booking_type_id),
-                'source' => 'booking',
-            ];
+            $itemsByDay[$day][] = $this->publicBusy->booking($booking);
         }
         foreach ($itemsByDay as &$items) {
             usort($items, static fn($a, $b) => strcmp((string)$a['start'], (string)$b['start']));
