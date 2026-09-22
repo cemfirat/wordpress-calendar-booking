@@ -47,4 +47,37 @@ cemb_smoke_assert( $type_count >= 1, 'Default booking types are seeded.' );
 $rule_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}cemb_availability_rules" );
 cemb_smoke_assert( $rule_count >= 1, 'Default availability rules are seeded.' );
 
+
+$type_repo = new Cemb\Booking\BookingTypeRepository();
+$types = $type_repo->all( true );
+cemb_smoke_assert( ! empty( $types ), 'At least one public booking type is available for slot tests.' );
+
+$type_id = (int) $types[0]->id;
+$slot_service = new Cemb\Availability\SlotService();
+$slots = $slot_service->getSlots( $type_id, 21 );
+cemb_smoke_assert( ! empty( $slots ), 'Server generates at least one canonical slot.' );
+
+$slot = $slots[0];
+$token_service = new Cemb\Tokens\SlotTokenService();
+$selection_service = new Cemb\Availability\SlotSelectionService();
+
+$token = $token_service->issue( $type_id, $slot['start'], $slot['end'] );
+$payload = $token_service->verify( $token );
+cemb_smoke_assert( is_array( $payload ), 'A server-issued slot token verifies.' );
+cemb_smoke_assert( $type_id === $payload['type_id'], 'Slot token binds the booking type.' );
+cemb_smoke_assert( $slot['start'] === $payload['start'] && $slot['end'] === $payload['end'], 'Slot token binds the canonical start and end.' );
+cemb_smoke_assert( is_array( $selection_service->resolve( $token, $type_id ) ), 'A valid token resolves only after current availability revalidation.' );
+
+$tampered = substr( $token, 0, -1 ) . ( substr( $token, -1 ) === 'A' ? 'B' : 'A' );
+cemb_smoke_assert( null === $token_service->verify( $tampered ), 'A tampered slot token is rejected.' );
+cemb_smoke_assert( null === $selection_service->resolve( $token, $type_id + 9999 ), 'A slot token cannot be reused for another booking type.' );
+
+$short_lived = $token_service->issue( $type_id, $slot['start'], $slot['end'], 60 );
+cemb_smoke_assert( null === $token_service->verify( $short_lived, time() + 61 ), 'An expired slot token is rejected.' );
+
+$off_start = date( 'Y-m-d H:i:s', strtotime( $slot['start'] . ' +5 minutes' ) );
+$off_end = date( 'Y-m-d H:i:s', strtotime( $slot['end'] . ' +5 minutes' ) );
+$off_grid_token = $token_service->issue( $type_id, $off_start, $off_end );
+cemb_smoke_assert( null === $selection_service->resolve( $off_grid_token, $type_id ), 'A signed but non-canonical off-grid slot is rejected.' );
+
 WP_CLI::success( 'WordPress Calendar Booking smoke test passed on WordPress ' . get_bloginfo( 'version' ) . ' / PHP ' . PHP_VERSION . '.' );

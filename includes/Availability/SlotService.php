@@ -21,7 +21,7 @@ class SlotService {
         $this->formatter = new BookingFormatter();
     }
 
-    public function getSlots(int $typeId, int $days = 14): array {
+    public function getSlots(int $typeId, int $days = 14, ?int $ignoreBookingId = null): array {
         $type = $this->types->find($typeId);
         if (!$type) return [];
         $rules = $this->repo->rulesForType($typeId);
@@ -38,7 +38,7 @@ class SlotService {
                 $dayTs = strtotime('+' . $i . ' days', $nowTs);
                 if ((int)date_i18n('N', $dayTs) !== (int)$rule->weekday) continue;
                 $date = date_i18n('Y-m-d', $dayTs);
-                $out = array_merge($out, $this->buildDaySlots($type, $rule, $date, $calendarEvents, $exceptions));
+                $out = array_merge($out, $this->buildDaySlots($type, $rule, $date, $calendarEvents, $exceptions, $ignoreBookingId));
             }
         }
         usort($out, static fn($a, $b) => strcmp($a['start'], $b['start']));
@@ -120,6 +120,34 @@ class SlotService {
         ];
     }
 
+    public function isCanonicalSlot(int $typeId, string $start, string $end, ?int $ignoreBookingId = null): bool {
+        if (!preg_match('/^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$/', $start)
+            || !preg_match('/^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$/', $end)
+        ) {
+            return false;
+        }
+
+        $startTs = strtotime($start);
+        $endTs = strtotime($end);
+        $todayTs = strtotime(current_time('Y-m-d') . ' 00:00:00');
+        if (!$startTs || !$endTs || !$todayTs || $endTs <= $startTs) {
+            return false;
+        }
+
+        $daysFromToday = (int) floor(($startTs - $todayTs) / 86400);
+        if ($daysFromToday < 0 || $daysFromToday > 366) {
+            return false;
+        }
+
+        $slots = $this->getSlots($typeId, $daysFromToday + 1, $ignoreBookingId);
+        foreach ($slots as $slot) {
+            if (($slot['start'] ?? null) === $start && ($slot['end'] ?? null) === $end) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     public function slotAvailable(int $typeId, string $start, string $end, ?int $ignoreId = null): bool {
         $type = $this->types->find($typeId);
         if (!$type) return false;
@@ -132,7 +160,7 @@ class SlotService {
         return !$this->isBlockedByCalendar($start, $end, $bufferBefore, $bufferAfter, $events);
     }
 
-    private function buildDaySlots(object $type, object $rule, string $date, array $calendarEvents, array $exceptions): array {
+    private function buildDaySlots(object $type, object $rule, string $date, array $calendarEvents, array $exceptions, ?int $ignoreBookingId = null): array {
         $startTs = strtotime($date . ' ' . $rule->start_time);
         $endTs = strtotime($date . ' ' . $rule->end_time);
         $duration = (int)($type->duration_minutes ?: $rule->slot_duration_minutes);
@@ -147,7 +175,7 @@ class SlotService {
             $slotStart = date('Y-m-d H:i:s', $slotTs);
             $slotEnd = date('Y-m-d H:i:s', $slotTs + ($duration * 60));
             if ($this->isBlockedByExceptions($slotStart, $slotEnd, $exceptions)) continue;
-            if ($this->isBlockedByBookings($slotStart, $slotEnd, $bufferBefore, $bufferAfter)) continue;
+            if ($this->isBlockedByBookings($slotStart, $slotEnd, $bufferBefore, $bufferAfter, $ignoreBookingId)) continue;
             if ($this->isBlockedByCalendar($slotStart, $slotEnd, $bufferBefore, $bufferAfter, $calendarEvents)) continue;
             $free[] = [
                 'start' => $slotStart,
@@ -158,10 +186,10 @@ class SlotService {
         return $free;
     }
 
-    private function isBlockedByBookings(string $start, string $end, int $bufferBefore, int $bufferAfter): bool {
+    private function isBlockedByBookings(string $start, string $end, int $bufferBefore, int $bufferAfter, ?int $ignoreBookingId = null): bool {
         $start = date('Y-m-d H:i:s', strtotime($start . ' -' . $bufferBefore . ' minutes'));
         $end = date('Y-m-d H:i:s', strtotime($end . ' +' . $bufferAfter . ' minutes'));
-        return $this->bookings->hasConflict($start, $end);
+        return $this->bookings->hasConflict($start, $end, $ignoreBookingId);
     }
 
     private function isBlockedByCalendar(string $start, string $end, int $bufferBefore, int $bufferAfter, array $events): bool {
