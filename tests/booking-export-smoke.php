@@ -65,7 +65,7 @@ cemb_export_assert(count($filtered) === 1 && (int)$filtered[0]->id === $first, '
 $outside = $repo->all(['from' => '2026-11-01 00:00:00', 'to' => '2026-11-30 23:59:59']);
 cemb_export_assert(count(array_filter($outside, fn($b) => (int)$b->id === $second)) === 1, 'Date range includes the expected later booking.');
 
-$adminSource = file_get_contents(CEMB_PATH . 'includes/Admin/Admin.php');
+$adminSource = file_get_contents(CEMB_DIR . 'includes/Admin/Admin.php');
 cemb_export_assert(strpos($adminSource, "admin_post_cemb_export_bookings") !== false, 'CSV export is registered as an authenticated admin action.');
 cemb_export_assert(strpos($adminSource, "check_admin_referer('cemb_export_bookings')") !== false, 'CSV export requires a nonce.');
 cemb_export_assert(strpos($adminSource, "current_user_can('manage_options')") !== false, 'CSV export requires administrator capability.');
