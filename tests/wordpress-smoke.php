@@ -112,6 +112,12 @@ foreach ( $tables as $suffix ) {
 
 /* Indexed selector/verifier one-time-token storage. */
 $token_table = $wpdb->prefix . 'cemb_tokens';
+
+/* Simulate an existing pre-selector install and prove the code upgrade repairs it. */
+$wpdb->query( "ALTER TABLE {$token_table} DROP INDEX token_selector, DROP COLUMN token_selector" );
+update_option( 'cemb_schema_version', 1, false );
+Cemb\Database\SchemaMigration::maybeRun();
+
 $selector_column = $wpdb->get_row(
 	$wpdb->prepare( "SHOW COLUMNS FROM {$token_table} LIKE %s", 'token_selector' )
 );
