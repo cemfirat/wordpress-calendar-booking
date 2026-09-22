@@ -147,6 +147,22 @@ final class BookingTransitionService {
         return $result;
     }
 
+    public function expireReservations(int $limit = 100): int {
+        $expired = 0;
+        foreach ($this->bookings->expiredReservationIds($limit) as $bookingId) {
+            $result = $this->apply(
+                $bookingId,
+                BookingStateMachine::RESERVATION_EXPIRED,
+                'system',
+                'Unconfirmed reservation expired'
+            );
+            if (is_array($result) && !empty($result['changed'])) {
+                ++$expired;
+            }
+        }
+        return $expired;
+    }
+
     private function requiresAvailabilityRevalidation(string $event): bool {
         return in_array($event, [
             BookingStateMachine::EMAIL_CONFIRMED_APPROVAL,
