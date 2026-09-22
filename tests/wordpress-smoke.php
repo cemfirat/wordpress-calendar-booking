@@ -110,6 +110,151 @@ foreach ( $tables as $suffix ) {
 	cemb_smoke_assert( $table === $found, 'Database table exists: ' . $table );
 }
 
+/* Authenticated calendar/provider secret storage. */
+$secret_settings_backup = get_option( 'cemb_settings', [] );
+$secret_version_backup = get_option( 'cemb_secret_storage_version', null );
+$secret_reentry_backup = get_option( 'cemb_secret_reentry_required', null );
+$secret_plaintext = 'PRIVATE-CALENDAR-PASSWORD-ci-42';
+
+$secret_box = new Cemb\Security\SecretBox();
+cemb_smoke_assert( $secret_box->available(), 'At least one authenticated secret-storage backend is available in WordPress CI.' );
+$encrypted_secret = $secret_box->encrypt( $secret_plaintext );
+cemb_smoke_assert( is_string( $encrypted_secret ) && 0 === strpos( $encrypted_secret, 'v2:' ), 'Provider secret ciphertext is explicitly versioned.' );
+cemb_smoke_assert( false === strpos( $encrypted_secret, $secret_plaintext ), 'Provider ciphertext does not contain the raw secret.' );
+cemb_smoke_assert( $secret_plaintext === $secret_box->decrypt( $encrypted_secret ), 'Authenticated provider ciphertext decrypts correctly.' );
+
+$encrypted_parts = explode( ':', $encrypted_secret );
+$last_part_index = count( $encrypted_parts ) - 1;
+$tampered_part = $encrypted_parts[$last_part_index];
+$tamper_position = min( 5, strlen( $tampered_part ) - 1 );
+$tampered_part[$tamper_position] = $tampered_part[$tamper_position] === 'A' ? 'B' : 'A';
+$encrypted_parts[$last_part_index] = $tampered_part;
+$tampered_secret = implode( ':', $encrypted_parts );
+cemb_smoke_assert( null === $secret_box->decrypt( $tampered_secret ), 'Tampered provider ciphertext fails closed.' );
+
+$force_aesgcm = static fn() => 'aesgcm';
+add_filter( 'cemb_secret_storage_backend', $force_aesgcm );
+$aes_box = new Cemb\Security\SecretBox();
+if ( $aes_box->backend() === 'aesgcm' ) {
+	$aes_ciphertext = $aes_box->encrypt( $secret_plaintext );
+	cemb_smoke_assert(
+		is_string( $aes_ciphertext )
+		&& 0 === strpos( $aes_ciphertext, 'v2:aesgcm:' )
+		&& $secret_plaintext === $aes_box->decrypt( $aes_ciphertext ),
+		'AES-256-GCM authenticated fallback round-trips when available.'
+	);
+}
+remove_filter( 'cemb_secret_storage_backend', $force_aesgcm );
+
+$secure_update = Cemb\Admin\Settings::update(
+	[
+		'icloud_sync_password' => $secret_plaintext,
+		'icloud_sync_enabled' => 1,
+	]
+);
+cemb_smoke_assert( true === $secure_update, 'Settings accept a provider secret only after authenticated encryption.' );
+$secure_settings = Cemb\Admin\Settings::get();
+$stored_ciphertext = (string) $secure_settings['icloud_sync_password_enc'];
+cemb_smoke_assert(
+	0 === strpos( $stored_ciphertext, 'v2:' )
+	&& false === strpos( wp_json_encode( $secure_settings ), $secret_plaintext ),
+	'WordPress options contain ciphertext but never the raw provider secret.'
+);
+cemb_smoke_assert(
+	$secret_plaintext === Cemb\Admin\Settings::getIcloudSyncPassword(),
+	'Provider client can recover an authenticated stored credential.'
+);
+cemb_smoke_assert(
+	'stored' === Cemb\Admin\Settings::secretStatus()['state'],
+	'Admin secret diagnostics report valid authenticated storage without revealing the secret.'
+);
+
+ob_start();
+( new Cemb\Admin\Admin() )->settings();
+$settings_html = (string) ob_get_clean();
+cemb_smoke_assert( false === strpos( $settings_html, $secret_plaintext ), 'Settings HTML never renders provider plaintext.' );
+cemb_smoke_assert( false === strpos( $settings_html, $stored_ciphertext ), 'Settings HTML never renders provider ciphertext.' );
+cemb_smoke_assert(
+	false !== strpos( $settings_html, 'name="icloud_sync_password" value=""' ),
+	'Credential input is always blank in rendered settings HTML.'
+);
+
+$no_crypto_filter = static fn() => '';
+add_filter( 'cemb_secret_storage_backend', $no_crypto_filter );
+$settings_before_failed_secret_save = Cemb\Admin\Settings::get();
+$no_crypto_result = Cemb\Admin\Settings::update(
+	[
+		'sender_name' => 'MUST-NOT-BE-SAVED',
+		'icloud_sync_password' => 'MUST-NOT-BE-STORED',
+	]
+);
+remove_filter( 'cemb_secret_storage_backend', $no_crypto_filter );
+cemb_smoke_assert(
+	is_wp_error( $no_crypto_result )
+	&& 'cemb_secret_crypto_unavailable' === $no_crypto_result->get_error_code(),
+	'Missing authenticated crypto support rejects secret storage with a clear error.'
+);
+$settings_after_failed_secret_save = Cemb\Admin\Settings::get();
+cemb_smoke_assert(
+	$settings_before_failed_secret_save['sender_name'] === $settings_after_failed_secret_save['sender_name']
+	&& $stored_ciphertext === $settings_after_failed_secret_save['icloud_sync_password_enc'],
+	'Failed secret encryption leaves all settings unchanged.'
+);
+
+$tampered_settings = $settings_after_failed_secret_save;
+$tampered_settings['icloud_sync_password_enc'] = $tampered_secret;
+update_option( 'cemb_settings', $tampered_settings );
+cemb_smoke_assert( '' === Cemb\Admin\Settings::getIcloudSyncPassword(), 'Tampered stored credential never yields plaintext.' );
+cemb_smoke_assert( 'invalid' === Cemb\Admin\Settings::secretStatus()['state'], 'Tampered stored credential is visible only as an invalid diagnostic state.' );
+
+$legacy_settings = $settings_after_failed_secret_save;
+$legacy_settings['icloud_sync_password_enc'] = base64_encode( 'legacy-unauthenticated-secret' );
+$legacy_settings['icloud_sync_enabled'] = 1;
+update_option( 'cemb_settings', $legacy_settings );
+delete_option( 'cemb_secret_reentry_required' );
+update_option( 'cemb_secret_storage_version', 0, false );
+Cemb\Security\SecretMigration::maybeRun();
+$migrated_secret_settings = Cemb\Admin\Settings::get();
+cemb_smoke_assert(
+	'' === $migrated_secret_settings['icloud_sync_password_enc']
+	&& empty( $migrated_secret_settings['icloud_sync_enabled'] ),
+	'Legacy unauthenticated credential is revoked and write-back is disabled.'
+);
+cemb_smoke_assert(
+	1 === (int) get_option( 'cemb_secret_reentry_required', 0 )
+	&& 'reentry' === Cemb\Admin\Settings::secretStatus()['state'],
+	'Legacy credential migration explicitly requires administrator re-entry.'
+);
+cemb_smoke_assert(
+	Cemb\Security\SecretMigration::currentVersion() === (int) get_option( 'cemb_secret_storage_version', 0 ),
+	'Authenticated secret-storage migration is recorded.'
+);
+
+$reentry_result = Cemb\Admin\Settings::update(
+	[
+		'icloud_sync_password' => $secret_plaintext,
+		'icloud_sync_enabled' => 1,
+	]
+);
+cemb_smoke_assert(
+	true === $reentry_result
+	&& false === get_option( 'cemb_secret_reentry_required', false )
+	&& $secret_plaintext === Cemb\Admin\Settings::getIcloudSyncPassword(),
+	'Re-entering the credential clears the legacy warning and stores it authentically.'
+);
+
+update_option( 'cemb_settings', $secret_settings_backup );
+if ( $secret_version_backup === null ) {
+	delete_option( 'cemb_secret_storage_version' );
+} else {
+	update_option( 'cemb_secret_storage_version', $secret_version_backup, false );
+}
+if ( $secret_reentry_backup === null ) {
+	delete_option( 'cemb_secret_reentry_required' );
+} else {
+	update_option( 'cemb_secret_reentry_required', $secret_reentry_backup, false );
+}
+
 /* Indexed selector/verifier one-time-token storage. */
 $token_table = $wpdb->prefix . 'cemb_tokens';
 
