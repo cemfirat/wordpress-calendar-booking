@@ -5,6 +5,7 @@ use Cemb\Admin\Settings;
 use Cemb\Booking\BookingRepository;
 use Cemb\Support\BookingFormatter;
 use Cemb\ICS\IcsGenerator;
+use Cemb\Support\Time;
 
 class IcloudSyncService {
     private BookingRepository $bookings;
@@ -57,7 +58,7 @@ class IcloudSyncService {
             'icloud_calendar_url' => $calendarUrl,
             'sync_status' => !empty($result['ok']) ? 'synced' : 'error',
             'sync_error' => !empty($result['ok']) ? '' : (string)($result['message'] ?? 'Sync-Fehler'),
-            'last_synced_at' => current_time('mysql'),
+            'last_synced_at' => Time::formatUtc(Time::nowUtc()),
             'icloud_etag' => (string)($result['etag'] ?? ''),
         ];
         $this->storeSyncMeta($bookingId, $payload);
@@ -76,7 +77,7 @@ class IcloudSyncService {
         $this->storeSyncMeta($bookingId, [
             'sync_status' => !empty($result['ok']) ? 'cancelled' : 'error',
             'sync_error' => !empty($result['ok']) ? '' : (string)($result['message'] ?? 'Storno fehlgeschlagen'),
-            'last_synced_at' => current_time('mysql'),
+            'last_synced_at' => Time::formatUtc(Time::nowUtc()),
         ]);
         return $result;
     }

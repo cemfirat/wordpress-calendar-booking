@@ -1,6 +1,8 @@
 <?php
 namespace Cemb\Sync;
 
+use Cemb\Support\Time;
+
 class JobRepository {
     private string $jobsTable;
     private string $logTable;
@@ -27,9 +29,9 @@ class JobRepository {
             'payload_json' => wp_json_encode($payload),
             'status' => 'pending',
             'attempts' => 0,
-            'available_at' => current_time('mysql'),
-            'created_at' => current_time('mysql'),
-            'updated_at' => current_time('mysql'),
+            'available_at' => Time::formatUtc(Time::nowUtc()),
+            'created_at' => Time::formatUtc(Time::nowUtc()),
+            'updated_at' => Time::formatUtc(Time::nowUtc()),
         ]);
         $id = (int)$wpdb->insert_id;
         $this->log($id, $bookingId, 'info', 'Job angelegt: ' . $jobType);
@@ -40,7 +42,7 @@ class JobRepository {
         global $wpdb;
         $sql = $wpdb->prepare(
             "SELECT * FROM {$this->jobsTable} WHERE status = 'pending' AND available_at <= %s ORDER BY id ASC LIMIT %d",
-            current_time('mysql'),
+            Time::formatUtc(Time::nowUtc()),
             $limit
         );
         return $wpdb->get_results($sql);
@@ -50,7 +52,7 @@ class JobRepository {
         global $wpdb;
         $wpdb->query($wpdb->prepare(
             "UPDATE {$this->jobsTable} SET status = 'running', attempts = attempts + 1, updated_at = %s WHERE id = %d",
-            current_time('mysql'),
+            Time::formatUtc(Time::nowUtc()),
             $jobId
         ));
     }
@@ -60,7 +62,7 @@ class JobRepository {
         $wpdb->update($this->jobsTable, [
             'status' => 'done',
             'last_error' => '',
-            'updated_at' => current_time('mysql'),
+            'updated_at' => Time::formatUtc(Time::nowUtc()),
         ], ['id' => $jobId]);
         $this->log($jobId, $bookingId, 'success', $message ?: 'Job abgeschlossen');
     }
@@ -72,8 +74,8 @@ class JobRepository {
         $wpdb->update($this->jobsTable, [
             'status' => $status,
             'last_error' => $message,
-            'available_at' => date('Y-m-d H:i:s', strtotime('+' . $delayMinutes . ' minutes', current_time('timestamp'))),
-            'updated_at' => current_time('mysql'),
+            'available_at' => Time::formatUtc(Time::nowUtc()->modify('+' . max(0, $delayMinutes) . ' minutes')),
+            'updated_at' => Time::formatUtc(Time::nowUtc()),
         ], ['id' => $jobId]);
         $this->log($jobId, $bookingId, $status === 'failed' ? 'error' : 'warning', $message);
     }
@@ -96,7 +98,7 @@ class JobRepository {
             'booking_id' => $bookingId,
             'level' => $level,
             'message' => $message,
-            'created_at' => current_time('mysql'),
+            'created_at' => Time::formatUtc(Time::nowUtc()),
         ]);
     }
 }

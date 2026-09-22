@@ -3,6 +3,7 @@ namespace Cemb\Booking;
 
 use Cemb\Admin\Settings;
 use Cemb\Availability\SlotSelectionService;
+use Cemb\Support\Time;
 
 /**
  * Creates the initial booking reservation inside a serialized critical section.
@@ -42,7 +43,7 @@ class ReservationService {
             }
 
             $settings = Settings::get();
-            $now = current_time('mysql');
+            $now = Time::formatUtc(Time::nowUtc());
             $bookingId = $this->bookings->create([
                 'booking_uuid' => wp_generate_uuid4(),
                 'booking_type_id' => (int)$slot['type_id'],
@@ -55,9 +56,8 @@ class ReservationService {
                 'notes' => (string)($customer['notes'] ?? ''),
                 'source' => (string)($customer['source'] ?? 'frontend'),
                 'lang' => (string)($customer['lang'] ?? 'de'),
-                'reserved_until' => date(
-                    'Y-m-d H:i:s',
-                    strtotime('+' . max(1, (int)$settings['reservation_ttl_minutes']) . ' minutes', current_time('timestamp'))
+                'reserved_until' => Time::formatUtc(
+                    Time::nowUtc()->modify('+' . max(1, (int)$settings['reservation_ttl_minutes']) . ' minutes')
                 ),
                 'created_at' => $now,
                 'updated_at' => $now,

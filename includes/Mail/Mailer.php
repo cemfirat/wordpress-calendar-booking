@@ -5,6 +5,7 @@ use Cemb\Admin\Settings;
 use Cemb\ICS\IcsGenerator;
 use Cemb\Support\BookingFormatter;
 use Cemb\Booking\BookingTypeRepository;
+use Cemb\Support\Time;
 
 class Mailer {
     private BookingFormatter $formatter;
@@ -27,8 +28,8 @@ class Mailer {
             '{email}' => $booking['email'] ?? '',
             '{telefon}' => $booking['phone'] ?? '',
             '{terminart}' => $type->name ?? '',
-            '{datum}' => wp_date($settings['date_format'], strtotime((string)$booking['slot_start'])),
-            '{uhrzeit}' => wp_date($settings['time_format'], strtotime((string)$booking['slot_start'])),
+            '{datum}' => Time::display((string)$booking['slot_start'], $settings['date_format']),
+            '{uhrzeit}' => Time::display((string)$booking['slot_start'], $settings['time_format']),
             '{start}' => $booking['slot_start'] ?? '',
             '{ende}' => $booking['slot_end'] ?? '',
             '{slot}' => ($booking['slot_start'] ?? '') . ' - ' . ($booking['slot_end'] ?? ''),
@@ -71,8 +72,8 @@ class Mailer {
             '{name}' => $this->formatter->displayName($booking, $meta),
             '{email}' => $booking['email'] ?? '',
             '{terminart}' => $type->name ?? '',
-            '{datum}' => wp_date($settings['date_format'], strtotime((string)$booking['slot_start'])),
-            '{uhrzeit}' => wp_date($settings['time_format'], strtotime((string)$booking['slot_start'])),
+            '{datum}' => Time::display((string)$booking['slot_start'], $settings['date_format']),
+            '{uhrzeit}' => Time::display((string)$booking['slot_start'], $settings['time_format']),
             '{betreff}' => (string)($meta['subject'] ?? ''),
             '{ort}' => $this->formatter->location($booking, $meta, $settings),
         ];

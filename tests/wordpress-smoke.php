@@ -22,6 +22,51 @@ cemb_smoke_assert( shortcode_exists( 'cemb_booking_calendar' ), 'Booking calenda
 cemb_smoke_assert( false !== has_action( 'admin_post_nopriv_cemb_submit_booking' ), 'Public booking submission action is registered.' );
 cemb_smoke_assert( false !== has_action( 'wp_ajax_nopriv_cemb_get_slots' ), 'Public slot AJAX action is registered.' );
 
+$settings_before_time_test = get_option( 'cemb_settings', [] );
+$time_settings = Cemb\Admin\Settings::get();
+$time_settings['timezone'] = 'Europe/Vienna';
+update_option( 'cemb_settings', $time_settings );
+
+cemb_smoke_assert( 'Europe/Vienna' === Cemb\Support\Time::bookingTimezoneName(), 'Booking domain uses the configured IANA timezone.' );
+cemb_smoke_assert( '2026-01-15 08:00:00' === Cemb\Support\Time::localToUtc( '2026-01-15 09:00:00' ), 'Winter wall time converts to UTC with CET offset.' );
+cemb_smoke_assert( '2026-07-15 07:00:00' === Cemb\Support\Time::localToUtc( '2026-07-15 09:00:00' ), 'Summer wall time converts to UTC with CEST offset.' );
+cemb_smoke_assert( null === Cemb\Support\Time::parseLocal( '2026-03-29 02:30:00' ), 'Non-existent spring-forward wall time is rejected.' );
+cemb_smoke_assert( null === Cemb\Support\Time::parseLocal( '2026-10-25 02:30:00' ), 'Ambiguous fall-back wall time is rejected.' );
+cemb_smoke_assert( '2026-07-15 09:00:00' === Cemb\Support\Time::utcToLocal( '2026-07-15 07:00:00' ), 'UTC storage converts back to booking wall time.' );
+cemb_smoke_assert( 'UTC' === Cemb\Admin\Settings::normalizeTimezone( 'GMT+2' ), 'Fixed/invalid timezone strings are rejected in favor of a canonical IANA fallback.' );
+
+global $wpdb;
+$migration_booking_id = 0;
+$wpdb->insert(
+	$wpdb->prefix . 'cemb_bookings',
+	[
+		'booking_uuid' => wp_generate_uuid4(),
+		'booking_type_id' => 1,
+		'slot_start' => '2026-01-15 09:00:00',
+		'slot_end' => '2026-01-15 10:00:00',
+		'status' => Cemb\Booking\BookingStatus::CANCELLED,
+		'full_name' => 'Time Migration Test',
+		'email' => 'time-migration@example.com',
+		'source' => 'ci',
+		'lang' => 'en',
+		'created_at' => '2026-01-01 12:00:00',
+		'updated_at' => '2026-01-01 12:00:00',
+	]
+);
+$migration_booking_id = (int) $wpdb->insert_id;
+update_option( 'cemb_time_storage_version', 0, false );
+Cemb\Support\TimeMigration::maybeRun();
+$migrated_booking = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cemb_bookings WHERE id = %d", $migration_booking_id ) );
+cemb_smoke_assert( '2026-01-15 08:00:00' === $migrated_booking->slot_start, 'Legacy local booking start is migrated to the same UTC instant.' );
+cemb_smoke_assert( '2026-01-15 09:00:00' === $migrated_booking->slot_end, 'Legacy local booking end is migrated to the same UTC instant.' );
+$migrated_start_once = $migrated_booking->slot_start;
+Cemb\Support\TimeMigration::maybeRun();
+$migrated_booking_again = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cemb_bookings WHERE id = %d", $migration_booking_id ) );
+cemb_smoke_assert( $migrated_start_once === $migrated_booking_again->slot_start, 'UTC storage migration is idempotent.' );
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $migration_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $migration_booking_id ] );
+update_option( 'cemb_settings', $settings_before_time_test );
+
 global $wpdb;
 $tables = array(
 	'bookings',

@@ -1,6 +1,8 @@
 <?php
 namespace Cemb\Calendar;
 
+use Cemb\Support\Time;
+
 class Parser {
     public function parse(string $ics, string $from, string $to): array {
         $ics = preg_replace("/\r\n[ \t]/", '', $ics);
@@ -20,57 +22,85 @@ class Parser {
 
     private function parseEventBlock(string $block): ?array {
         $lines = preg_split('/\n/', trim($block));
-        $data = [];
+        $properties = [];
         foreach ($lines as $line) {
             $line = trim($line, "\r\n");
             if ($line === '' || strpos($line, ':') === false) {
                 continue;
             }
             [$key, $value] = explode(':', $line, 2);
-            $data[$key] = $value;
+            $properties[] = [$key, $value];
         }
-        $start = $this->parseDate($data['DTSTART'] ?? ($this->findByPrefix($data, 'DTSTART') ?? ''));
-        $end = $this->parseDate($data['DTEND'] ?? ($this->findByPrefix($data, 'DTEND') ?? ''));
+
+        $startProperty = $this->findProperty($properties, 'DTSTART');
+        $endProperty = $this->findProperty($properties, 'DTEND');
+        if (!$startProperty || !$endProperty) {
+            return null;
+        }
+
+        $start = $this->parseDate($startProperty[0], $startProperty[1]);
+        $end = $this->parseDate($endProperty[0], $endProperty[1]);
         if (!$start || !$end) {
             return null;
         }
+
         return [
-            'uid' => $data['UID'] ?? '',
-            'summary' => $data['SUMMARY'] ?? '',
-            'description' => $data['DESCRIPTION'] ?? '',
-            'location' => $data['LOCATION'] ?? '',
+            'uid' => $this->propertyValue($properties, 'UID'),
+            'summary' => $this->propertyValue($properties, 'SUMMARY'),
+            'description' => $this->propertyValue($properties, 'DESCRIPTION'),
+            'location' => $this->propertyValue($properties, 'LOCATION'),
             'start' => $start,
             'end' => $end,
         ];
     }
 
-    private function findByPrefix(array $data, string $prefix): ?string {
-        foreach ($data as $key => $value) {
-            if (strpos($key, $prefix . ';') === 0) {
-                return $value;
+    private function findProperty(array $properties, string $name): ?array {
+        foreach ($properties as $property) {
+            $key = (string)$property[0];
+            if ($key === $name || strpos($key, $name . ';') === 0) {
+                return [$key, (string)$property[1]];
             }
         }
         return null;
     }
 
-    private function parseDate(string $value): ?string {
+    private function propertyValue(array $properties, string $name): string {
+        $property = $this->findProperty($properties, $name);
+        return $property ? (string)$property[1] : '';
+    }
+
+    private function parseDate(string $key, string $value): ?string {
         if ($value === '') {
             return null;
         }
-        if (preg_match('/^(\d{8})$/', $value, $m)) {
-            $dt = \DateTime::createFromFormat('Ymd H:i:s', $m[1] . ' 00:00:00', wp_timezone());
-            return $dt ? $dt->format('Y-m-d H:i:s') : null;
+
+        $timezone = Time::bookingTimezone();
+        if (preg_match('/;TZID=([^;:]+)/i', $key, $tzid)) {
+            try {
+                $timezone = new \DateTimeZone($tzid[1]);
+            } catch (\Exception $e) {
+                return null;
+            }
         }
-        if (preg_match('/^(\d{8})T(\d{6})Z$/', $value, $m)) {
-            $dt = \DateTime::createFromFormat('Ymd His', $m[1] . ' ' . $m[2], new \DateTimeZone('UTC'));
-            if (!$dt) return null;
-            $dt->setTimezone(wp_timezone());
-            return $dt->format('Y-m-d H:i:s');
+
+        if (preg_match('/^(\d{8})$/', $value, $match)) {
+            $local = \DateTimeImmutable::createFromFormat('!Ymd H:i:s', $match[1] . ' 00:00:00', $timezone);
+            return $local ? Time::formatUtc($local) : null;
         }
-        if (preg_match('/^(\d{8})T(\d{6})$/', $value, $m)) {
-            $dt = \DateTime::createFromFormat('Ymd His', $m[1] . ' ' . $m[2], wp_timezone());
-            return $dt ? $dt->format('Y-m-d H:i:s') : null;
+
+        if (preg_match('/^(\d{8})T(\d{6})Z$/', $value, $match)) {
+            $utc = \DateTimeImmutable::createFromFormat('!Ymd His', $match[1] . ' ' . $match[2], Time::utc());
+            return $utc ? Time::formatUtc($utc) : null;
         }
+
+        if (preg_match('/^(\d{8})T(\d{6})$/', $value, $match)) {
+            $local = \DateTimeImmutable::createFromFormat('!Ymd His', $match[1] . ' ' . $match[2], $timezone);
+            if (!$local) {
+                return null;
+            }
+            return Time::formatUtc($local);
+        }
+
         return null;
     }
 }

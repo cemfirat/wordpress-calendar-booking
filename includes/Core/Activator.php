@@ -2,10 +2,13 @@
 namespace Cemb\Core;
 
 use Cemb\Database\Schema;
+use Cemb\Support\Time;
+use Cemb\Support\TimeMigration;
 
 class Activator {
     public static function activate(): void {
         Schema::install();
+        TimeMigration::maybeRun();
         self::seed_defaults();
         flush_rewrite_rules();
     }
@@ -66,7 +69,7 @@ class Activator {
                 $wpdb->insert($table, [
                     'name' => $t[0], 'slug' => $t[1], 'description' => $t[2], 'duration_minutes' => $t[3],
                     'buffer_before_minutes' => $t[4], 'buffer_after_minutes' => $t[5], 'is_active' => 1, 'is_public' => 1,
-                    'sort_order' => $t[6], 'created_at' => current_time('mysql'), 'updated_at' => current_time('mysql'),
+                    'sort_order' => $t[6], 'created_at' => Time::formatUtc(Time::nowUtc()), 'updated_at' => Time::formatUtc(Time::nowUtc()),
                 ]);
             }
         }
@@ -92,7 +95,7 @@ class Activator {
                 $wpdb->insert($fields, [
                     'field_key' => $f[0], 'label' => $f[1], 'field_type' => $f[2], 'is_required' => $f[3], 'is_active' => $f[4],
                     'options_json' => $f[5], 'validation_rules_json' => $f[6], 'sort_order' => $f[7],
-                    'created_at' => current_time('mysql'), 'updated_at' => current_time('mysql'),
+                    'created_at' => Time::formatUtc(Time::nowUtc()), 'updated_at' => Time::formatUtc(Time::nowUtc()),
                 ]);
             }
         }
@@ -104,7 +107,7 @@ class Activator {
                 $wpdb->insert($rules, [
                     'scope_type' => 'global','scope_id' => null,'weekday' => $weekday,'start_time' => '09:00:00','end_time' => '17:00:00',
                     'slot_duration_minutes' => 30,'buffer_before_minutes' => 0,'buffer_after_minutes' => 15,'min_notice_minutes' => 120,
-                    'max_days_in_advance' => 30,'is_active' => 1,'created_at' => current_time('mysql'),'updated_at' => current_time('mysql'),
+                    'max_days_in_advance' => 30,'is_active' => 1,'created_at' => Time::formatUtc(Time::nowUtc()),'updated_at' => Time::formatUtc(Time::nowUtc()),
                 ]);
             }
         }

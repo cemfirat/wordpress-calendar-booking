@@ -1,6 +1,8 @@
 <?php
 namespace Cemb\Tokens;
 
+use Cemb\Support\Time;
+
 class TokenService {
     private string $table;
     public function __construct() {
@@ -14,8 +16,8 @@ class TokenService {
             'booking_id' => $bookingId,
             'token_type' => $type,
             'token_hash' => wp_hash_password($token),
-            'expires_at' => date('Y-m-d H:i:s', strtotime('+' . $ttlMinutes . ' minutes', current_time('timestamp'))),
-            'created_at' => current_time('mysql'),
+            'expires_at' => Time::formatUtc(Time::nowUtc()->modify('+' . max(1, $ttlMinutes) . ' minutes')),
+            'created_at' => Time::formatUtc(Time::nowUtc()),
         ]);
         return $token;
     }
@@ -23,7 +25,8 @@ class TokenService {
         global $wpdb;
         $rows = $wpdb->get_results($wpdb->prepare("SELECT * FROM {$this->table} WHERE token_type = %s AND used_at IS NULL ORDER BY id DESC", $type));
         foreach ($rows as $row) {
-            if (strtotime($row->expires_at) < current_time('timestamp')) {
+            $expires = Time::parseUtc((string)$row->expires_at);
+            if (!$expires || $expires < Time::nowUtc()) {
                 continue;
             }
             if (wp_check_password($token, $row->token_hash)) {
@@ -34,6 +37,6 @@ class TokenService {
     }
     public function markUsed(int $id): void {
         global $wpdb;
-        $wpdb->update($this->table, ['used_at' => current_time('mysql')], ['id' => $id]);
+        $wpdb->update($this->table, ['used_at' => Time::formatUtc(Time::nowUtc())], ['id' => $id]);
     }
 }

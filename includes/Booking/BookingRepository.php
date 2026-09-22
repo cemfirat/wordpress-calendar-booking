@@ -1,6 +1,8 @@
 <?php
 namespace Cemb\Booking;
 
+use Cemb\Support\Time;
+
 class BookingRepository {
     private string $table;
     private string $metaTable;
@@ -34,14 +36,14 @@ class BookingRepository {
         if (!$booking) return;
         $wpdb->update($this->table, [
             'status' => $newStatus,
-            'updated_at' => current_time('mysql'),
+            'updated_at' => Time::formatUtc(Time::nowUtc()),
         ], ['id' => $bookingId]);
         $this->log($bookingId, (string)$booking->status, $newStatus, $context, $changedBy, $note);
     }
 
     public function update(int $bookingId, array $data): void {
         global $wpdb;
-        $data['updated_at'] = current_time('mysql');
+        $data['updated_at'] = Time::formatUtc(Time::nowUtc());
         $wpdb->update($this->table, $data, ['id' => $bookingId]);
     }
 
@@ -127,7 +129,7 @@ class BookingRepository {
             AND (status != %s OR reserved_until IS NULL OR reserved_until >= %s)
             AND slot_start < %s
             AND slot_end > %s";
-        $params = array_merge($statuses, [BookingStatus::EMAIL_UNCONFIRMED, current_time('mysql'), $end, $start]);
+        $params = array_merge($statuses, [BookingStatus::EMAIL_UNCONFIRMED, Time::formatUtc(Time::nowUtc()), $end, $start]);
         if ($ignoreId) {
             $sql .= ' AND id != %d';
             $params[] = $ignoreId;
@@ -144,7 +146,7 @@ class BookingRepository {
             'context' => $context,
             'changed_by' => $changedBy,
             'note' => $note,
-            'created_at' => current_time('mysql'),
+            'created_at' => Time::formatUtc(Time::nowUtc()),
         ]);
     }
 }
