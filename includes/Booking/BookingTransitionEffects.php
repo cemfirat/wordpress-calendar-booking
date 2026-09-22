@@ -30,7 +30,7 @@ final class BookingTransitionEffects {
         $bookingArray = (array)$booking;
 
         if ($target === BookingStatus::PENDING_APPROVAL) {
-            $mailer->sendTemplate('pending', $bookingArray, $meta, $this->actionLinks($bookingId), false);
+            $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'pending', $bookingArray, $meta, $this->actionLinks($bookingId), false);
         } elseif ($target === BookingStatus::CONFIRMED) {
             if (!empty($settings['icloud_sync_enabled'])) {
                 $queue = new QueueService();
@@ -38,20 +38,20 @@ final class BookingTransitionEffects {
                 $queue->runNow();
             }
             $template = $event === BookingStateMachine::ADMIN_APPROVED ? 'approved' : 'confirmed';
-            $mailer->sendTemplate($template, $bookingArray, $meta, $this->actionLinks($bookingId), true);
+            $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), $template, $bookingArray, $meta, $this->actionLinks($bookingId), true);
         } elseif ($target === BookingStatus::REJECTED) {
-            $mailer->sendTemplate('rejected', $bookingArray, $meta, [], false);
+            $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'rejected', $bookingArray, $meta, [], false);
         } elseif ($target === BookingStatus::CANCELLED) {
             if (!empty($settings['icloud_sync_cancellations'])) {
                 $queue = new QueueService();
                 $queue->enqueueCancel($bookingId);
                 $queue->runNow();
             }
-            $mailer->sendTemplate('cancelled', $bookingArray, $meta, [], false);
+            $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'cancelled', $bookingArray, $meta, [], false);
         }
 
         if ($target !== BookingStatus::EXPIRED) {
-            $mailer->sendInternal($bookingArray, $meta);
+            $mailer->sendInternalOnce('mail:internal:' . $bookingId . ':transition:' . $event, $bookingArray, $meta);
         }
     }
 
@@ -73,8 +73,16 @@ final class BookingTransitionEffects {
 
         $bookingArray = (array)$repo->find($bookingId);
         $mailer = new Mailer();
-        $mailer->sendTemplate('updated', $bookingArray, $meta, $this->actionLinks($bookingId), true);
-        $mailer->sendInternal($bookingArray, $meta);
+        $version = hash('sha256', (string)($bookingArray['slot_start'] ?? '') . '|' . (string)($bookingArray['slot_end'] ?? ''));
+        $mailer->sendTemplateOnce('mail:user:' . $bookingId . ':rescheduled:' . $version, 'updated', $bookingArray, $meta, $this->actionLinks($bookingId), true);
+        $mailer->sendInternalOnce('mail:internal:' . $bookingId . ':rescheduled:' . $version, $bookingArray, $meta);
+    }
+
+    private function mailKey(int $bookingId, string $event, array $booking): string {
+        return 'mail:user:' . $bookingId . ':transition:' . $event . ':' . hash(
+            'sha256',
+            (string)($booking['status'] ?? '') . '|' . (string)($booking['slot_start'] ?? '') . '|' . (string)($booking['slot_end'] ?? '')
+        );
     }
 
     private function actionLinks(int $bookingId): array {
