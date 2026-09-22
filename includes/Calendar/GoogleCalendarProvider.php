@@ -118,7 +118,7 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
         return ['ok' => true, 'event_id' => $eventId];
     }
 
-    public function updateEvent(array $booking, array $meta, CalendarConnection $connection, string $eventId) {
+    public function updateEvent(array $booking, array $meta, CalendarConnection $connection, string $eventId, array $providerState = []) {
         $payload = $this->eventPayload($booking, $meta);
         if (is_wp_error($payload)) {
             return $payload;
@@ -142,7 +142,7 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
         return ['ok' => true, 'event_id' => $eventId];
     }
 
-    public function cancelEvent(CalendarConnection $connection, string $eventId) {
+    public function cancelEvent(CalendarConnection $connection, string $eventId, array $providerState = []) {
         $eventId = trim($eventId);
         if ($eventId === '') {
             return ['ok' => true, 'message' => 'No Google event exists for this booking.'];
