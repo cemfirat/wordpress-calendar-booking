@@ -26,6 +26,32 @@ Initial adapters:
 - `GoogleCalendarProvider`: OAuth + FreeBusy/Events API.
 - `MicrosoftGraphProvider`: OAuth + Graph availability/events with account-type-specific behavior.
 
+## Calendar connection model
+
+Provider adapters are registered through the `cemb_calendar_providers` filter and implement `CalendarProviderInterface`. The registry normalizes capability identifiers so booking-domain code can ask for behavior without knowing Google, Microsoft, Apple or CalDAV details.
+
+Canonical capabilities:
+
+- `busy_read`
+- `event_create`
+- `event_update`
+- `event_cancel`
+- `calendar_discovery`
+
+Connections are stored in `cemb_calendar_connections` with:
+
+- provider identifier
+- administrator-facing connection name
+- selected remote calendar identifier
+- active/blocking/write-back flags
+- non-secret provider configuration
+- authenticated-encrypted credential/token payload
+- health status plus last success/error metadata
+
+Credentials are deliberately excluded from normal `find()`/`all()` connection reads. Provider code must request them explicitly through the connection repository, which decrypts the authenticated payload only at the point of use.
+
+Booking-type routing lives in `cemb_booking_type_calendar_connections`. A booking type can use multiple connections, and each mapping independently controls whether that connection blocks availability and/or receives confirmed booking write-back. This keeps external account topology out of the booking state machine.
+
 ## Availability pipeline
 
 1. Resolve booking type/resource and requested presentation time zone.
