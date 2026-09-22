@@ -155,13 +155,36 @@ class Schema {
             status varchar(20) NOT NULL DEFAULT 'pending',
             attempts int NOT NULL DEFAULT 0,
             last_error text DEFAULT NULL,
+            idempotency_key varchar(190) DEFAULT NULL,
+            lease_owner varchar(64) DEFAULT NULL,
+            lease_expires_at datetime DEFAULT NULL,
             available_at datetime NOT NULL,
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY (id),
             KEY booking_id (booking_id),
             KEY status_available (status, available_at),
+            KEY lease_expires_at (lease_expires_at),
+            UNIQUE KEY idempotency_key (idempotency_key),
             KEY job_type (job_type)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}deliveries (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            booking_id bigint unsigned NOT NULL,
+            idempotency_key varchar(190) NOT NULL,
+            channel varchar(30) NOT NULL,
+            effect_type varchar(80) NOT NULL,
+            status varchar(20) NOT NULL DEFAULT 'pending',
+            attempts int NOT NULL DEFAULT 0,
+            last_error text DEFAULT NULL,
+            completed_at datetime DEFAULT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY idempotency_key (idempotency_key),
+            KEY booking_id (booking_id),
+            KEY channel_status (channel, status)
         ) {$charset};";
 
         $sql[] = "CREATE TABLE {$prefix}sync_log (
