@@ -1,6 +1,8 @@
 <?php
 namespace Cemb\Calendar;
 
+use Cemb\Support\Time;
+
 /**
  * Converts private calendar/booking intervals into a public busy-only view model.
  *
@@ -33,7 +35,7 @@ class PublicBusyPresenter {
             'start' => $start,
             'end' => $end,
             'title' => $label,
-            'label' => ($start !== '' ? wp_date('H:i', strtotime($start)) . ' ' : '') . $label,
+            'label' => ($start !== '' ? Time::display($start, 'H:i') . ' ' : '') . $label,
             'type_id' => 0,
             'class' => 'cemb-event-busy',
             'source' => 'busy',
