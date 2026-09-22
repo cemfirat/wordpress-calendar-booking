@@ -52,6 +52,7 @@ class QueueService {
     }
 
     public function processPending(int $limit = 10): void {
+        update_option('cemb_sync_queue_last_run', \Cemb\Support\Time::formatUtc(\Cemb\Support\Time::nowUtc()), false);
         $worker = $this->workerId();
         $items = $this->jobs->claim($worker, $limit, 600);
         foreach ($items as $job) {
