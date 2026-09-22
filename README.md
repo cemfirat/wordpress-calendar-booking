@@ -52,10 +52,12 @@ One semantic component/render layer serves:
 
 - YOOtheme Pro native Builder elements when YOOtheme is installed
 - Shortcodes for compatibility
-- WordPress blocks are tracked as a dedicated follow-up
+- Native dynamic Gutenberg blocks for the Booking Form and Availability Calendar
 - UIkit fallback assets when no compatible UIkit/YOOtheme runtime is present
 
 YOOtheme Pro is detected through its runtime application class. When present, Calendar Booking reuses YOOtheme's existing UIkit/theme runtime and never enqueues a second UIkit copy. Without YOOtheme, the plugin uses a locally bundled **UIkit 3.25.23** fallback; there is no CDN dependency.
+
+The Gutenberg editor uses read-only placeholders; live availability and booking actions are rendered only on the frontend through the same shared component layer.
 
 The plugin does **not** scrape arbitrary themes and copy their CSS classes. Themes can integrate through filters, render hooks, wrapper/button/form class filters and CSS variables.
 
