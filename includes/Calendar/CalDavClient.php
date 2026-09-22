@@ -238,15 +238,15 @@ final class CalDavClient {
     }
 
     private function extractHref(string $body, string $element): ?string {
-        $xml = $this->xml($body);
-        if (!$xml) {
+        $xpath = $this->domXPath($body);
+        if (!$xpath) {
             return null;
         }
-        $nodes = $xml->xpath('//*[local-name()="' . $element . '"]/*[local-name()="href"]');
-        if (!$nodes || empty($nodes[0])) {
+        $nodes = $xpath->query('//*[local-name()="' . $element . '"]/*[local-name()="href"]');
+        if (!$nodes || $nodes->length < 1) {
             return null;
         }
-        return $this->absoluteUrl((string)$nodes[0]);
+        return $this->absoluteUrl(trim((string)$nodes->item(0)->textContent));
     }
 
     private function xml(string $body): ?\SimpleXMLElement {
