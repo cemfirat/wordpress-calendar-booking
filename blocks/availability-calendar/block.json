@@ -1,0 +1,20 @@
+{
+  "apiVersion": 3,
+  "name": "cemb/availability-calendar",
+  "version": "2.0.0",
+  "title": "Availability Calendar",
+  "category": "widgets",
+  "icon": "calendar",
+  "description": "Render the shared availability calendar and booking dialog.",
+  "textdomain": "cemb",
+  "editorScript": "cemb-booking-blocks",
+  "attributes": {
+    "month": {
+      "type": "string",
+      "default": ""
+    }
+  },
+  "supports": {
+    "html": false
+  }
+}
