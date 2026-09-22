@@ -1,6 +1,8 @@
 <?php
 namespace Cemb\Admin;
 
+use Cemb\Security\SecretBox;
+
 class Settings {
     public static function get(): array {
         $defaults = [
@@ -46,32 +48,45 @@ class Settings {
         return $settings;
     }
 
-    public static function update(array $data): void {
+    /**
+     * @return true|\WP_Error
+     */
+    public static function update(array $data) {
         $settings = self::get();
+
         if (array_key_exists('timezone', $data)) {
             $data['timezone'] = self::normalizeTimezone((string)$data['timezone']);
         }
         if (array_key_exists('calendar_url', $data)) {
-            $data['calendar_url'] = self::normalizeCalendarUrl((string) $data['calendar_url']);
+            $data['calendar_url'] = self::normalizeCalendarUrl((string)$data['calendar_url']);
         }
         if (array_key_exists('calendar_urls', $data)) {
-            $data['calendar_urls'] = self::normalizeCalendarUrlList((string) $data['calendar_urls']);
+            $data['calendar_urls'] = self::normalizeCalendarUrlList((string)$data['calendar_urls']);
             if (empty($data['calendar_url'])) {
                 $first = self::publicCalendarUrlsFromString($data['calendar_urls']);
                 $data['calendar_url'] = $first[0] ?? '';
             }
         }
         if (array_key_exists('icloud_sync_target_calendar_url', $data)) {
-            $data['icloud_sync_target_calendar_url'] = self::normalizeCalendarUrl((string) $data['icloud_sync_target_calendar_url']);
+            $data['icloud_sync_target_calendar_url'] = self::normalizeCalendarUrl((string)$data['icloud_sync_target_calendar_url']);
         }
+
         if (array_key_exists('icloud_sync_password', $data)) {
-            $password = trim((string) $data['icloud_sync_password']);
+            $password = trim((string)$data['icloud_sync_password']);
             unset($data['icloud_sync_password']);
+
             if ($password !== '') {
-                $data['icloud_sync_password_enc'] = self::encrypt($password);
+                $encrypted = (new SecretBox())->encrypt($password);
+                if (is_wp_error($encrypted)) {
+                    return $encrypted;
+                }
+                $data['icloud_sync_password_enc'] = $encrypted;
+                delete_option('cemb_secret_reentry_required');
             }
         }
+
         update_option('cemb_settings', array_merge($settings, $data));
+        return true;
     }
 
     public static function normalizeTimezone(string $timezone): string {
@@ -127,37 +142,42 @@ class Settings {
 
     public static function getIcloudSyncPassword(): string {
         $settings = self::get();
-        return self::decrypt((string) ($settings['icloud_sync_password_enc'] ?? ''));
-    }
-
-    private static function encrypt(string $plain): string {
-        if (!function_exists('openssl_encrypt')) {
-            return base64_encode($plain);
-        }
-        $key = hash('sha256', wp_salt('auth'), true);
-        $iv = random_bytes(16);
-        $cipher = openssl_encrypt($plain, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
-        if ($cipher === false) {
-            return base64_encode($plain);
-        }
-        return base64_encode($iv . $cipher);
-    }
-
-    private static function decrypt(string $encoded): string {
+        $encoded = (string)($settings['icloud_sync_password_enc'] ?? '');
         if ($encoded === '') {
             return '';
         }
-        $raw = base64_decode($encoded, true);
-        if ($raw === false) {
-            return '';
+
+        $plain = (new SecretBox())->decrypt($encoded);
+        return $plain === null ? '' : $plain;
+    }
+
+    /**
+     * Return display-safe secret-storage diagnostics without plaintext/ciphertext.
+     *
+     * @return array{state:string,format:string}
+     */
+    public static function secretStatus(): array {
+        $settings = self::get();
+        $encoded = (string)($settings['icloud_sync_password_enc'] ?? '');
+        $box = new SecretBox();
+
+        if ((int)get_option('cemb_secret_reentry_required', 0) === 1) {
+            return ['state' => 'reentry', 'format' => ''];
         }
-        if (!function_exists('openssl_decrypt') || strlen($raw) < 17) {
-            return (string) $raw;
+
+        if ($encoded === '') {
+            return ['state' => $box->available() ? 'empty' : 'unavailable', 'format' => ''];
         }
-        $key = hash('sha256', wp_salt('auth'), true);
-        $iv = substr($raw, 0, 16);
-        $cipher = substr($raw, 16);
-        $plain = openssl_decrypt($cipher, 'AES-256-CBC', $key, OPENSSL_RAW_DATA, $iv);
-        return $plain === false ? '' : $plain;
+
+        $format = $box->formatVersion($encoded);
+        if ($format === '') {
+            return ['state' => 'reentry', 'format' => ''];
+        }
+
+        if ($box->decrypt($encoded) === null) {
+            return ['state' => 'invalid', 'format' => $format];
+        }
+
+        return ['state' => 'stored', 'format' => $format];
     }
 }
