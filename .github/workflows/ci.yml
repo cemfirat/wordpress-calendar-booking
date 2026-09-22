@@ -69,7 +69,9 @@ jobs:
           npm run build:assets
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --no-dev
-      - name: Install WordPress and plugin
+      - name: Build canonical release ZIP
+        run: python3 scripts/package.py
+      - name: Install WordPress and release ZIP
         env:
           WP_VERSION: ${{ matrix.wordpress }}
         run: |
@@ -78,9 +80,12 @@ jobs:
           wp core download --path="$WP_ROOT" --version="$WP_VERSION"
           wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
           wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=CEMB --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
-          mkdir -p "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking"
-          rsync -a --delete             --exclude='.git'             --exclude='.github'             --exclude='_bootstrap'             "$GITHUB_WORKSPACE/" "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking/"
-          wp plugin activate wordpress-calendar-booking --path="$WP_ROOT"
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "2.0.0"
+          test -f "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking/vendor/autoload.php"
+          test -f "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking/assets/vendor/uikit/uikit.min.css"
+          test ! -d "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking/tests"
+          test ! -d "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking/node_modules"
       - name: Run WordPress smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Verify GET-safe and POST-only public booking actions
