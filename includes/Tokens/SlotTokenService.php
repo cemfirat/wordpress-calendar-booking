@@ -1,6 +1,8 @@
 <?php
 namespace Cemb\Tokens;
 
+use Cemb\Support\Time;
+
 /**
  * Issues and verifies short-lived, tamper-evident booking slot tokens.
  *
@@ -65,7 +67,7 @@ class SlotTokenService {
         if ($typeId < 1
             || !$this->validDateTime($start)
             || !$this->validDateTime($end)
-            || strtotime($end) <= strtotime($start)
+            || Time::parseUtc($end)->getTimestamp() <= Time::parseUtc($start)->getTimestamp()
             || $expires < ($now ?? time())
         ) {
             return null;
@@ -80,12 +82,7 @@ class SlotTokenService {
     }
 
     private function validDateTime(string $value): bool {
-        if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value)) {
-            return false;
-        }
-        $date = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $value, wp_timezone());
-        $errors = \DateTimeImmutable::getLastErrors();
-        return $date !== false && ($errors === false || ($errors['warning_count'] === 0 && $errors['error_count'] === 0));
+        return Time::parseUtc($value) !== null;
     }
 
     private function key(): string {
