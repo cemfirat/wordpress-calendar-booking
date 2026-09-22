@@ -167,29 +167,14 @@ final class GoogleOAuthController {
             $this->redirectError('Select at least one Google Calendar capability.');
         }
 
-        $state = bin2hex(random_bytes(24));
-        set_transient(
-            self::STATE_PREFIX . hash('sha256', $state),
-            [
-                'user_id' => get_current_user_id(),
-                'connection_name' => sanitize_text_field(wp_unslash($_POST['connection_name'] ?? 'Google Calendar')),
-                'remote_calendar_id' => sanitize_text_field(wp_unslash($_POST['remote_calendar_id'] ?? 'primary')),
-                'blocks_availability' => $blocks ? 1 : 0,
-                'receives_bookings' => $writes ? 1 : 0,
-            ],
-            10 * MINUTE_IN_SECONDS
-        );
+        $state = $this->issueState([
+            'connection_name' => sanitize_text_field(wp_unslash($_POST['connection_name'] ?? 'Google Calendar')),
+            'remote_calendar_id' => sanitize_text_field(wp_unslash($_POST['remote_calendar_id'] ?? 'primary')),
+            'blocks_availability' => $blocks ? 1 : 0,
+            'receives_bookings' => $writes ? 1 : 0,
+        ]);
 
-        $url = add_query_arg([
-            'client_id' => $this->config->clientId(),
-            'redirect_uri' => $this->config->redirectUri(),
-            'response_type' => 'code',
-            'scope' => implode(' ', $this->config->scopes($blocks, $writes)),
-            'access_type' => 'offline',
-            'include_granted_scopes' => 'true',
-            'prompt' => 'consent',
-            'state' => $state,
-        ], 'https://accounts.google.com/o/oauth2/v2/auth');
+        $url = $this->authorizationUrl($blocks, $writes, $state);
 
         wp_redirect(esc_url_raw($url), 302, 'WordPress Calendar Booking');
         exit;
@@ -199,14 +184,9 @@ final class GoogleOAuthController {
         $this->requireAdmin();
 
         $state = sanitize_text_field(wp_unslash($_GET['state'] ?? ''));
-        $stateKey = self::STATE_PREFIX . hash('sha256', $state);
-        $stored = $state !== '' ? get_transient($stateKey) : false;
-        delete_transient($stateKey);
+        $stored = $this->consumeState($state);
 
-        if (!is_array($stored)
-            || (int)($stored['user_id'] ?? 0) !== get_current_user_id()
-            || isset($_GET['error'])
-        ) {
+        if (!is_array($stored) || isset($_GET['error'])) {
             $this->redirectError('Google authorization state is invalid or expired.');
         }
 
@@ -261,6 +241,44 @@ final class GoogleOAuthController {
         }
 
         $this->redirectNotice('Google Calendar connected.');
+    }
+
+    public function issueState(array $intent): string {
+        $state = bin2hex(random_bytes(24));
+        $intent['user_id'] = get_current_user_id();
+        set_transient(
+            self::STATE_PREFIX . hash('sha256', $state),
+            $intent,
+            10 * MINUTE_IN_SECONDS
+        );
+        return $state;
+    }
+
+    public function consumeState(string $state): ?array {
+        $state = trim($state);
+        if ($state === '' || !preg_match('/^[a-f0-9]{48}$/', $state)) {
+            return null;
+        }
+        $key = self::STATE_PREFIX . hash('sha256', $state);
+        $stored = get_transient($key);
+        delete_transient($key);
+        if (!is_array($stored) || (int)($stored['user_id'] ?? 0) !== get_current_user_id()) {
+            return null;
+        }
+        return $stored;
+    }
+
+    public function authorizationUrl(bool $blocksAvailability, bool $receivesBookings, string $state): string {
+        return add_query_arg([
+            'client_id' => $this->config->clientId(),
+            'redirect_uri' => $this->config->redirectUri(),
+            'response_type' => 'code',
+            'scope' => implode(' ', $this->config->scopes($blocksAvailability, $receivesBookings)),
+            'access_type' => 'offline',
+            'include_granted_scopes' => 'true',
+            'prompt' => 'consent',
+            'state' => $state,
+        ], 'https://accounts.google.com/o/oauth2/v2/auth');
     }
 
     public function disconnect(): void {
