@@ -20,7 +20,11 @@ One-time token processing is serialized with a short advisory lock. The token is
 
 ## Tokens
 
-Use indexed selector/verifier tokens with expiry, rotation/revocation and cleanup. Do not scan every password hash.
+One-time email/action links use a `selector.verifier` format. The selector is a random public lookup identifier stored under a unique database index. The verifier is random secret material and is never stored; only an HMAC-SHA-256 value keyed from the WordPress auth salt is persisted and compared with `hash_equals()`.
+
+Lookup is O(1)-style by selector and token type rather than scanning password hashes. Revocation and rotation atomically mark earlier tokens used. Used/expired rows are retained for 30 days so old links can render a non-destructive status, then hourly maintenance removes them.
+
+Legacy pre-selector tokens cannot be converted because their raw secrets were never stored. During the 2.0 storage migration they are explicitly revoked instead of retaining an O(n) compatibility scan.
 
 ## Calendar secrets
 

@@ -110,6 +110,148 @@ foreach ( $tables as $suffix ) {
 	cemb_smoke_assert( $table === $found, 'Database table exists: ' . $table );
 }
 
+/* Indexed selector/verifier one-time-token storage. */
+$token_table = $wpdb->prefix . 'cemb_tokens';
+
+/* Simulate an existing pre-selector install and prove the code upgrade repairs it. */
+$wpdb->query( "ALTER TABLE {$token_table} DROP INDEX token_selector, DROP COLUMN token_selector" );
+update_option( 'cemb_schema_version', 1, false );
+Cemb\Database\SchemaMigration::maybeRun();
+
+$selector_column = $wpdb->get_row(
+	$wpdb->prepare( "SHOW COLUMNS FROM {$token_table} LIKE %s", 'token_selector' )
+);
+cemb_smoke_assert( $selector_column && 'token_selector' === $selector_column->Field, 'Token schema includes the indexed selector column.' );
+$selector_index = $wpdb->get_row( "SHOW INDEX FROM {$token_table} WHERE Key_name = 'token_selector'" );
+cemb_smoke_assert(
+	$selector_index && 0 === (int) $selector_index->Non_unique,
+	'Token selector uses a unique database index.'
+);
+cemb_smoke_assert(
+	Cemb\Database\SchemaMigration::currentVersion() === (int) get_option( 'cemb_schema_version', 0 ),
+	'Current database schema migration is recorded.'
+);
+
+$one_time_tokens = new Cemb\Tokens\TokenService();
+$token_fixture_booking_id = 987654;
+$indexed_token = $one_time_tokens->create( $token_fixture_booking_id, 'ci_indexed', 60 );
+cemb_smoke_assert(
+	1 === preg_match( '/^[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/', $indexed_token ),
+	'One-time token uses selector.verifier format with high-entropy components.'
+);
+[ $selector, $verifier ] = explode( '.', $indexed_token, 2 );
+$stored_token = $wpdb->get_row(
+	$wpdb->prepare(
+		"SELECT * FROM {$token_table} WHERE token_selector = %s AND token_type = %s LIMIT 1",
+		$selector,
+		'ci_indexed'
+	)
+);
+cemb_smoke_assert( $stored_token && $selector === $stored_token->token_selector, 'Selector is stored for direct indexed lookup.' );
+cemb_smoke_assert(
+	64 === strlen( (string) $stored_token->token_hash )
+	&& false === strpos( wp_json_encode( $stored_token ), $verifier ),
+	'Raw verifier secret is never stored; only a fixed-length HMAC is persisted.'
+);
+cemb_smoke_assert(
+	'valid' === $one_time_tokens->inspect( $indexed_token, 'ci_indexed' )['state'],
+	'Indexed selector/verifier token validates successfully.'
+);
+$tamper_pos = 5;
+$tampered_verifier = substr( $verifier, 0, $tamper_pos )
+	. ( $verifier[$tamper_pos] === 'A' ? 'B' : 'A' )
+	. substr( $verifier, $tamper_pos + 1 );
+cemb_smoke_assert(
+	'invalid' === $one_time_tokens->inspect( $selector . '.' . $tampered_verifier, 'ci_indexed' )['state'],
+	'Verifier tampering is rejected.'
+);
+cemb_smoke_assert(
+	'invalid' === $one_time_tokens->inspect( $indexed_token, 'ci_other_type' )['state'],
+	'One-time token is bound to its token type.'
+);
+
+$rotated_token = $one_time_tokens->rotate( $token_fixture_booking_id, 'ci_indexed', 60 );
+cemb_smoke_assert(
+	'used' === $one_time_tokens->inspect( $indexed_token, 'ci_indexed' )['state'],
+	'Rotation revokes the previous token.'
+);
+cemb_smoke_assert(
+	'valid' === $one_time_tokens->inspect( $rotated_token, 'ci_indexed' )['state'],
+	'Rotation issues a fresh indexed token.'
+);
+cemb_smoke_assert(
+	1 === $one_time_tokens->revokeForBooking( $token_fixture_booking_id, 'ci_indexed' ),
+	'Explicit revocation marks an active booking token used.'
+);
+cemb_smoke_assert(
+	'used' === $one_time_tokens->inspect( $rotated_token, 'ci_indexed' )['state'],
+	'Revoked token renders as used rather than remaining valid.'
+);
+
+$retained_expired_token = $one_time_tokens->create( $token_fixture_booking_id, 'ci_expired', 60 );
+[ $retained_selector ] = explode( '.', $retained_expired_token, 2 );
+$wpdb->update(
+	$token_table,
+	[ 'expires_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-5 minutes' ) ) ],
+	[ 'token_selector' => $retained_selector ]
+);
+cemb_smoke_assert(
+	'expired' === $one_time_tokens->inspect( $retained_expired_token, 'ci_expired' )['state'],
+	'Expired indexed token remains inspectable as expired.'
+);
+$one_time_tokens->cleanup( 30 );
+cemb_smoke_assert(
+	1 === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$token_table} WHERE token_selector = %s", $retained_selector ) ),
+	'Recent expired tokens are retained for non-destructive status pages.'
+);
+$wpdb->update(
+	$token_table,
+	[ 'expires_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-31 days' ) ) ],
+	[ 'token_selector' => $retained_selector ]
+);
+cemb_smoke_assert(
+	$one_time_tokens->cleanup( 30 ) >= 1
+	&& 0 === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$token_table} WHERE token_selector = %s", $retained_selector ) ),
+	'Retention cleanup removes old expired tokens.'
+);
+
+$legacy_token_secret = 'legacy-ci-token-secret';
+$wpdb->insert(
+	$token_table,
+	[
+		'booking_id' => $token_fixture_booking_id,
+		'token_type' => 'legacy_ci',
+		'token_selector' => null,
+		'token_hash' => wp_hash_password( $legacy_token_secret ),
+		'expires_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '+1 hour' ) ),
+		'used_at' => null,
+		'created_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc() ),
+	]
+);
+$legacy_token_id = (int) $wpdb->insert_id;
+update_option( 'cemb_token_storage_version', 0, false );
+Cemb\Tokens\TokenMigration::maybeRun();
+$legacy_token_row = $wpdb->get_row(
+	$wpdb->prepare( "SELECT * FROM {$token_table} WHERE id = %d", $legacy_token_id )
+);
+cemb_smoke_assert(
+	$legacy_token_row && ! empty( $legacy_token_row->used_at ),
+	'Legacy unindexed tokens are explicitly revoked during migration.'
+);
+cemb_smoke_assert(
+	'invalid' === $one_time_tokens->inspect( $legacy_token_secret, 'legacy_ci' )['state'],
+	'Legacy raw-token format is not kept through an O(n) compatibility scan.'
+);
+cemb_smoke_assert(
+	(int) get_option( 'cemb_legacy_tokens_revoked', 0 ) >= 1,
+	'Legacy-token revocation count is recorded for diagnostics.'
+);
+cemb_smoke_assert(
+	Cemb\Tokens\TokenMigration::currentVersion() === (int) get_option( 'cemb_token_storage_version', 0 ),
+	'Indexed token storage migration is recorded.'
+);
+$wpdb->delete( $token_table, [ 'booking_id' => $token_fixture_booking_id ] );
+
 $type_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}cemb_booking_types" );
 cemb_smoke_assert( $type_count >= 1, 'Default booking types are seeded.' );
 

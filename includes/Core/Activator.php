@@ -1,13 +1,15 @@
 <?php
 namespace Cemb\Core;
 
-use Cemb\Database\Schema;
+use Cemb\Database\SchemaMigration;
 use Cemb\Support\Time;
 use Cemb\Support\TimeMigration;
+use Cemb\Tokens\TokenMigration;
 
 class Activator {
     public static function activate(): void {
-        Schema::install();
+        SchemaMigration::maybeRun();
+        TokenMigration::maybeRun();
         TimeMigration::maybeRun();
         self::seed_defaults();
         flush_rewrite_rules();
