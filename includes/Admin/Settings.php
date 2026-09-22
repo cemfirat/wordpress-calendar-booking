@@ -30,6 +30,8 @@ class Settings {
             'rate_limit_requests' => 5,
             'rate_limit_window_minutes' => 15,
             'show_calendar_limit' => 20,
+            'retention_enabled' => 0,
+            'retention_days' => 365,
             'visit_address' => '',
             'own_phone' => '',
             'icloud_sync_enabled' => 0,
