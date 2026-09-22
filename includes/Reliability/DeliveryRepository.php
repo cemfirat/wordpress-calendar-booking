@@ -33,9 +33,9 @@ final class DeliveryRepository {
                 'booking_id' => $bookingId,
                 'idempotency_key' => $key,
                 'channel' => $channel,
-                'effect_type' => sanitize_key($effectType),
-                'recipient_class' => sanitize_key($recipientClass) ?: 'customer',
-                'provider_code' => sanitize_key($providerCode) ?: 'wp_mail',
+                'effect_type' => $this->sanitizeLabel($effectType, 'notification'),
+                'recipient_class' => $this->sanitizeLabel($recipientClass, 'customer'),
+                'provider_code' => $this->sanitizeLabel($providerCode, 'wp_mail'),
                 'status' => 'pending',
                 'attempts' => 0,
                 'created_at' => $now,
@@ -160,8 +160,12 @@ final class DeliveryRepository {
     }
 
     private function sanitizeCode(string $code): string {
-        $code = sanitize_key($code);
-        return mb_substr($code !== '' ? $code : 'send_failed', 0, 80);
+        return $this->sanitizeLabel($code, 'send_failed');
+    }
+
+    private function sanitizeLabel(string $value, string $fallback): string {
+        $value = strtolower((string)preg_replace('/[^A-Za-z0-9:_-]+/', '', $value));
+        return mb_substr($value !== '' ? $value : $fallback, 0, 80);
     }
 
     private function sanitizeError(string $message): string {
