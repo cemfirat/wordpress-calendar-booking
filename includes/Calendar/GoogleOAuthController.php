@@ -273,6 +273,7 @@ final class GoogleOAuthController {
             $this->redirectError('Google Calendar connection was not found.');
         }
 
+        (new GoogleCalendarProvider($this->connections, $this->config))->revoke($connection);
         $this->connections->delete($connectionId);
         $this->redirectNotice('Google Calendar disconnected.');
     }
