@@ -187,6 +187,43 @@ class Schema {
             KEY channel_status (channel, status)
         ) {$charset};";
 
+
+        $sql[] = "CREATE TABLE {$prefix}calendar_connections (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            provider varchar(64) NOT NULL,
+            name varchar(190) NOT NULL,
+            remote_calendar_id varchar(255) DEFAULT NULL,
+            credentials_enc longtext DEFAULT NULL,
+            config_json longtext DEFAULT NULL,
+            blocks_availability tinyint(1) NOT NULL DEFAULT 1,
+            receives_bookings tinyint(1) NOT NULL DEFAULT 0,
+            is_active tinyint(1) NOT NULL DEFAULT 1,
+            health_status varchar(30) NOT NULL DEFAULT 'unknown',
+            last_success_at datetime DEFAULT NULL,
+            last_error_at datetime DEFAULT NULL,
+            last_error_message text DEFAULT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY provider (provider),
+            KEY active_provider (is_active, provider),
+            KEY blocking (is_active, blocks_availability),
+            KEY writeback (is_active, receives_bookings)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}booking_type_calendar_connections (
+            booking_type_id bigint unsigned NOT NULL,
+            connection_id bigint unsigned NOT NULL,
+            blocks_availability tinyint(1) NOT NULL DEFAULT 1,
+            receives_bookings tinyint(1) NOT NULL DEFAULT 0,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (booking_type_id, connection_id),
+            KEY connection_id (connection_id),
+            KEY booking_type_blocking (booking_type_id, blocks_availability),
+            KEY booking_type_writeback (booking_type_id, receives_bookings)
+        ) {$charset};";
+
         $sql[] = "CREATE TABLE {$prefix}sync_log (
             id bigint unsigned NOT NULL AUTO_INCREMENT,
             job_id bigint unsigned DEFAULT NULL,
