@@ -98,6 +98,10 @@ $client = new Cemb\Calendar\CalDavClient(
 );
 
 $calendars = $client->discoverCalendars();
+if (!is_array($calendars) || count($calendars) !== 2) {
+    WP_CLI::log('DEBUG discovery result: ' . (is_wp_error($calendars) ? $calendars->get_error_code() . ' / ' . $calendars->get_error_message() : wp_json_encode($calendars)));
+    WP_CLI::log('DEBUG requested URLs: ' . wp_json_encode(array_map(static fn($request) => [$request['method'], $request['url']], $requests)));
+}
 cemb_caldav_assert(is_array($calendars) && count($calendars) === 2, 'CalDAV discovery returns multiple calendar collections.');
 cemb_caldav_assert($calendars[0]['name'] === 'Work' && $calendars[1]['name'] === 'Private', 'CalDAV discovery keeps calendar display names.');
 cemb_caldav_assert($calendars[0]['url'] === 'https://caldav.example.test/calendars/user/work/', 'Relative CalDAV hrefs are resolved against the endpoint origin.');
