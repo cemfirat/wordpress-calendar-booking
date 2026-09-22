@@ -15,7 +15,7 @@ if ($action === 'count') {
 }
 
 if ($action === 'expire') {
-    $past = date('Y-m-d H:i:s', current_time('timestamp') - 60);
+    $past = Cemb\Support\Time::formatUtc(Cemb\Support\Time::nowUtc()->modify('-1 minute'));
     $wpdb->query(
         $wpdb->prepare(
             "UPDATE {$wpdb->prefix}cemb_bookings SET reserved_until = %s WHERE status = %s",
