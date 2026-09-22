@@ -121,6 +121,7 @@ class Schema {
             id bigint unsigned NOT NULL AUTO_INCREMENT,
             booking_id bigint unsigned NOT NULL,
             token_type varchar(50) NOT NULL,
+            token_selector varchar(32) DEFAULT NULL,
             token_hash varchar(255) NOT NULL,
             expires_at datetime NOT NULL,
             used_at datetime DEFAULT NULL,
@@ -128,6 +129,7 @@ class Schema {
             PRIMARY KEY (id),
             KEY booking_id (booking_id),
             KEY token_type (token_type),
+            UNIQUE KEY token_selector (token_selector),
             KEY expires_at (expires_at)
         ) {$charset};";
 
