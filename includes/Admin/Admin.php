@@ -7,6 +7,7 @@ use Cemb\Sync\IcloudSyncService;
 use Cemb\Sync\QueueService;
 use Cemb\Sync\JobRepository;
 use Cemb\Calendar\IcloudProvider;
+use Cemb\Support\Time;
 
 class Admin {
     public function boot(): void {
@@ -159,8 +160,8 @@ class Admin {
                 $data = [
                     'type' => sanitize_text_field(wp_unslash($_POST['type'] ?? 'blocked_range')),
                     'title' => sanitize_text_field(wp_unslash($_POST['title'] ?? '')),
-                    'date_start' => date('Y-m-d H:i:s', strtotime(sanitize_text_field(wp_unslash($_POST['date_start'] ?? '')))),
-                    'date_end' => date('Y-m-d H:i:s', strtotime(sanitize_text_field(wp_unslash($_POST['date_end'] ?? '')))),
+                    'date_start' => Time::localToUtc(str_replace('T', ' ', sanitize_text_field(wp_unslash($_POST['date_start'] ?? ''))) . ':00'),
+                    'date_end' => Time::localToUtc(str_replace('T', ' ', sanitize_text_field(wp_unslash($_POST['date_end'] ?? ''))) . ':00'),
                     'all_day' => empty($_POST['all_day']) ? 0 : 1,
                     'booking_type_id' => absint($_POST['booking_type_id'] ?? 0) ?: null,
                     'is_active' => empty($_POST['is_active']) ? 0 : 1,
