@@ -181,22 +181,23 @@ class Actions {
      */
     public function handleActionPost(): void {
         if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
-            status_header(405);
-            wp_die('Method not allowed.');
+            wp_die('Method not allowed.', 'Method not allowed', ['response' => 405]);
         }
 
         $action = sanitize_key(wp_unslash($_POST['cemb_link_action'] ?? ''));
         $token = sanitize_text_field(wp_unslash($_POST['cemb_token'] ?? ''));
         $tokenType = $this->tokenTypeForAction($action);
         if (!$tokenType || $token === '') {
-            status_header(400);
-            wp_die('Ungültige Termin-Aktion.');
+            wp_die('Ungültige Termin-Aktion.', 'Ungültige Anfrage', ['response' => 400]);
         }
 
         $nonce = sanitize_text_field(wp_unslash($_POST['cemb_action_nonce'] ?? ''));
         if (!wp_verify_nonce($nonce, $this->nonceAction($action, $token))) {
-            status_header(403);
-            wp_die('Die Sicherheitsprüfung ist fehlgeschlagen. Es wurde nichts geändert.');
+            wp_die(
+                'Die Sicherheitsprüfung ist fehlgeschlagen. Es wurde nichts geändert.',
+                'Sicherheitsprüfung fehlgeschlagen',
+                ['response' => 403]
+            );
         }
 
         $tokens = new TokenService();
