@@ -179,6 +179,18 @@ cemb_smoke_assert(
 	'Credential input is always blank in rendered settings HTML.'
 );
 
+$previous_user_id = get_current_user_id();
+wp_set_current_user( 1 );
+$rest_settings_response = rest_do_request( new WP_REST_Request( 'GET', '/wp/v2/settings' ) );
+$rest_settings_json = wp_json_encode( $rest_settings_response->get_data() );
+cemb_smoke_assert(
+	200 === $rest_settings_response->get_status()
+	&& false === strpos( $rest_settings_json, $secret_plaintext )
+	&& false === strpos( $rest_settings_json, $stored_ciphertext ),
+	'Provider plaintext and ciphertext are not exposed through WordPress REST settings.'
+);
+wp_set_current_user( $previous_user_id );
+
 $no_crypto_filter = static fn() => '';
 add_filter( 'cemb_secret_storage_backend', $no_crypto_filter );
 $settings_before_failed_secret_save = Cemb\Admin\Settings::get();
