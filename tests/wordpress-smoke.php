@@ -149,6 +149,275 @@ $off_end = date( 'Y-m-d H:i:s', strtotime( $slot['end'] . ' +5 minutes' ) );
 $off_grid_token = $token_service->issue( $type_id, $off_start, $off_end );
 cemb_smoke_assert( null === $selection_service->resolve( $off_grid_token, $type_id ), 'A signed but non-canonical off-grid slot is rejected.' );
 
+/* Booking state machine, legacy migration and audit coverage. */
+$legacy_now = Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc() );
+$wpdb->insert(
+	$wpdb->prefix . 'cemb_bookings',
+	[
+		'booking_uuid' => wp_generate_uuid4(),
+		'booking_type_id' => $type_id,
+		'slot_start' => '2032-01-15 08:00:00',
+		'slot_end' => '2032-01-15 08:30:00',
+		'status' => 'updated',
+		'email' => 'legacy-status@example.com',
+		'source' => 'ci',
+		'lang' => 'en',
+		'created_at' => $legacy_now,
+		'updated_at' => $legacy_now,
+	]
+);
+$legacy_status_booking_id = (int) $wpdb->insert_id;
+$wpdb->insert(
+	$wpdb->prefix . 'cemb_booking_status_log',
+	[
+		'booking_id' => $legacy_status_booking_id,
+		'old_status' => 'pending_admin_approval',
+		'new_status' => 'updated',
+		'context' => 'legacy_test',
+		'changed_by' => 'system',
+		'note' => 'Legacy status fixture',
+		'created_at' => $legacy_now,
+	]
+);
+$legacy_log_id = (int) $wpdb->insert_id;
+update_option( 'cemb_booking_status_version', 0, false );
+Cemb\Booking\BookingStatusMigration::maybeRun();
+$legacy_booking_status = (string) $wpdb->get_var(
+	$wpdb->prepare( "SELECT status FROM {$wpdb->prefix}cemb_bookings WHERE id = %d", $legacy_status_booking_id )
+);
+$legacy_log = $wpdb->get_row(
+	$wpdb->prepare( "SELECT old_status, new_status FROM {$wpdb->prefix}cemb_booking_status_log WHERE id = %d", $legacy_log_id )
+);
+cemb_smoke_assert( Cemb\Booking\BookingStatus::CONFIRMED === $legacy_booking_status, 'Legacy updated booking status migrates to confirmed.' );
+cemb_smoke_assert(
+	Cemb\Booking\BookingStatus::PENDING_APPROVAL === $legacy_log->old_status
+	&& Cemb\Booking\BookingStatus::CONFIRMED === $legacy_log->new_status,
+	'Legacy audit status values migrate to canonical lifecycle states.'
+);
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $legacy_status_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $legacy_status_booking_id ] );
+
+$machine = new Cemb\Booking\BookingStateMachine();
+cemb_smoke_assert(
+	[] === $machine->adminEventsFor( Cemb\Booking\BookingStatus::RESERVED_UNCONFIRMED ),
+	'Admin cannot bypass Double Opt-In for an unconfirmed reservation.'
+);
+$pending_admin_events = $machine->adminEventsFor( Cemb\Booking\BookingStatus::PENDING_APPROVAL );
+cemb_smoke_assert(
+	isset(
+		$pending_admin_events[Cemb\Booking\BookingStateMachine::ADMIN_APPROVED],
+		$pending_admin_events[Cemb\Booking\BookingStateMachine::ADMIN_REJECTED],
+		$pending_admin_events[Cemb\Booking\BookingStateMachine::ADMIN_CANCELLED]
+	),
+	'Pending approval exposes only legal admin lifecycle actions.'
+);
+cemb_smoke_assert(
+	false !== has_action( 'cemb_booking_transitioned' ),
+	'Mail/calendar transition effects are subscribed to lifecycle transitions.'
+);
+cemb_smoke_assert(
+	false !== has_action( 'cemb_booking_event_recorded' ),
+	'Reschedule effects are subscribed to lifecycle events.'
+);
+
+/* Disable outbound side effects for the state-machine integration fixture itself. */
+remove_all_actions( 'cemb_booking_transitioned' );
+remove_all_actions( 'cemb_booking_event_recorded' );
+
+$lifecycle_booking_id = ( new Cemb\Booking\ReservationService() )->reserve(
+	$token,
+	$type_id,
+	[
+		'full_name' => 'Lifecycle Fixture',
+		'email' => 'lifecycle@example.com',
+		'phone' => '',
+		'notes' => '',
+		'source' => 'ci',
+		'lang' => 'en',
+	],
+	[]
+);
+cemb_smoke_assert( ! is_wp_error( $lifecycle_booking_id ) && (int) $lifecycle_booking_id > 0, 'Lifecycle fixture creates a real reserved booking.' );
+$lifecycle_booking_id = (int) $lifecycle_booking_id;
+$lifecycle_repo = new Cemb\Booking\BookingRepository();
+$lifecycle_service = new Cemb\Booking\BookingTransitionService();
+$lifecycle_booking = $lifecycle_repo->find( $lifecycle_booking_id );
+cemb_smoke_assert(
+	Cemb\Booking\BookingStatus::RESERVED_UNCONFIRMED === $lifecycle_booking->status,
+	'New bookings enter reserved_unconfirmed.'
+);
+
+$doi_transition = $lifecycle_service->apply(
+	$lifecycle_booking_id,
+	Cemb\Booking\BookingStateMachine::EMAIL_CONFIRMED_APPROVAL,
+	'user',
+	'DOI fixture'
+);
+cemb_smoke_assert( is_array( $doi_transition ) && ! empty( $doi_transition['changed'] ), 'Double Opt-In moves reserved booking to pending approval.' );
+cemb_smoke_assert(
+	Cemb\Booking\BookingStatus::PENDING_APPROVAL === $lifecycle_repo->find( $lifecycle_booking_id )->status,
+	'Pending approval is persisted.'
+);
+
+$doi_retry = $lifecycle_service->apply(
+	$lifecycle_booking_id,
+	Cemb\Booking\BookingStateMachine::EMAIL_CONFIRMED_APPROVAL,
+	'user',
+	'DOI retry fixture'
+);
+cemb_smoke_assert( is_array( $doi_retry ) && empty( $doi_retry['changed'] ), 'Repeating an already-applied lifecycle event is idempotent.' );
+
+$illegal_transition = $lifecycle_service->apply(
+	$lifecycle_booking_id,
+	Cemb\Booking\BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC,
+	'user',
+	'Illegal fixture'
+);
+cemb_smoke_assert( is_wp_error( $illegal_transition ), 'An illegal lifecycle transition is rejected.' );
+
+$lifecycle_booking = $lifecycle_repo->find( $lifecycle_booking_id );
+$conflict_id = $lifecycle_repo->create(
+	[
+		'booking_uuid' => wp_generate_uuid4(),
+		'booking_type_id' => $type_id,
+		'slot_start' => (string) $lifecycle_booking->slot_start,
+		'slot_end' => (string) $lifecycle_booking->slot_end,
+		'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+		'full_name' => 'Conflict Fixture',
+		'email' => 'conflict@example.com',
+		'source' => 'ci',
+		'lang' => 'en',
+		'created_at' => $legacy_now,
+		'updated_at' => $legacy_now,
+	],
+	[]
+);
+$blocked_approval = $lifecycle_service->apply(
+	$lifecycle_booking_id,
+	Cemb\Booking\BookingStateMachine::ADMIN_APPROVED,
+	'admin',
+	'Approval conflict fixture'
+);
+cemb_smoke_assert(
+	is_wp_error( $blocked_approval ) && 'cemb_slot_unavailable' === $blocked_approval->get_error_code(),
+	'Admin approval revalidates availability and refuses a newly conflicting slot.'
+);
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $conflict_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $conflict_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $conflict_id ] );
+
+$approval = $lifecycle_service->apply(
+	$lifecycle_booking_id,
+	Cemb\Booking\BookingStateMachine::ADMIN_APPROVED,
+	'admin',
+	'Approval fixture'
+);
+cemb_smoke_assert( is_array( $approval ) && ! empty( $approval['changed'] ), 'Admin approval succeeds after the conflict is removed.' );
+cemb_smoke_assert(
+	Cemb\Booking\BookingStatus::CONFIRMED === $lifecycle_repo->find( $lifecycle_booking_id )->status,
+	'Approved booking becomes confirmed.'
+);
+$approval_retry = $lifecycle_service->apply(
+	$lifecycle_booking_id,
+	Cemb\Booking\BookingStateMachine::ADMIN_APPROVED,
+	'admin',
+	'Approval retry fixture'
+);
+cemb_smoke_assert( is_array( $approval_retry ) && empty( $approval_retry['changed'] ), 'Repeated admin approval is idempotent.' );
+
+$alternative_slots = $slot_service->getSlots( $type_id, 21, $lifecycle_booking_id );
+$current_lifecycle = $lifecycle_repo->find( $lifecycle_booking_id );
+$alternative_slot = null;
+foreach ( $alternative_slots as $candidate ) {
+	if ( $candidate['start'] !== $current_lifecycle->slot_start ) {
+		$alternative_slot = $candidate;
+		break;
+	}
+}
+cemb_smoke_assert( is_array( $alternative_slot ), 'At least one alternate canonical slot is available for reschedule testing.' );
+$reschedule = $lifecycle_service->reschedule(
+	$lifecycle_booking_id,
+	$alternative_slot['start'],
+	$alternative_slot['end'],
+	'user',
+	'Reschedule fixture'
+);
+cemb_smoke_assert( is_array( $reschedule ) && ! empty( $reschedule['changed'] ), 'Rescheduling is recorded as a lifecycle event.' );
+$rescheduled_booking = $lifecycle_repo->find( $lifecycle_booking_id );
+cemb_smoke_assert(
+	Cemb\Booking\BookingStatus::CONFIRMED === $rescheduled_booking->status,
+	'Rescheduling does not invent a separate updated status.'
+);
+cemb_smoke_assert(
+	$alternative_slot['start'] === $rescheduled_booking->slot_start,
+	'Reschedule atomically updates the canonical slot.'
+);
+
+$cancel = $lifecycle_service->apply(
+	$lifecycle_booking_id,
+	Cemb\Booking\BookingStateMachine::USER_CANCELLED,
+	'user',
+	'Cancel fixture'
+);
+cemb_smoke_assert( is_array( $cancel ) && ! empty( $cancel['changed'] ), 'A confirmed booking can transition to cancelled.' );
+$cancel_retry = $lifecycle_service->apply(
+	$lifecycle_booking_id,
+	Cemb\Booking\BookingStateMachine::USER_CANCELLED,
+	'user',
+	'Cancel retry fixture'
+);
+cemb_smoke_assert( is_array( $cancel_retry ) && empty( $cancel_retry['changed'] ), 'Repeated cancellation is idempotent.' );
+$post_cancel_approval = $lifecycle_service->apply(
+	$lifecycle_booking_id,
+	Cemb\Booking\BookingStateMachine::ADMIN_APPROVED,
+	'admin',
+	'Illegal post-cancel fixture'
+);
+cemb_smoke_assert( is_wp_error( $post_cancel_approval ), 'Terminal cancelled state rejects later approval.' );
+
+$lifecycle_logs = $wpdb->get_results(
+	$wpdb->prepare(
+		"SELECT old_status, new_status, context, changed_by, note FROM {$wpdb->prefix}cemb_booking_status_log WHERE booking_id = %d ORDER BY id ASC",
+		$lifecycle_booking_id
+	)
+);
+$lifecycle_log_json = wp_json_encode( $lifecycle_logs );
+cemb_smoke_assert( false !== strpos( $lifecycle_log_json, Cemb\Booking\BookingStateMachine::ADMIN_APPROVED ), 'Audit history records semantic transition events.' );
+cemb_smoke_assert( false !== strpos( $lifecycle_log_json, Cemb\Booking\BookingTransitionService::RESCHEDULED ), 'Audit history records reschedule without changing state.' );
+cemb_smoke_assert( false === strpos( $lifecycle_log_json, 'lifecycle@example.com' ), 'Audit transition history does not copy customer email addresses.' );
+cemb_smoke_assert( false === strpos( $lifecycle_log_json, 'Lifecycle Fixture' ), 'Audit transition history does not copy customer names.' );
+
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $lifecycle_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $lifecycle_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $lifecycle_booking_id ] );
+
+$expired_fixture_id = $lifecycle_repo->create(
+	[
+		'booking_uuid' => wp_generate_uuid4(),
+		'booking_type_id' => $type_id,
+		'slot_start' => '2031-02-01 09:00:00',
+		'slot_end' => '2031-02-01 09:30:00',
+		'status' => Cemb\Booking\BookingStatus::RESERVED_UNCONFIRMED,
+		'full_name' => 'Expiry Fixture',
+		'email' => 'expiry@example.com',
+		'source' => 'ci',
+		'lang' => 'en',
+		'reserved_until' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-5 minutes' ) ),
+		'created_at' => $legacy_now,
+		'updated_at' => $legacy_now,
+	],
+	[]
+);
+$expired_count = $lifecycle_service->expireReservations();
+cemb_smoke_assert( $expired_count >= 1, 'Hourly lifecycle sweep expires stale unconfirmed reservations.' );
+cemb_smoke_assert(
+	Cemb\Booking\BookingStatus::EXPIRED === $lifecycle_repo->find( $expired_fixture_id )->status,
+	'Expired reservation persists the terminal expired state.'
+);
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $expired_fixture_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $expired_fixture_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $expired_fixture_id ] );
+
 
 $public_presenter = new Cemb\Calendar\PublicBusyPresenter();
 $private_external = [
