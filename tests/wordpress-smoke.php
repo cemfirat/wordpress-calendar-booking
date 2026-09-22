@@ -593,11 +593,51 @@ cemb_smoke_assert(
 	'Queue stops retrying after the bounded maximum attempt count.'
 );
 
+$crashed_key = 'ci:queue:crashed-final:' . wp_generate_uuid4();
+$crashed_job_id = $jobs->enqueue( 'update', $queue_booking_id, [], $crashed_key );
+$wpdb->update(
+	$wpdb->prefix . 'cemb_sync_jobs',
+	[
+		'status' => 'running',
+		'attempts' => 5,
+		'lease_owner' => 'dead-worker',
+		'lease_expires_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-1 minute' ) ),
+	],
+	[ 'id' => $crashed_job_id ]
+);
+$jobs->claim( 'ci-worker-sweeper', 1, 60 );
+cemb_smoke_assert(
+	'failed' === $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}cemb_sync_jobs WHERE id = %d", $crashed_job_id ) ),
+	'Expired lease on the final attempt is terminalized instead of remaining stuck in running.'
+);
+
+$calendar_queue = new Cemb\Sync\QueueService();
+$calendar_job_a = $calendar_queue->enqueueUpdate( $queue_booking_id );
+$calendar_job_b = $calendar_queue->enqueueUpdate( $queue_booking_id );
+cemb_smoke_assert(
+	$calendar_job_a > 0 && $calendar_job_a === $calendar_job_b,
+	'Calendar sync is idempotent for one booking, destination and desired version.'
+);
+$queue_booking_repo->update( $queue_booking_id, [ 'slot_start' => '2033-01-15 09:00:00', 'slot_end' => '2033-01-15 09:30:00' ] );
+$calendar_job_c = $calendar_queue->enqueueUpdate( $queue_booking_id );
+cemb_smoke_assert(
+	$calendar_job_c > 0 && $calendar_job_c !== $calendar_job_a,
+	'Changing the desired calendar version creates a distinct sync job.'
+);
+
 $wpdb->delete( $delivery_table, [ 'idempotency_key' => $delivery_key ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $queue_job_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $terminal_job_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $queue_job_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $terminal_job_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $crashed_job_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $crashed_job_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $calendar_job_a ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $calendar_job_a ] );
+if ( $calendar_job_c !== $calendar_job_a ) {
+	$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $calendar_job_c ] );
+	$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $calendar_job_c ] );
+}
 $wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $queue_booking_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $queue_booking_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $queue_booking_id ] );
