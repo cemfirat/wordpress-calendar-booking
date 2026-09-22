@@ -560,6 +560,8 @@ cemb_smoke_assert(
 );
 
 $oauth_controller = new Cemb\Calendar\GoogleOAuthController( $google_config );
+$oauth_original_user_id = get_current_user_id();
+wp_set_current_user( 1 );
 $oauth_state = $oauth_controller->issueState( [ 'purpose' => 'ci' ] );
 $oauth_url = $oauth_controller->authorizationUrl( true, true, $oauth_state );
 $oauth_query = [];
@@ -575,11 +577,10 @@ $consumed_state = $oauth_controller->consumeState( $oauth_state );
 cemb_smoke_assert( is_array( $consumed_state ) && ( $consumed_state['purpose'] ?? '' ) === 'ci', 'Google OAuth state is bound to the current administrator.' );
 cemb_smoke_assert( null === $oauth_controller->consumeState( $oauth_state ), 'Google OAuth state is one-time and cannot be replayed.' );
 
-$current_user_id_for_oauth = get_current_user_id();
 $cross_user_state = $oauth_controller->issueState( [ 'purpose' => 'wrong-user' ] );
 wp_set_current_user( 0 );
 cemb_smoke_assert( null === $oauth_controller->consumeState( $cross_user_state ), 'Google OAuth state cannot be consumed by a different WordPress user.' );
-wp_set_current_user( $current_user_id_for_oauth );
+wp_set_current_user( $oauth_original_user_id );
 
 $pre_google_slot_service = new Cemb\Availability\SlotService();
 $pre_google_slots = $pre_google_slot_service->getSlots( $type_id, 21 );
