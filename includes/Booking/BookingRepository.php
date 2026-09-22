@@ -17,6 +17,10 @@ class BookingRepository {
 
     public function create(array $data, array $meta = []): int {
         global $wpdb;
+        $status = (string)($data['status'] ?? '');
+        if (!in_array($status, BookingStatus::all(), true)) {
+            return 0;
+        }
         $wpdb->insert($this->table, $data);
         $id = (int)$wpdb->insert_id;
         foreach ($meta as $key => $value) {
@@ -43,6 +47,11 @@ class BookingRepository {
         string $note = ''
     ): bool {
         global $wpdb;
+        if (!in_array($expectedStatus, BookingStatus::all(), true)
+            || !in_array($newStatus, BookingStatus::all(), true)
+        ) {
+            return false;
+        }
         $fields['status'] = $newStatus;
         $fields['updated_at'] = Time::formatUtc(Time::nowUtc());
 
@@ -69,6 +78,9 @@ class BookingRepository {
 
     public function update(int $bookingId, array $data): void {
         global $wpdb;
+        if (array_key_exists('status', $data)) {
+            throw new \InvalidArgumentException('Booking status changes must use BookingTransitionService.');
+        }
         $data['updated_at'] = Time::formatUtc(Time::nowUtc());
         $wpdb->update($this->table, $data, ['id' => $bookingId]);
     }
