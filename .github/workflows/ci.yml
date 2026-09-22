@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  php:
+    name: PHP ${{ matrix.php }} syntax
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.0', '8.1', '8.2', '8.3', '8.4', '8.5']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          coverage: none
+      - name: Check PHP syntax
+        run: find . -name '*.php' -not -path './.git/*' -print0 | xargs -0 -n1 php -l
+
+  wordpress:
+    name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - wordpress: '6.5'
+            php: '8.0'
+          - wordpress: latest
+            php: '8.3'
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: mysqli, dom, sodium, zip
+          tools: wp-cli:2.12.0
+          coverage: none
+      - name: Install WordPress and plugin
+        env:
+          WP_VERSION: ${{ matrix.wordpress }}
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version="$WP_VERSION"
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=CEMB --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          mkdir -p "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking"
+          rsync -a --delete             --exclude='.git'             --exclude='.github'             --exclude='_bootstrap'             "$GITHUB_WORKSPACE/" "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking/"
+          wp plugin activate wordpress-calendar-booking --path="$WP_ROOT"
+      - name: Run WordPress smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-smoke.php" --path="$RUNNER_TEMP/wordpress"
