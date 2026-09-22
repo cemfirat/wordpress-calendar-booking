@@ -119,6 +119,11 @@ class QueueService {
         $settings = Settings::get();
         $meta = $this->bookings->getMeta($bookingId);
         $legacyEnabled = !empty($settings['icloud_sync_enabled']);
+        if ($jobType === 'update') {
+            $legacyEnabled = $legacyEnabled && !empty($settings['icloud_sync_updates']);
+        } elseif ($jobType === 'cancel') {
+            $legacyEnabled = $legacyEnabled && !empty($settings['icloud_sync_cancellations']);
+        }
         if ($legacyEnabled) {
             $destination = (string)($meta['icloud_calendar_url'] ?? $settings['icloud_sync_target_calendar_url'] ?? '');
             if ($jobType === 'cancel' && !empty($meta['icloud_event_url'])) {
