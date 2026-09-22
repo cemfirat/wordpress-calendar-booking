@@ -20,7 +20,7 @@ if ($action === 'expire') {
         $wpdb->prepare(
             "UPDATE {$wpdb->prefix}cemb_bookings SET reserved_until = %s WHERE status = %s",
             $past,
-            Cemb\Booking\BookingStatus::EMAIL_UNCONFIRMED
+            Cemb\Booking\BookingStatus::RESERVED_UNCONFIRMED
         )
     );
     echo 'EXPIRED';
