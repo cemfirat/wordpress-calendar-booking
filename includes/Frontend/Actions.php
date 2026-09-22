@@ -28,7 +28,9 @@ class Actions {
     public function boot(): void {
         add_action('admin_post_nopriv_cemb_submit_booking', [$this, 'submitBooking']);
         add_action('admin_post_cemb_submit_booking', [$this, 'submitBooking']);
-        add_action('init', [$this, 'handleLinks']);
+        add_action('admin_post_nopriv_cemb_booking_action', [$this, 'handleActionPost']);
+        add_action('admin_post_cemb_booking_action', [$this, 'handleActionPost']);
+        add_action('template_redirect', [$this, 'renderLinkAction'], 0);
         add_filter('query_vars', [$this, 'queryVars']);
         add_action('wp_ajax_cemb_get_slots', [$this, 'ajaxSlots']);
         add_action('wp_ajax_nopriv_cemb_get_slots', [$this, 'ajaxSlots']);
@@ -121,10 +123,7 @@ class Actions {
         $tokenService = new TokenService();
         $doiToken = $tokenService->create($bookingId, 'doi', (int)$settings['token_ttl_minutes']);
         $links = [
-            'confirm' => add_query_arg(
-                ['cemb_action' => 'confirm', 'cemb_token' => rawurlencode($doiToken)],
-                home_url('/')
-            ),
+            'confirm' => $this->linkUrl('confirm', $doiToken),
         ];
         (new Mailer())->sendTemplate('doi', $booking, $meta, $links, false);
         (new Mailer())->sendInternal($booking, $meta);
@@ -132,118 +131,310 @@ class Actions {
         exit;
     }
 
-    public function handleLinks(): void {
-        $action = get_query_var('cemb_action');
-        $token = get_query_var('cemb_token');
-        if (!$action || !$token) return;
+    /**
+     * GET is deliberately read-only. Mail scanners/prefetchers may open links.
+     */
+    public function renderLinkAction(): void {
+        if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
+            return;
+        }
 
-        $tokenService = new TokenService();
+        $action = sanitize_key((string)get_query_var('cemb_action'));
+        $token = sanitize_text_field((string)get_query_var('cemb_token'));
+        $tokenType = $this->tokenTypeForAction($action);
+        if (!$tokenType || $token === '') {
+            return;
+        }
+
+        $tokens = new TokenService();
+        $inspection = $tokens->inspect($token, $tokenType);
+        $state = (string)$inspection['state'];
+        $row = $inspection['row'];
+        $booking = $row ? (new BookingRepository())->find((int)$row->booking_id) : null;
+
+        if ($state === 'invalid' || !$booking) {
+            $this->renderActionScreen(
+                'Link ungültig',
+                'Dieser Termin-Link ist ungültig oder gehört nicht mehr zu einer vorhandenen Buchung.'
+            );
+        }
+
+        if ($state === 'expired') {
+            $this->renderActionScreen(
+                'Link abgelaufen',
+                'Dieser Termin-Link ist abgelaufen. Es wurde keine Änderung an der Buchung vorgenommen.'
+            );
+        }
+
+        if ($state === 'used') {
+            $this->renderActionScreen(
+                $this->usedTitle($action, (string)$booking->status),
+                $this->usedMessage($action, (string)$booking->status, $booking)
+            );
+        }
+
+        $this->renderValidAction($action, $token, $booking);
+    }
+
+    /**
+     * All public booking state changes enter through this POST-only endpoint.
+     */
+    public function handleActionPost(): void {
+        if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
+            wp_die('Method not allowed.', 'Method not allowed', ['response' => 405]);
+        }
+
+        $action = sanitize_key(wp_unslash($_POST['cemb_link_action'] ?? ''));
+        $token = sanitize_text_field(wp_unslash($_POST['cemb_token'] ?? ''));
+        $tokenType = $this->tokenTypeForAction($action);
+        if (!$tokenType || $token === '') {
+            wp_die('Ungültige Termin-Aktion.', 'Ungültige Anfrage', ['response' => 400]);
+        }
+
+        $nonce = sanitize_text_field(wp_unslash($_POST['cemb_action_nonce'] ?? ''));
+        if (!wp_verify_nonce($nonce, $this->nonceAction($action, $token))) {
+            wp_die(
+                'Die Sicherheitsprüfung ist fehlgeschlagen. Es wurde nichts geändert.',
+                'Sicherheitsprüfung fehlgeschlagen',
+                ['response' => 403]
+            );
+        }
+
+        $tokens = new TokenService();
+        $result = $tokens->consume(
+            $token,
+            $tokenType,
+            function ($row) use ($action) {
+                return $this->processAction($action, $row);
+            }
+        );
+
+        if (is_wp_error($result)) {
+            wp_safe_redirect($this->linkUrl($action, $token));
+            exit;
+        }
+
+        wp_safe_redirect($this->linkUrl($action, $token));
+        exit;
+    }
+
+    /**
+     * @return array|\WP_Error
+     */
+    private function processAction(string $action, object $tokenRow) {
         $repo = new BookingRepository();
+        $booking = $repo->find((int)$tokenRow->booking_id);
+        if (!$booking) {
+            return new \WP_Error('cemb_booking_missing', 'Buchung nicht gefunden.');
+        }
+
         $settings = Settings::get();
         $transitions = new BookingTransitionService();
 
         if ($action === 'confirm') {
-            $row = $tokenService->validate((string)$token, 'doi');
-            if (!$row) wp_die('Bestätigungslink ungültig oder abgelaufen.');
-
             $event = $settings['mode'] === 'approval'
                 ? BookingStateMachine::EMAIL_CONFIRMED_APPROVAL
                 : BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC;
 
-            $result = $transitions->apply(
-                (int)$row->booking_id,
+            return $transitions->apply(
+                (int)$booking->id,
                 $event,
                 'user',
                 'Double-Opt-In confirmed'
             );
-            if (is_wp_error($result)) {
-                wp_die(esc_html($result->get_error_message()));
-            }
-
-            $tokenService->markUsed((int)$row->id);
-            wp_die('Danke. Deine E-Mail wurde bestätigt.');
         }
 
         if ($action === 'cancel') {
-            $row = $tokenService->validate((string)$token, 'cancel');
-            if (!$row) wp_die('Stornolink ungültig oder abgelaufen.');
-            $booking = $repo->find((int)$row->booking_id);
-            if (!$booking) wp_die('Buchung nicht gefunden.');
-
-            $cancelCutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['cancel_min_hours']) . ' hours');
-            $bookingStart = Time::parseUtc((string)$booking->slot_start);
-            if (!$bookingStart || $bookingStart < $cancelCutoff) {
-                wp_die('Stornierung ist für diesen Termin nicht mehr möglich.');
+            $cutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['cancel_min_hours']) . ' hours');
+            $start = Time::parseUtc((string)$booking->slot_start);
+            if (!$start || $start < $cutoff) {
+                return new \WP_Error('cemb_cancel_too_late', 'Stornierung ist für diesen Termin nicht mehr möglich.');
             }
 
-            $result = $transitions->apply(
+            return $transitions->apply(
                 (int)$booking->id,
                 BookingStateMachine::USER_CANCELLED,
                 'user',
                 'Booking cancelled by visitor'
             );
-            if (is_wp_error($result)) {
-                wp_die(esc_html($result->get_error_message()));
-            }
-
-            $tokenService->markUsed((int)$row->id);
-            wp_die('Dein Termin wurde storniert.');
         }
 
         if ($action === 'update') {
-            $row = $tokenService->validate((string)$token, 'update');
-            if (!$row) wp_die('Änderungslink ungültig oder abgelaufen.');
-            $booking = $repo->find((int)$row->booking_id);
-            if (!$booking) wp_die('Buchung nicht gefunden.');
-
-            $changeCutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['change_min_hours']) . ' hours');
-            $bookingStart = Time::parseUtc((string)$booking->slot_start);
-            if (!$bookingStart || $bookingStart < $changeCutoff) {
-                wp_die('Änderung ist für diesen Termin nicht mehr möglich.');
+            $cutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['change_min_hours']) . ' hours');
+            $start = Time::parseUtc((string)$booking->slot_start);
+            if (!$start || $start < $cutoff) {
+                return new \WP_Error('cemb_update_too_late', 'Änderung ist für diesen Termin nicht mehr möglich.');
             }
 
-            if (!empty($_POST['cemb_update_slot'])) {
-                check_admin_referer('cemb_update_booking');
-                $newSlotToken = sanitize_text_field(wp_unslash($_POST['new_slot_token'] ?? ''));
-                $selection = (new SlotSelectionService())->resolve(
-                    $newSlotToken,
-                    (int)$booking->booking_type_id,
-                    (int)$booking->id
-                );
-                if (!$selection) {
-                    wp_die('Der neue Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
-                }
-
-                $result = $transitions->reschedule(
-                    (int)$booking->id,
-                    (string)$selection['start'],
-                    (string)$selection['end'],
-                    'user',
-                    'Booking rescheduled by visitor'
-                );
-                if (is_wp_error($result)) {
-                    wp_die(esc_html($result->get_error_message()));
-                }
-
-                wp_die('Termin erfolgreich geändert.');
+            $newSlotToken = sanitize_text_field(wp_unslash($_POST['new_slot_token'] ?? ''));
+            $selection = (new SlotSelectionService())->resolve(
+                $newSlotToken,
+                (int)$booking->booking_type_id,
+                (int)$booking->id
+            );
+            if (!$selection) {
+                return new \WP_Error('cemb_slot_unavailable', 'Der neue Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
             }
 
+            return $transitions->reschedule(
+                (int)$booking->id,
+                (string)$selection['start'],
+                (string)$selection['end'],
+                'user',
+                'Booking rescheduled by visitor'
+            );
+        }
+
+        return new \WP_Error('cemb_action_unknown', 'Unbekannte Termin-Aktion.');
+    }
+
+    private function renderValidAction(string $action, string $token, object $booking): void {
+        $settings = Settings::get();
+        $date = Time::display((string)$booking->slot_start, $settings['date_format']);
+        $time = Time::display((string)$booking->slot_start, $settings['time_format']);
+
+        if ($action === 'confirm') {
+            $event = $settings['mode'] === 'approval'
+                ? BookingStateMachine::EMAIL_CONFIRMED_APPROVAL
+                : BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC;
+            if (!(new BookingStateMachine())->canApply((string)$booking->status, $event)) {
+                $this->renderActionScreen('Status', 'Diese E-Mail-Bestätigung ist für den aktuellen Buchungsstatus nicht verfügbar.');
+            }
+
+            $form = $this->actionFormStart($action, $token)
+                . '<p>Termin: <strong>' . esc_html($date . ' ' . $time) . '</strong></p>'
+                . '<button class="uk-button uk-button-primary" type="submit">E-Mail bestätigen</button></form>';
+            $this->renderActionScreen('Terminbuchung bestätigen', 'Bitte bestätige deine E-Mail-Adresse und damit die Terminbuchung.', $form);
+        }
+
+        if ($action === 'cancel') {
+            if (!(new BookingStateMachine())->canApply((string)$booking->status, BookingStateMachine::USER_CANCELLED)) {
+                $this->renderActionScreen('Status', 'Dieser Termin kann in seinem aktuellen Status nicht storniert werden.');
+            }
+            $cutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['cancel_min_hours']) . ' hours');
+            $start = Time::parseUtc((string)$booking->slot_start);
+            if (!$start || $start < $cutoff) {
+                $this->renderActionScreen('Stornierung nicht mehr möglich', 'Die Stornofrist für diesen Termin ist abgelaufen.');
+            }
+
+            $form = $this->actionFormStart($action, $token)
+                . '<p>Termin: <strong>' . esc_html($date . ' ' . $time) . '</strong></p>'
+                . '<button class="uk-button uk-button-danger" type="submit">Termin verbindlich stornieren</button></form>';
+            $this->renderActionScreen('Termin stornieren', 'Der Termin wird erst nach dem Klick auf den Button storniert.', $form);
+        }
+
+        if ($action === 'update') {
             if (!in_array((string)$booking->status, [BookingStatus::PENDING_APPROVAL, BookingStatus::CONFIRMED], true)) {
-                wp_die('Dieser Termin kann in seinem aktuellen Status nicht geändert werden.');
+                $this->renderActionScreen('Status', 'Dieser Termin kann in seinem aktuellen Status nicht geändert werden.');
+            }
+            $cutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['change_min_hours']) . ' hours');
+            $start = Time::parseUtc((string)$booking->slot_start);
+            if (!$start || $start < $cutoff) {
+                $this->renderActionScreen('Änderung nicht mehr möglich', 'Die Änderungsfrist für diesen Termin ist abgelaufen.');
             }
 
             $slots = (new SlotService())->getSlots((int)$booking->booking_type_id, 14, (int)$booking->id);
-            $slotTokens = new SlotTokenService();
-            echo '<div style="max-width:700px;margin:40px auto;font-family:sans-serif"><h1>Termin ändern</h1><form method="post">';
-            wp_nonce_field('cemb_update_booking');
-            echo '<select name="new_slot_token" required>';
-            foreach ($slots as $slot) {
-                $optionToken = $slotTokens->issue((int)$booking->booking_type_id, $slot['start'], $slot['end']);
-                echo '<option value="' . esc_attr($optionToken) . '">' . esc_html($slot['label']) . '</option>';
+            if (!$slots) {
+                $this->renderActionScreen('Keine freien Alternativen', 'Aktuell ist kein alternativer Termin verfügbar.');
             }
-            echo '</select><p><button type="submit" name="cemb_update_slot" value="1">Termin ändern</button></p></form></div>';
-            exit;
+
+            $slotTokens = new SlotTokenService();
+            $options = '';
+            foreach ($slots as $slot) {
+                if ((string)$slot['start'] === (string)$booking->slot_start) {
+                    continue;
+                }
+                $value = $slotTokens->issue((int)$booking->booking_type_id, $slot['start'], $slot['end']);
+                $options .= '<option value="' . esc_attr($value) . '">' . esc_html($slot['label']) . '</option>';
+            }
+            if ($options === '') {
+                $this->renderActionScreen('Keine freien Alternativen', 'Aktuell ist kein alternativer Termin verfügbar.');
+            }
+
+            $form = $this->actionFormStart($action, $token)
+                . '<p>Aktuell: <strong>' . esc_html($date . ' ' . $time) . '</strong></p>'
+                . '<label class="uk-form-label" for="cemb-new-slot">Neuer Termin</label>'
+                . '<div class="uk-form-controls"><select class="uk-select" id="cemb-new-slot" name="new_slot_token" required>'
+                . '<option value="">Bitte wählen</option>' . $options . '</select></div>'
+                . '<p><button class="uk-button uk-button-primary" type="submit">Termin ändern</button></p></form>';
+            $this->renderActionScreen('Termin ändern', 'Die Änderung wird erst nach dem Absenden gespeichert.', $form);
         }
+
+        $this->renderActionScreen('Link ungültig', 'Diese Termin-Aktion ist unbekannt.');
+    }
+
+    private function actionFormStart(string $action, string $token): string {
+        $nonce = wp_create_nonce($this->nonceAction($action, $token));
+        return '<form class="cemb-public-action-form uk-form-stacked" method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
+            . '<input type="hidden" name="action" value="cemb_booking_action">'
+            . '<input type="hidden" name="cemb_link_action" value="' . esc_attr($action) . '">'
+            . '<input type="hidden" name="cemb_token" value="' . esc_attr($token) . '">'
+            . '<input type="hidden" name="cemb_action_nonce" value="' . esc_attr($nonce) . '">';
+    }
+
+    private function renderActionScreen(string $title, string $message, string $form = ''): void {
+        status_header(200);
+        nocache_headers();
+        wp_enqueue_style('cemb-frontend', CEMB_URL . 'assets/css/frontend.css', [], CEMB_VERSION);
+        get_header();
+        echo '<main class="cemb-public-action uk-section"><div class="uk-container uk-container-small">';
+        echo '<div class="uk-card uk-card-default uk-card-body">';
+        echo '<h1 class="uk-card-title">' . esc_html($title) . '</h1>';
+        echo '<p>' . esc_html($message) . '</p>';
+        echo $form; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- form is assembled from escaped values above.
+        echo '</div></div></main>';
+        get_footer();
+        exit;
+    }
+
+    private function tokenTypeForAction(string $action): ?string {
+        return [
+            'confirm' => 'doi',
+            'cancel' => 'cancel',
+            'update' => 'update',
+        ][$action] ?? null;
+    }
+
+    private function nonceAction(string $action, string $token): string {
+        return 'cemb_booking_action|' . $action . '|' . hash('sha256', $token);
+    }
+
+    private function linkUrl(string $action, string $token): string {
+        return add_query_arg(
+            ['cemb_action' => $action, 'cemb_token' => rawurlencode($token)],
+            home_url('/')
+        );
+    }
+
+    private function usedTitle(string $action, string $status): string {
+        if ($action === 'cancel' && $status === BookingStatus::CANCELLED) {
+            return 'Termin bereits storniert';
+        }
+        if ($action === 'confirm' && in_array($status, [BookingStatus::PENDING_APPROVAL, BookingStatus::CONFIRMED], true)) {
+            return 'E-Mail bereits bestätigt';
+        }
+        if ($action === 'update') {
+            return 'Änderungslink bereits verwendet';
+        }
+        return 'Link bereits verwendet';
+    }
+
+    private function usedMessage(string $action, string $status, object $booking): string {
+        $settings = Settings::get();
+        $when = Time::display((string)$booking->slot_start, $settings['date_format'] . ' ' . $settings['time_format']);
+        if ($action === 'cancel' && $status === BookingStatus::CANCELLED) {
+            return 'Die Buchung ist bereits storniert. Es wurde keine weitere Änderung vorgenommen.';
+        }
+        if ($action === 'confirm' && $status === BookingStatus::PENDING_APPROVAL) {
+            return 'Die E-Mail ist bereits bestätigt. Der Termin wartet auf Freigabe.';
+        }
+        if ($action === 'confirm' && $status === BookingStatus::CONFIRMED) {
+            return 'Die E-Mail ist bereits bestätigt und der Termin ist bestätigt.';
+        }
+        if ($action === 'update') {
+            return 'Dieser Änderungslink wurde bereits verwendet. Aktueller Termin: ' . $when . '.';
+        }
+        return 'Dieser Link wurde bereits verwendet. Es wurde keine weitere Änderung vorgenommen.';
     }
 
     public function expireReservations(): void {
