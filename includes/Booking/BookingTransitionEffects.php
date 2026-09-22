@@ -32,9 +32,11 @@ final class BookingTransitionEffects {
         if ($target === BookingStatus::PENDING_APPROVAL) {
             $mailer->sendTemplate('pending', $bookingArray, $meta, $this->actionLinks($bookingId), false);
         } elseif ($target === BookingStatus::CONFIRMED) {
-            $queue = new QueueService();
-            $queue->enqueueCreate($bookingId);
-            $queue->runNow();
+            if (!empty($settings['icloud_sync_enabled'])) {
+                $queue = new QueueService();
+                $queue->enqueueCreate($bookingId);
+                $queue->runNow();
+            }
             $template = $event === BookingStateMachine::ADMIN_APPROVED ? 'approved' : 'confirmed';
             $mailer->sendTemplate($template, $bookingArray, $meta, $this->actionLinks($bookingId), true);
         } elseif ($target === BookingStatus::REJECTED) {
