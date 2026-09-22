@@ -9,8 +9,8 @@ interface CalendarSyncProviderInterface extends CalendarProviderInterface {
     public function createEvent(array $booking, array $meta, CalendarConnection $connection);
 
     /** @return array|\WP_Error */
-    public function updateEvent(array $booking, array $meta, CalendarConnection $connection, string $eventId);
+    public function updateEvent(array $booking, array $meta, CalendarConnection $connection, string $eventId, array $providerState = []);
 
     /** @return array|\WP_Error */
-    public function cancelEvent(CalendarConnection $connection, string $eventId);
+    public function cancelEvent(CalendarConnection $connection, string $eventId, array $providerState = []);
 }
