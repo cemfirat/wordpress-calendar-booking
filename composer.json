@@ -1,0 +1,13 @@
+{
+  "name": "cemfirat/wordpress-calendar-booking",
+  "description": "Privacy-conscious calendar availability and appointment booking for WordPress.",
+  "type": "wordpress-plugin",
+  "license": "GPL-2.0-or-later",
+  "require": {
+    "php": ">=8.0",
+    "sabre/vobject": "4.6.1"
+  },
+  "config": {
+    "sort-packages": true
+  }
+}

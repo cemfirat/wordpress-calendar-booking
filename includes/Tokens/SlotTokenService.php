@@ -97,11 +97,17 @@ class SlotTokenService {
         if ($value === '' || preg_match('/[^A-Za-z0-9_-]/', $value)) {
             return null;
         }
+
+        $canonical = $value;
         $padding = strlen($value) % 4;
         if ($padding) {
             $value .= str_repeat('=', 4 - $padding);
         }
+
         $decoded = base64_decode(strtr($value, '-_', '+/'), true);
-        return $decoded === false ? null : $decoded;
+        if ($decoded === false || !hash_equals($canonical, $this->base64UrlEncode($decoded))) {
+            return null;
+        }
+        return $decoded;
     }
 }

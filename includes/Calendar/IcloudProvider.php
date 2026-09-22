@@ -34,8 +34,15 @@ class IcloudProvider {
 
         $unique = [];
         foreach ($events as $event) {
-            $key = ($event['uid'] ?: md5(($event['summary'] ?? '') . '|' . ($event['start'] ?? '') . '|' . ($event['end'] ?? '')));
-            $unique[$key] = $event;
+            // Recurring instances intentionally share one UID. Include the
+            // occurrence timing so weekly/monthly instances are not collapsed.
+            $identity = implode('|', [
+                (string)($event['uid'] ?? ''),
+                (string)($event['recurrence_id'] ?? ''),
+                (string)($event['start'] ?? ''),
+                (string)($event['end'] ?? ''),
+            ]);
+            $unique[$identity !== '|||' ? $identity : md5(wp_json_encode($event))] = $event;
         }
         usort($unique, static fn($a, $b) => strcmp((string) $a['start'], (string) $b['start']));
         return array_values($unique);
