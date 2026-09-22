@@ -5,6 +5,8 @@ use Cemb\Security\Guard;
 use Cemb\Forms\FieldRepository;
 use Cemb\Booking\BookingRepository;
 use Cemb\Booking\BookingStatus;
+use Cemb\Booking\BookingStateMachine;
+use Cemb\Booking\BookingTransitionService;
 use Cemb\Booking\ReservationService;
 use Cemb\Tokens\TokenService;
 use Cemb\Tokens\SlotTokenService;
@@ -13,7 +15,6 @@ use Cemb\Availability\SlotService;
 use Cemb\Availability\SlotSelectionService;
 use Cemb\Admin\Settings;
 use Cemb\Booking\BookingTypeRepository;
-use Cemb\Sync\QueueService;
 use Cemb\Support\BookingFormatter;
 use Cemb\Support\Time;
 
@@ -31,7 +32,8 @@ class Actions {
         add_filter('query_vars', [$this, 'queryVars']);
         add_action('wp_ajax_cemb_get_slots', [$this, 'ajaxSlots']);
         add_action('wp_ajax_nopriv_cemb_get_slots', [$this, 'ajaxSlots']);
-        add_action('cemb_hourly_reminders', [$this, 'sendReminders']);
+        add_action('cemb_hourly_reminders', [$this, 'expireReservations'], 5);
+        add_action('cemb_hourly_reminders', [$this, 'sendReminders'], 10);
         if (!wp_next_scheduled('cemb_hourly_reminders')) {
             wp_schedule_event(time() + 300, 'hourly', 'cemb_hourly_reminders');
         }
@@ -118,12 +120,11 @@ class Actions {
         $booking = (array)$repo->find((int)$bookingId);
         $tokenService = new TokenService();
         $doiToken = $tokenService->create($bookingId, 'doi', (int)$settings['token_ttl_minutes']);
-        $cancelToken = $tokenService->create($bookingId, 'cancel', 60 * 24 * 30);
-        $updateToken = $tokenService->create($bookingId, 'update', 60 * 24 * 30);
         $links = [
-            'confirm' => add_query_arg(['cemb_action' => 'confirm', 'cemb_token' => rawurlencode($doiToken)], home_url('/')),
-            'cancel' => add_query_arg(['cemb_action' => 'cancel', 'cemb_token' => rawurlencode($cancelToken)], home_url('/')),
-            'update' => add_query_arg(['cemb_action' => 'update', 'cemb_token' => rawurlencode($updateToken)], home_url('/')),
+            'confirm' => add_query_arg(
+                ['cemb_action' => 'confirm', 'cemb_token' => rawurlencode($doiToken)],
+                home_url('/')
+            ),
         ];
         (new Mailer())->sendTemplate('doi', $booking, $meta, $links, false);
         (new Mailer())->sendInternal($booking, $meta);
@@ -135,40 +136,31 @@ class Actions {
         $action = get_query_var('cemb_action');
         $token = get_query_var('cemb_token');
         if (!$action || !$token) return;
+
         $tokenService = new TokenService();
         $repo = new BookingRepository();
-        $mailer = new Mailer();
         $settings = Settings::get();
-        $queue = new QueueService();
+        $transitions = new BookingTransitionService();
 
         if ($action === 'confirm') {
             $row = $tokenService->validate((string)$token, 'doi');
             if (!$row) wp_die('Bestätigungslink ungültig oder abgelaufen.');
-            $booking = $repo->find((int)$row->booking_id);
-            if (!$booking) wp_die('Buchung nicht gefunden.');
-            if (!(new SlotService())->slotAvailable((int)$booking->booking_type_id, $booking->slot_start, $booking->slot_end, (int)$booking->id)) wp_die('Der Slot ist leider nicht mehr verfügbar.');
-            $tokenService->markUsed((int)$row->id);
-            $meta = $repo->getMeta((int)$booking->id);
-            $cancelToken = $tokenService->create((int)$booking->id, 'cancel', 60 * 24 * 30);
-            $updateToken = $tokenService->create((int)$booking->id, 'update', 60 * 24 * 30);
-            $links = [
-                'cancel' => add_query_arg(['cemb_action' => 'cancel', 'cemb_token' => rawurlencode($cancelToken)], home_url('/')),
-                'update' => add_query_arg(['cemb_action' => 'update', 'cemb_token' => rawurlencode($updateToken)], home_url('/')),
-            ];
-            if ($settings['mode'] === 'approval') {
-                $repo->update((int)$booking->id, ['confirmed_at' => Time::formatUtc(Time::nowUtc()), 'reserved_until' => null]);
-                $repo->updateStatus((int)$booking->id, BookingStatus::PENDING_ADMIN_APPROVAL, 'doi_confirmed', 'user', 'Double-Opt-In bestätigt');
-                $booking = (array)$repo->find((int)$booking->id);
-                $mailer->sendTemplate('pending', $booking, $meta, $links, false);
-            } else {
-                $repo->update((int)$booking->id, ['confirmed_at' => Time::formatUtc(Time::nowUtc()), 'approved_at' => Time::formatUtc(Time::nowUtc()), 'reserved_until' => null]);
-                $repo->updateStatus((int)$booking->id, BookingStatus::CONFIRMED, 'doi_confirmed', 'user', 'Automatisch bestätigt');
-                $booking = (array)$repo->find((int)$booking->id);
-                $queue->enqueueCreate((int)$booking['id']);
-                $queue->runNow();
-                $mailer->sendTemplate('confirmed', $booking, $meta, $links, true);
+
+            $event = $settings['mode'] === 'approval'
+                ? BookingStateMachine::EMAIL_CONFIRMED_APPROVAL
+                : BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC;
+
+            $result = $transitions->apply(
+                (int)$row->booking_id,
+                $event,
+                'user',
+                'Double-Opt-In confirmed'
+            );
+            if (is_wp_error($result)) {
+                wp_die(esc_html($result->get_error_message()));
             }
-            $mailer->sendInternal((array)$repo->find((int)$booking['id']), $meta);
+
+            $tokenService->markUsed((int)$row->id);
             wp_die('Danke. Deine E-Mail wurde bestätigt.');
         }
 
@@ -177,19 +169,24 @@ class Actions {
             if (!$row) wp_die('Stornolink ungültig oder abgelaufen.');
             $booking = $repo->find((int)$row->booking_id);
             if (!$booking) wp_die('Buchung nicht gefunden.');
+
             $cancelCutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['cancel_min_hours']) . ' hours');
             $bookingStart = Time::parseUtc((string)$booking->slot_start);
-            if (!$bookingStart || $bookingStart < $cancelCutoff) wp_die('Stornierung ist für diesen Termin nicht mehr möglich.');
-            $tokenService->markUsed((int)$row->id);
-            $repo->update((int)$booking->id, ['cancelled_at' => Time::formatUtc(Time::nowUtc()), 'reserved_until' => null]);
-            $repo->updateStatus((int)$booking->id, BookingStatus::CANCELLED, 'cancel', 'user', 'Vom Nutzer storniert');
-            $meta = $repo->getMeta((int)$booking->id);
-            if (!empty($settings['icloud_sync_cancellations'])) {
-                $queue->enqueueCancel((int)$booking->id);
-                $queue->runNow();
+            if (!$bookingStart || $bookingStart < $cancelCutoff) {
+                wp_die('Stornierung ist für diesen Termin nicht mehr möglich.');
             }
-            $mailer->sendTemplate('cancelled', (array)$repo->find((int)$booking->id), $meta, [], false);
-            $mailer->sendInternal((array)$repo->find((int)$booking->id), $meta);
+
+            $result = $transitions->apply(
+                (int)$booking->id,
+                BookingStateMachine::USER_CANCELLED,
+                'user',
+                'Booking cancelled by visitor'
+            );
+            if (is_wp_error($result)) {
+                wp_die(esc_html($result->get_error_message()));
+            }
+
+            $tokenService->markUsed((int)$row->id);
             wp_die('Dein Termin wurde storniert.');
         }
 
@@ -198,9 +195,13 @@ class Actions {
             if (!$row) wp_die('Änderungslink ungültig oder abgelaufen.');
             $booking = $repo->find((int)$row->booking_id);
             if (!$booking) wp_die('Buchung nicht gefunden.');
+
             $changeCutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['change_min_hours']) . ' hours');
             $bookingStart = Time::parseUtc((string)$booking->slot_start);
-            if (!$bookingStart || $bookingStart < $changeCutoff) wp_die('Änderung ist für diesen Termin nicht mehr möglich.');
+            if (!$bookingStart || $bookingStart < $changeCutoff) {
+                wp_die('Änderung ist für diesen Termin nicht mehr möglich.');
+            }
+
             if (!empty($_POST['cemb_update_slot'])) {
                 check_admin_referer('cemb_update_booking');
                 $newSlotToken = sanitize_text_field(wp_unslash($_POST['new_slot_token'] ?? ''));
@@ -209,20 +210,28 @@ class Actions {
                     (int)$booking->booking_type_id,
                     (int)$booking->id
                 );
-                if (!$selection) wp_die('Der neue Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
-                $newStart = (string)$selection['start'];
-                $newEnd = (string)$selection['end'];
-                $repo->update((int)$booking->id, ['slot_start' => $newStart, 'slot_end' => $newEnd, 'updated_at_user' => Time::formatUtc(Time::nowUtc())]);
-                $repo->updateStatus((int)$booking->id, BookingStatus::UPDATED, 'update', 'user', 'Termin geändert');
-                $meta = $repo->getMeta((int)$booking->id);
-                if (!empty($settings['icloud_sync_updates'])) {
-                    $queue->enqueueUpdate((int)$booking->id);
-                    $queue->runNow();
+                if (!$selection) {
+                    wp_die('Der neue Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
                 }
-                $mailer->sendTemplate('updated', (array)$repo->find((int)$booking->id), $meta, [], true);
-                $mailer->sendInternal((array)$repo->find((int)$booking->id), $meta);
+
+                $result = $transitions->reschedule(
+                    (int)$booking->id,
+                    (string)$selection['start'],
+                    (string)$selection['end'],
+                    'user',
+                    'Booking rescheduled by visitor'
+                );
+                if (is_wp_error($result)) {
+                    wp_die(esc_html($result->get_error_message()));
+                }
+
                 wp_die('Termin erfolgreich geändert.');
             }
+
+            if (!in_array((string)$booking->status, [BookingStatus::PENDING_APPROVAL, BookingStatus::CONFIRMED], true)) {
+                wp_die('Dieser Termin kann in seinem aktuellen Status nicht geändert werden.');
+            }
+
             $slots = (new SlotService())->getSlots((int)$booking->booking_type_id, 14, (int)$booking->id);
             $slotTokens = new SlotTokenService();
             echo '<div style="max-width:700px;margin:40px auto;font-family:sans-serif"><h1>Termin ändern</h1><form method="post">';
@@ -235,6 +244,10 @@ class Actions {
             echo '</select><p><button type="submit" name="cemb_update_slot" value="1">Termin ändern</button></p></form></div>';
             exit;
         }
+    }
+
+    public function expireReservations(): void {
+        (new BookingTransitionService())->expireReservations();
     }
 
     public function sendReminders(): void {

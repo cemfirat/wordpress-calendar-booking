@@ -17,6 +17,10 @@ class BookingRepository {
 
     public function create(array $data, array $meta = []): int {
         global $wpdb;
+        $status = (string)($data['status'] ?? '');
+        if (!in_array($status, BookingStatus::all(), true)) {
+            return 0;
+        }
         $wpdb->insert($this->table, $data);
         $id = (int)$wpdb->insert_id;
         foreach ($meta as $key => $value) {
@@ -30,21 +34,65 @@ class BookingRepository {
         return $id;
     }
 
-    public function updateStatus(int $bookingId, string $newStatus, string $context = 'system', string $changedBy = 'system', string $note = ''): void {
+    /**
+     * Atomically transition a booking only when its current state still matches.
+     */
+    public function transitionStatus(
+        int $bookingId,
+        string $expectedStatus,
+        string $newStatus,
+        array $fields,
+        string $event,
+        string $actor,
+        string $note = ''
+    ): bool {
         global $wpdb;
-        $booking = $this->find($bookingId);
-        if (!$booking) return;
-        $wpdb->update($this->table, [
-            'status' => $newStatus,
-            'updated_at' => Time::formatUtc(Time::nowUtc()),
-        ], ['id' => $bookingId]);
-        $this->log($bookingId, (string)$booking->status, $newStatus, $context, $changedBy, $note);
+        if (!in_array($expectedStatus, BookingStatus::all(), true)
+            || !in_array($newStatus, BookingStatus::all(), true)
+        ) {
+            return false;
+        }
+        $fields['status'] = $newStatus;
+        $fields['updated_at'] = Time::formatUtc(Time::nowUtc());
+
+        $updated = $wpdb->update(
+            $this->table,
+            $fields,
+            ['id' => $bookingId, 'status' => $expectedStatus]
+        );
+
+        if ($updated !== 1) {
+            return false;
+        }
+
+        $this->log($bookingId, $expectedStatus, $newStatus, $event, $actor, $note);
+        return true;
+    }
+
+    /**
+     * Record a lifecycle event that intentionally leaves the state unchanged.
+     */
+    public function logEvent(int $bookingId, string $status, string $event, string $actor, string $note = ''): void {
+        $this->log($bookingId, $status, $status, $event, $actor, $note);
     }
 
     public function update(int $bookingId, array $data): void {
         global $wpdb;
+        if (array_key_exists('status', $data)) {
+            throw new \InvalidArgumentException('Booking status changes must use BookingTransitionService.');
+        }
         $data['updated_at'] = Time::formatUtc(Time::nowUtc());
         $wpdb->update($this->table, $data, ['id' => $bookingId]);
+    }
+
+    public function updateWhenStatus(int $bookingId, string $expectedStatus, array $data): bool {
+        global $wpdb;
+        $data['updated_at'] = Time::formatUtc(Time::nowUtc());
+        return 1 === $wpdb->update(
+            $this->table,
+            $data,
+            ['id' => $bookingId, 'status' => $expectedStatus]
+        );
     }
 
     public function replaceMeta(int $bookingId, array $meta): void {
@@ -111,6 +159,24 @@ class BookingRepository {
         return $params ? $wpdb->get_results($wpdb->prepare($sql, ...$params)) : $wpdb->get_results($sql);
     }
 
+    public function expiredReservationIds(int $limit = 100): array {
+        global $wpdb;
+        $limit = max(1, min(1000, $limit));
+        $now = Time::formatUtc(Time::nowUtc());
+        $sql = $wpdb->prepare(
+            "SELECT id FROM {$this->table}
+             WHERE status = %s
+             AND reserved_until IS NOT NULL
+             AND reserved_until < %s
+             ORDER BY reserved_until ASC
+             LIMIT %d",
+            BookingStatus::RESERVED_UNCONFIRMED,
+            $now,
+            $limit
+        );
+        return array_map('intval', $wpdb->get_col($sql));
+    }
+
     public function displayableBetween(string $from, string $to): array {
         global $wpdb;
         $statuses = BookingStatus::displayableCalendarStatuses();
@@ -129,7 +195,7 @@ class BookingRepository {
             AND (status != %s OR reserved_until IS NULL OR reserved_until >= %s)
             AND slot_start < %s
             AND slot_end > %s";
-        $params = array_merge($statuses, [BookingStatus::EMAIL_UNCONFIRMED, Time::formatUtc(Time::nowUtc()), $end, $start]);
+        $params = array_merge($statuses, [BookingStatus::RESERVED_UNCONFIRMED, Time::formatUtc(Time::nowUtc()), $end, $start]);
         if ($ignoreId) {
             $sql .= ' AND id != %d';
             $params[] = $ignoreId;
