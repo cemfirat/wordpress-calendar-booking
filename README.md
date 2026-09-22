@@ -65,6 +65,14 @@ See [SECURITY.md](SECURITY.md), [docs/SECURITY-PRIVACY.md](docs/SECURITY-PRIVACY
 
 The GitHub issue tracker is the source of truth for release work. Pull requests should close focused issues and include tests for behavior changes.
 
+Install PHP dependencies before running or testing a source checkout:
+
+```sh
+composer install
+```
+
+Stable release ZIPs will bundle runtime dependencies; end users will not need Composer.
+
 - Product definition: [docs/PRODUCT.md](docs/PRODUCT.md)
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
