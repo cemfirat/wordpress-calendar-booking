@@ -2,7 +2,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Development status:** 2.0 is under active development. The imported 1.x prototype is not considered a stable public release. Security, privacy, recurrence and concurrency issues tracked in GitHub Issues are release blockers.
+> **Stable release:** 2.0.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -61,16 +61,16 @@ The plugin does **not** scrape arbitrary themes and copy their CSS classes. Them
 
 ## Privacy and security
 
-Before a stable release, 2.0 must provide:
+Version 2.0 provides:
 
-- signed short-lived slot tokens
+- signed short-lived canonical slot tokens
 - atomic conflict prevention
 - UTC/IANA time-zone storage and DST tests
 - recurrence-capable busy-time parsing
 - busy-only public output
 - explicit booking state transitions
-- POST-only state changes for cancellation/rescheduling/confirmation
-- indexed selector/verifier tokens
+- scanner-safe GET pages with POST-only cancellation/rescheduling/confirmation mutations
+- indexed selector/verifier one-time tokens
 - authenticated encryption for calendar credentials
 - idempotent queue/notification processing
 - WordPress privacy exporter/eraser and retention controls
@@ -79,7 +79,7 @@ See [SECURITY.md](SECURITY.md), [docs/SECURITY-PRIVACY.md](docs/SECURITY-PRIVACY
 
 ## Development
 
-The GitHub issue tracker is the source of truth for release work. Pull requests should close focused issues and include tests for behavior changes.
+The GitHub issue tracker is the source of truth for bugs, features and release work. Pull requests should close focused issues and include tests for behavior changes.
 
 Install PHP dependencies before running or testing a source checkout:
 
@@ -100,3 +100,10 @@ The asset build copies the pinned UIkit fallback from npm into `assets/vendor/ui
 ## License
 
 GPL-2.0-or-later. Copyright © 2026 Cem Firat.
+
+
+## Installation
+
+Download `wordpress-calendar-booking.zip` from the latest GitHub release and upload it through **Plugins → Add New → Upload Plugin**. Stable GitHub releases are then discovered through WordPress's native plugin update flow.
+
+Source checkouts require Composer/npm only for development. Release ZIPs already include production Composer dependencies and the built local UIkit fallback.

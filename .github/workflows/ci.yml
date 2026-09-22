@@ -132,3 +132,263 @@ jobs:
 
           booking_count="$(CEMB_TEST_STATE_ACTION=count wp eval-file "$GITHUB_WORKSPACE/tests/reservation-race-state.php" --path="$RUNNER_TEMP/wordpress")"
           test "$booking_count" -eq 2
+
+
+  package:
+    name: Build release ZIP
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build local UIkit fallback
+        run: |
+          npm install --no-audit --no-fund
+          npm run build:assets
+      - name: Install production Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --no-dev --optimize-autoloader
+      - name: Build reproducible ZIP
+        run: python3 scripts/package.py
+      - name: Verify release contents
+        run: |
+          set -euo pipefail
+          unzip -t dist/wordpress-calendar-booking.zip
+          unzip -l dist/wordpress-calendar-booking.zip > "$RUNNER_TEMP/zip-list.txt"
+          cat "$RUNNER_TEMP/zip-list.txt"
+          ! grep -E '/(tests|node_modules|scripts|\.git|\.github)/' "$RUNNER_TEMP/zip-list.txt"
+          ! grep -E '/(package(-lock)?\.json|composer\.json|composer\.lock)$' "$RUNNER_TEMP/zip-list.txt"
+          grep -q 'wordpress-calendar-booking/vendor/autoload.php' "$RUNNER_TEMP/zip-list.txt"
+          grep -q 'wordpress-calendar-booking/assets/vendor/uikit/uikit.min.css' "$RUNNER_TEMP/zip-list.txt"
+          grep -q 'wordpress-calendar-booking/LICENSE' "$RUNNER_TEMP/zip-list.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-package
+          path: dist/wordpress-calendar-booking.zip
+          if-no-files-found: error
+          retention-days: 7
+
+  fresh_release:
+    name: Fresh install release ZIP
+    needs: [package]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Install WordPress and release ZIP
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=CEMBRelease --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+          wp eval-file "$GITHUB_WORKSPACE/tests/release-fresh.php" --path="$WP_ROOT"
+
+  legacy_upgrade:
+    name: Imported 1.x migration
+    needs: [package]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Create imported 1.x fixture
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=CEMBLegacy --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp eval-file "$GITHUB_WORKSPACE/tests/legacy-1x-fixture.php" --path="$WP_ROOT"
+      - name: Install release ZIP and verify migrations
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+          wp eval-file "$GITHUB_WORKSPACE/tests/legacy-upgrade-assert.php" --path="$WP_ROOT"
+
+  release:
+    name: Publish stable release
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [php, wordpress, fresh_release, legacy_upgrade]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: calendar-booking-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Prepare release metadata
+        id: metadata
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          text = pathlib.Path('cemb-calendar-booking.php').read_text()
+          def header(name):
+              match = re.search(r'^ \* ' + re.escape(name) + r': ([0-9.]+)$', text, re.M)
+              assert match, name
+              return match.group(1)
+          version = header('Version')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'tag=v{version}\n')
+          changelog = pathlib.Path('CHANGELOG.md').read_text()
+          section = changelog.split(f'## {version}\n', 1)[1].split('\n## ', 1)[0].strip()
+          notes = f"Requires WordPress: {header('Requires at least')}\nRequires PHP: {header('Requires PHP')}\n\n{section}\n"
+          pathlib.Path('dist/release-notes.md').write_text(notes)
+          PY
+      - name: Publish exact stable asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' > "$RUNNER_TEMP/release-draft" 2>/dev/null; then
+            if [ "$(cat "$RUNNER_TEMP/release-draft")" = false ]; then
+              echo "Release $RELEASE_TAG already published; keeping it immutable."
+              exit 0
+            fi
+          else
+            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "WordPress Calendar Booking $RELEASE_TAG" --notes-file dist/release-notes.md --draft
+          fi
+          gh release upload "$RELEASE_TAG" dist/wordpress-calendar-booking.zip --clobber
+          gh release edit "$RELEASE_TAG" --notes-file dist/release-notes.md --draft=false --latest
+
+  production_update:
+    name: Public GitHub updater smoke test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [release]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Build synthetic pre-release installation
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/synthetic"
+          unzip -q dist/wordpress-calendar-booking.zip -d "$RUNNER_TEMP/synthetic"
+          python3 - <<'PY'
+          import os, pathlib
+          p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/cemb-calendar-booking.php"
+          text = p.read_text()
+          text = text.replace(" * Version: 2.0.0", " * Version: 1.9.9")
+          text = text.replace("define('CEMB_VERSION', '2.0.0');", "define('CEMB_VERSION', '1.9.9');")
+          p.write_text(text)
+          PY
+          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-1.9.9.zip" wordpress-calendar-booking)
+      - name: Install synthetic old version
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=CEMBUpdater --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp plugin install "$RUNNER_TEMP/calendar-booking-1.9.9.zip" --activate --path="$WP_ROOT"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "1.9.9"
+      - name: Discover real public v2.0.0 release
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          found=0
+          for attempt in 1 2 3 4 5 6; do
+            version="$(wp eval '
+              require_once ABSPATH . "wp-admin/includes/update.php";
+              delete_site_transient(Cemb\Updates\GitHubUpdater::CACHE_KEY);
+              delete_site_transient("update_plugins");
+              wp_update_plugins();
+              $updates = get_site_transient("update_plugins");
+              $basename = plugin_basename(CEMB_FILE);
+              if (isset($updates->response[$basename])) {
+                  echo $updates->response[$basename]->new_version;
+              }
+            ' --path="$WP_ROOT")"
+            if [ "$version" = "2.0.0" ]; then
+              found=1
+              break
+            fi
+            sleep 5
+          done
+          test "$found" -eq 1
+      - name: Update through WordPress from public GitHub
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp plugin update wordpress-calendar-booking --path="$WP_ROOT"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "2.0.0"
+          wp plugin is-active wordpress-calendar-booking --path="$WP_ROOT"
+          echo "PASS: synthetic 1.9.9 updated through the public GitHub release to 2.0.0."

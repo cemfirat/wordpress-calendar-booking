@@ -5,7 +5,9 @@
   "license": "GPL-2.0-or-later",
   "require": {
     "php": ">=8.0",
-    "sabre/vobject": "4.6.1"
+    "sabre/uri": "2.3.4",
+    "sabre/vobject": "4.6.1",
+    "sabre/xml": "4.0.7"
   },
   "config": {
     "sort-packages": true

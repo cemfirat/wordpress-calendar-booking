@@ -2,22 +2,34 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: trunk
+Stable tag: 2.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
 Calendar availability and appointment booking with Double Opt-In, optional admin approval, ICS attachments and configurable slots.
 
-== Development status ==
+== Description ==
 
-The imported 1.x code is a development baseline for the public 2.0 rewrite. There is currently no stable public release. See the GitHub issue tracker for release blockers.
+WordPress Calendar Booking provides privacy-conscious appointment booking with server-validated availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments and configurable slots.
 
-== Current prototype ==
-
-The prototype includes configurable booking types/slots, Double Opt-In, optional admin approval, notifications, ICS attachments and initial iCloud/CalDAV integration.
+Calendar providers include public ICS feeds, generic CalDAV/iCloud, Google Calendar and Microsoft Graph. Public calendar rendering is busy-only by default. UIkit is used for the frontend with native YOOtheme Pro integration and a local fallback when YOOtheme is unavailable.
 
 Shortcodes:
 [cemb_calendar]
 [cemb_booking_form]
 
-Known architectural/security/privacy limitations are tracked publicly without weaponized reproduction details. A stable release will not be published until the P0 tracker is complete.
+Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
+
+== Changelog ==
+
+= 2.0.0 =
+* First stable public release.
+* Add canonical server-side slot validation and atomic reservation.
+* Add UTC/IANA timezone model with DST-safe handling and legacy migration.
+* Add recurrence-capable iCalendar parsing with RRULE, EXDATE and overrides.
+* Add explicit booking lifecycle, scanner-safe POST-only confirmation/cancellation/rescheduling and indexed one-time tokens.
+* Add authenticated provider credential encryption and idempotent sync/notification processing.
+* Add privacy exporter/eraser, retention controls and busy-only public calendar output.
+* Add Google Calendar, Microsoft Graph, generic CalDAV and iCloud integrations.
+* Add shared UIkit frontend rendering with YOOtheme Pro integration and local fallback.
+* Add provider health diagnostics and stable GitHub release updates.
