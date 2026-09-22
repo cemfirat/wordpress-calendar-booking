@@ -147,6 +147,24 @@ class BookingRepository {
         return $params ? $wpdb->get_results($wpdb->prepare($sql, ...$params)) : $wpdb->get_results($sql);
     }
 
+    public function expiredReservationIds(int $limit = 100): array {
+        global $wpdb;
+        $limit = max(1, min(1000, $limit));
+        $now = Time::formatUtc(Time::nowUtc());
+        $sql = $wpdb->prepare(
+            "SELECT id FROM {$this->table}
+             WHERE status = %s
+             AND reserved_until IS NOT NULL
+             AND reserved_until < %s
+             ORDER BY reserved_until ASC
+             LIMIT %d",
+            BookingStatus::RESERVED_UNCONFIRMED,
+            $now,
+            $limit
+        );
+        return array_map('intval', $wpdb->get_col($sql));
+    }
+
     public function displayableBetween(string $from, string $to): array {
         global $wpdb;
         $statuses = BookingStatus::displayableCalendarStatuses();
