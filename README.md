@@ -27,6 +27,10 @@ Generic CalDAV connections use `current-user-principal`, `calendar-home-set` and
 
 The iCloud preset uses `https://caldav.icloud.com/` and the same generic provider. For direct username/password-style CalDAV access, use an Apple Account email plus an app-specific password. Apple requires two-factor authentication for app-specific passwords. Apple also supports account authorization for compatible third-party apps; that can replace app-specific passwords when an app implements Apple's authorization flow.
 
+### Provider diagnostics
+
+A unified **Calendar Diagnostics** screen shows provider capabilities, selected calendar, credential/reconnect state, last successful availability read, last successful write, and a redacted error summary with timestamp. Manual read/write tests require an administrator capability and WordPress nonce. Write diagnostics create one neutral five-minute event about 180 days in the future and remove it immediately; credential/token values are never rendered.
+
 ### Microsoft Graph behavior
 
 For delegated Microsoft accounts the plugin requests `Calendars.ReadBasic` when a connection only blocks availability and `Calendars.ReadWrite` when write-back is enabled. Work/school default calendars use Graph `getSchedule` when available. Personal Microsoft accounts and specific calendar IDs use the supported `calendarView` path instead. OAuth credentials are encrypted at rest through the shared connection repository.
