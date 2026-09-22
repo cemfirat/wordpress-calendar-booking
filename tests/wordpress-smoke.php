@@ -258,6 +258,13 @@ cemb_smoke_assert(
 	Cemb\Booking\BookingStatus::PENDING_APPROVAL === $lifecycle_repo->find( $lifecycle_booking_id )->status,
 	'Pending approval is persisted.'
 );
+$direct_status_write_blocked = false;
+try {
+	$lifecycle_repo->update( $lifecycle_booking_id, [ 'status' => Cemb\Booking\BookingStatus::CONFIRMED ] );
+} catch ( InvalidArgumentException $error ) {
+	$direct_status_write_blocked = true;
+}
+cemb_smoke_assert( $direct_status_write_blocked, 'Generic repository updates cannot bypass the booking state machine.' );
 
 $doi_retry = $lifecycle_service->apply(
 	$lifecycle_booking_id,
