@@ -42,7 +42,7 @@ The initial reservation path performs a fast pre-check, then obtains a MySQL adv
 
 ## Booking state machine
 
-Suggested states:
+Canonical states:
 
 - `reserved_unconfirmed`
 - `pending_approval`
@@ -51,7 +51,23 @@ Suggested states:
 - `cancelled`
 - `expired`
 
-Transitions must be explicit and whitelisted. No arbitrary status string writes.
+Callers emit semantic lifecycle events instead of target status strings:
+
+| Event | From | To |
+| --- | --- | --- |
+| `email_confirmed_approval` | `reserved_unconfirmed` | `pending_approval` |
+| `email_confirmed_automatic` | `reserved_unconfirmed` | `confirmed` |
+| `admin_approved` | `pending_approval` | `confirmed` |
+| `admin_rejected` | `pending_approval` | `rejected` |
+| `user_cancelled` | `pending_approval`, `confirmed` | `cancelled` |
+| `admin_cancelled` | `pending_approval`, `confirmed` | `cancelled` |
+| `reservation_expired` | `reserved_unconfirmed` | `expired` |
+
+The transition write is compare-and-swap guarded by the expected current state. Repeating the same successful transition is idempotent and does not fire side effects twice. Any transition into `confirmed` and all Double-Opt-In confirmation events revalidate current slot availability before committing.
+
+Rescheduling is a lifecycle event, not a status. A `confirmed` booking remains `confirmed`; a `pending_approval` booking remains `pending_approval`. Reschedule writes are also guarded by the expected state.
+
+Mail and calendar write-back are subscribed to lifecycle events after the database transition. Audit rows record state/event/actor/time and generic notes, not customer identity.
 
 ## Time model
 
