@@ -15,6 +15,7 @@ use Cemb\Admin\Settings;
 use Cemb\Booking\BookingTypeRepository;
 use Cemb\Sync\QueueService;
 use Cemb\Support\BookingFormatter;
+use Cemb\Support\Time;
 
 class Actions {
     private BookingFormatter $formatter;
@@ -155,12 +156,12 @@ class Actions {
                 'update' => add_query_arg(['cemb_action' => 'update', 'cemb_token' => rawurlencode($updateToken)], home_url('/')),
             ];
             if ($settings['mode'] === 'approval') {
-                $repo->update((int)$booking->id, ['confirmed_at' => current_time('mysql'), 'reserved_until' => null]);
+                $repo->update((int)$booking->id, ['confirmed_at' => Time::formatUtc(Time::nowUtc()), 'reserved_until' => null]);
                 $repo->updateStatus((int)$booking->id, BookingStatus::PENDING_ADMIN_APPROVAL, 'doi_confirmed', 'user', 'Double-Opt-In bestätigt');
                 $booking = (array)$repo->find((int)$booking->id);
                 $mailer->sendTemplate('pending', $booking, $meta, $links, false);
             } else {
-                $repo->update((int)$booking->id, ['confirmed_at' => current_time('mysql'), 'approved_at' => current_time('mysql'), 'reserved_until' => null]);
+                $repo->update((int)$booking->id, ['confirmed_at' => Time::formatUtc(Time::nowUtc()), 'approved_at' => Time::formatUtc(Time::nowUtc()), 'reserved_until' => null]);
                 $repo->updateStatus((int)$booking->id, BookingStatus::CONFIRMED, 'doi_confirmed', 'user', 'Automatisch bestätigt');
                 $booking = (array)$repo->find((int)$booking->id);
                 $queue->enqueueCreate((int)$booking['id']);
@@ -176,9 +177,11 @@ class Actions {
             if (!$row) wp_die('Stornolink ungültig oder abgelaufen.');
             $booking = $repo->find((int)$row->booking_id);
             if (!$booking) wp_die('Buchung nicht gefunden.');
-            if (strtotime($booking->slot_start) < strtotime('+' . (int)$settings['cancel_min_hours'] . ' hours', current_time('timestamp'))) wp_die('Stornierung ist für diesen Termin nicht mehr möglich.');
+            $cancelCutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['cancel_min_hours']) . ' hours');
+            $bookingStart = Time::parseUtc((string)$booking->slot_start);
+            if (!$bookingStart || $bookingStart < $cancelCutoff) wp_die('Stornierung ist für diesen Termin nicht mehr möglich.');
             $tokenService->markUsed((int)$row->id);
-            $repo->update((int)$booking->id, ['cancelled_at' => current_time('mysql'), 'reserved_until' => null]);
+            $repo->update((int)$booking->id, ['cancelled_at' => Time::formatUtc(Time::nowUtc()), 'reserved_until' => null]);
             $repo->updateStatus((int)$booking->id, BookingStatus::CANCELLED, 'cancel', 'user', 'Vom Nutzer storniert');
             $meta = $repo->getMeta((int)$booking->id);
             if (!empty($settings['icloud_sync_cancellations'])) {
@@ -195,7 +198,9 @@ class Actions {
             if (!$row) wp_die('Änderungslink ungültig oder abgelaufen.');
             $booking = $repo->find((int)$row->booking_id);
             if (!$booking) wp_die('Buchung nicht gefunden.');
-            if (strtotime($booking->slot_start) < strtotime('+' . (int)$settings['change_min_hours'] . ' hours', current_time('timestamp'))) wp_die('Änderung ist für diesen Termin nicht mehr möglich.');
+            $changeCutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['change_min_hours']) . ' hours');
+            $bookingStart = Time::parseUtc((string)$booking->slot_start);
+            if (!$bookingStart || $bookingStart < $changeCutoff) wp_die('Änderung ist für diesen Termin nicht mehr möglich.');
             if (!empty($_POST['cemb_update_slot'])) {
                 check_admin_referer('cemb_update_booking');
                 $newSlotToken = sanitize_text_field(wp_unslash($_POST['new_slot_token'] ?? ''));
@@ -207,7 +212,7 @@ class Actions {
                 if (!$selection) wp_die('Der neue Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
                 $newStart = (string)$selection['start'];
                 $newEnd = (string)$selection['end'];
-                $repo->update((int)$booking->id, ['slot_start' => $newStart, 'slot_end' => $newEnd, 'updated_at_user' => current_time('mysql')]);
+                $repo->update((int)$booking->id, ['slot_start' => $newStart, 'slot_end' => $newEnd, 'updated_at_user' => Time::formatUtc(Time::nowUtc())]);
                 $repo->updateStatus((int)$booking->id, BookingStatus::UPDATED, 'update', 'user', 'Termin geändert');
                 $meta = $repo->getMeta((int)$booking->id);
                 if (!empty($settings['icloud_sync_updates'])) {
@@ -238,7 +243,9 @@ class Actions {
         $repo = new BookingRepository();
         $bookings = $repo->all(['status' => BookingStatus::CONFIRMED]);
         foreach ($bookings as $booking) {
-            $diffHours = (strtotime($booking->slot_start) - current_time('timestamp')) / 3600;
+            $bookingStart = Time::parseUtc((string)$booking->slot_start);
+            if (!$bookingStart) continue;
+            $diffHours = ($bookingStart->getTimestamp() - Time::nowUtc()->getTimestamp()) / 3600;
             if ($diffHours <= (int)$settings['reminder_hours'] && $diffHours > ((int)$settings['reminder_hours'] - 1)) {
                 $meta = $repo->getMeta((int)$booking->id);
                 (new Mailer())->sendTemplate('reminder', (array)$booking, $meta, [], false);
