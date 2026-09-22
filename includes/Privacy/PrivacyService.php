@@ -105,13 +105,14 @@ final class PrivacyService {
         }
 
         $table = $wpdb->prefix . 'cemb_bookings';
-        $offset = ($page - 1) * self::PAGE_SIZE;
+        // Always process the first matching batch. Successful anonymization
+        // removes rows from this email lookup, so offset pagination would skip
+        // records on subsequent WordPress eraser calls.
         $rows = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT id FROM {$table} WHERE email = %s ORDER BY id ASC LIMIT %d OFFSET %d",
+                "SELECT id FROM {$table} WHERE email = %s ORDER BY id ASC LIMIT %d",
                 $emailAddress,
-                self::PAGE_SIZE,
-                $offset
+                self::PAGE_SIZE
             )
         );
 
@@ -135,11 +136,26 @@ final class PrivacyService {
             }
         }
 
+        $remainingErasable = (int)$wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} b
+                 WHERE b.email = %s
+                   AND NOT EXISTS (
+                       SELECT 1 FROM {$wpdb->prefix}cemb_booking_meta m
+                       WHERE m.booking_id = b.id
+                         AND m.meta_key = %s
+                         AND m.meta_value = '1'
+                   )",
+                $emailAddress,
+                self::RETAIN_META_KEY
+            )
+        );
+
         return [
             'items_removed' => $removed,
             'items_retained' => $retained,
-            'messages' => $messages,
-            'done' => count($rows) < self::PAGE_SIZE,
+            'messages' => array_values(array_unique($messages)),
+            'done' => $remainingErasable === 0,
         ];
     }
 
