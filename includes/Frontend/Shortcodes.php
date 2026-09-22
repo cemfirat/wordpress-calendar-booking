@@ -5,6 +5,7 @@ use Cemb\Availability\SlotService;
 use Cemb\Booking\BookingTypeRepository;
 use Cemb\Forms\FieldRepository;
 use Cemb\Calendar\IcloudProvider;
+use Cemb\Calendar\PublicBusyPresenter;
 use Cemb\Admin\Settings;
 
 class Shortcodes {
@@ -119,16 +120,17 @@ class Shortcodes {
         $events = $provider->events($from, $to);
         usort($events, static fn($a, $b) => strcmp($a['start'], $b['start']));
         $events = array_slice($events, 0, (int)$settings['show_calendar_limit']);
+        $presenter = new PublicBusyPresenter();
         ob_start();
         echo '<div class="cemb-calendar-list uk-grid uk-child-width-1-1" uk-grid>';
         if (!$events) {
             echo '<p>Keine Termine vorhanden.</p>';
         } else {
             foreach ($events as $event) {
+                $busy = $presenter->externalEvent($event);
                 echo '<div class="cemb-calendar-item uk-card uk-card-default uk-card-body">';
-                echo '<strong>' . esc_html($event['summary'] ?: 'Termin') . '</strong><br>';
-                echo esc_html(wp_date($settings['date_format'] . ' ' . $settings['time_format'], strtotime($event['start']))) . ' - ' . esc_html(wp_date($settings['time_format'], strtotime($event['end'])));
-                if (!empty($event['location'])) echo '<br>' . esc_html($event['location']);
+                echo '<strong>' . esc_html($busy['title']) . '</strong><br>';
+                echo esc_html(wp_date($settings['date_format'] . ' ' . $settings['time_format'], strtotime($busy['start']))) . ' - ' . esc_html(wp_date($settings['time_format'], strtotime($busy['end'])));
                 echo '</div>';
             }
         }
