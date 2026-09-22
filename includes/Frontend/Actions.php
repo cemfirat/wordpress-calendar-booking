@@ -32,7 +32,8 @@ class Actions {
         add_filter('query_vars', [$this, 'queryVars']);
         add_action('wp_ajax_cemb_get_slots', [$this, 'ajaxSlots']);
         add_action('wp_ajax_nopriv_cemb_get_slots', [$this, 'ajaxSlots']);
-        add_action('cemb_hourly_reminders', [$this, 'sendReminders']);
+        add_action('cemb_hourly_reminders', [$this, 'expireReservations'], 5);
+        add_action('cemb_hourly_reminders', [$this, 'sendReminders'], 10);
         if (!wp_next_scheduled('cemb_hourly_reminders')) {
             wp_schedule_event(time() + 300, 'hourly', 'cemb_hourly_reminders');
         }
@@ -243,6 +244,10 @@ class Actions {
             echo '</select><p><button type="submit" name="cemb_update_slot" value="1">Termin ändern</button></p></form></div>';
             exit;
         }
+    }
+
+    public function expireReservations(): void {
+        (new BookingTransitionService())->expireReservations();
     }
 
     public function sendReminders(): void {
