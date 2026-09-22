@@ -6,8 +6,12 @@ const source = path.join(root, 'node_modules', 'uikit', 'dist');
 const target = path.join(root, 'assets', 'vendor', 'uikit');
 fs.mkdirSync(target, { recursive: true });
 
-for (const name of ['uikit.min.css', 'uikit.min.js', 'uikit-icons.min.js']) {
-  const from = path.join(source, name);
+for (const [name, relative] of [
+  ['uikit.min.css', path.join('css', 'uikit.min.css')],
+  ['uikit.min.js', path.join('js', 'uikit.min.js')],
+  ['uikit-icons.min.js', path.join('js', 'uikit-icons.min.js')],
+]) {
+  const from = path.join(source, relative);
   const to = path.join(target, name);
   if (!fs.existsSync(from)) {
     throw new Error(`Missing UIkit distribution asset: ${from}`);
