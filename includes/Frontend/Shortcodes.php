@@ -58,7 +58,7 @@ class Shortcodes {
             <div class="cemb-field uk-margin">
                 <label class="uk-form-label" for="cemb_slot_start<?php echo $isModal ? '_modal' : ''; ?>">Startzeit</label>
                 <div class="uk-form-controls">
-                    <select class="uk-select" id="cemb_slot_start<?php echo $isModal ? '_modal' : ''; ?>" name="slot_start" required data-cemb-slot-select>
+                    <select class="uk-select" id="cemb_slot_start<?php echo $isModal ? '_modal' : ''; ?>" name="slot_token" required data-cemb-slot-select>
                         <option value="">Bitte zuerst Terminart wählen</option>
                     </select>
                 </div>
