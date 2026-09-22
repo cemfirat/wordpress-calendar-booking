@@ -151,6 +151,18 @@ class BookingRepository {
             $sql .= ' AND status = %s';
             $params[] = $args['status'];
         }
+        if (!empty($args['booking_type_id'])) {
+            $sql .= ' AND booking_type_id = %d';
+            $params[] = (int)$args['booking_type_id'];
+        }
+        if (!empty($args['from'])) {
+            $sql .= ' AND slot_start >= %s';
+            $params[] = (string)$args['from'];
+        }
+        if (!empty($args['to'])) {
+            $sql .= ' AND slot_start <= %s';
+            $params[] = (string)$args['to'];
+        }
         $sql .= ' ORDER BY slot_start ASC';
         if (!empty($args['limit'])) {
             $sql .= ' LIMIT %d';
