@@ -85,6 +85,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run Microsoft Graph provider smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/microsoft-provider-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run CalDAV provider smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/caldav-provider-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Verify GET-safe and POST-only public booking actions
         if: matrix.wordpress == 'latest'
         run: python3 "$GITHUB_WORKSPACE/tests/public-action-flow.py"
