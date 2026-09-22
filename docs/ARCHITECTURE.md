@@ -69,6 +69,20 @@ Rescheduling is a lifecycle event, not a status. A `confirmed` booking remains `
 
 Mail and calendar write-back are subscribed to lifecycle events after the database transition. Audit rows record state/event/actor/time and generic notes, not customer identity.
 
+## Public email-link actions
+
+Email links are safe to prefetch. `GET ?cemb_action=...&cemb_token=...` only inspects the token and renders a confirmation/status screen; it never changes a booking.
+
+Mutating actions post to `admin-post.php` and require all of:
+
+- the expected action-specific one-time token
+- a WordPress nonce bound to action + token
+- the current lifecycle state to allow the requested event
+- canonical server-side slot revalidation for rescheduling
+- a short MySQL advisory lock around token verification/action/consumption
+
+The one-time token is marked used only after the domain action succeeds. Failed CSRF, invalid slot or domain-transition checks leave booking state unchanged. Used and expired tokens remain readable as non-destructive status screens.
+
 ## Time model
 
 - Store instants in UTC.
