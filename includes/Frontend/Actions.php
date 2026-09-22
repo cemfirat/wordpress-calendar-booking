@@ -5,6 +5,7 @@ use Cemb\Security\Guard;
 use Cemb\Forms\FieldRepository;
 use Cemb\Booking\BookingRepository;
 use Cemb\Booking\BookingStatus;
+use Cemb\Booking\ReservationService;
 use Cemb\Tokens\TokenService;
 use Cemb\Tokens\SlotTokenService;
 use Cemb\Mail\Mailer;
@@ -70,8 +71,6 @@ class Actions {
         if (!$selection) wp_die('Der gewählte Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
 
         $typeId = (int)$selection['type_id'];
-        $start = (string)$selection['start'];
-        $end = (string)$selection['end'];
         $type = (new BookingTypeRepository())->find($typeId);
         if (!$type) wp_die('Terminart nicht gefunden.');
 
@@ -97,24 +96,25 @@ class Actions {
         $fullName = $this->formatter->displayName([], $meta);
         if (!$phone && !empty($meta['who_calls']) && $meta['who_calls'] === 'Ich rufe an') $phone = (string)$settings['own_phone'];
 
+        $bookingId = (new ReservationService())->reserve(
+            $slotToken,
+            $typeId,
+            [
+                'full_name' => $fullName,
+                'email' => $email,
+                'phone' => $phone,
+                'notes' => isset($meta['message']) ? (string)$meta['message'] : '',
+                'source' => 'frontend',
+                'lang' => 'de',
+            ],
+            $meta
+        );
+        if (is_wp_error($bookingId)) {
+            wp_die(esc_html($bookingId->get_error_message()));
+        }
+
         $repo = new BookingRepository();
-        $bookingId = $repo->create([
-            'booking_uuid' => wp_generate_uuid4(),
-            'booking_type_id' => $typeId,
-            'slot_start' => $start,
-            'slot_end' => $end,
-            'status' => BookingStatus::EMAIL_UNCONFIRMED,
-            'full_name' => $fullName,
-            'email' => $email,
-            'phone' => $phone,
-            'notes' => isset($meta['message']) ? (string)$meta['message'] : '',
-            'source' => 'frontend',
-            'lang' => 'de',
-            'reserved_until' => date('Y-m-d H:i:s', strtotime('+' . (int)$settings['reservation_ttl_minutes'] . ' minutes', current_time('timestamp'))),
-            'created_at' => current_time('mysql'),
-            'updated_at' => current_time('mysql'),
-        ], $meta);
-        $booking = (array)$repo->find($bookingId);
+        $booking = (array)$repo->find((int)$bookingId);
         $tokenService = new TokenService();
         $doiToken = $tokenService->create($bookingId, 'doi', (int)$settings['token_ttl_minutes']);
         $cancelToken = $tokenService->create($bookingId, 'cancel', 60 * 24 * 30);

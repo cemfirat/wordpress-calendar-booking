@@ -122,8 +122,12 @@ class BookingRepository {
         global $wpdb;
         $statuses = BookingStatus::activeBlockingStatuses();
         $placeholders = implode(',', array_fill(0, count($statuses), '%s'));
-        $sql = "SELECT COUNT(*) FROM {$this->table} WHERE status IN ($placeholders) AND slot_start < %s AND slot_end > %s";
-        $params = array_merge($statuses, [$end, $start]);
+        $sql = "SELECT COUNT(*) FROM {$this->table}
+            WHERE status IN ($placeholders)
+            AND (status != %s OR reserved_until IS NULL OR reserved_until >= %s)
+            AND slot_start < %s
+            AND slot_end > %s";
+        $params = array_merge($statuses, [BookingStatus::EMAIL_UNCONFIRMED, current_time('mysql'), $end, $start]);
         if ($ignoreId) {
             $sql .= ' AND id != %d';
             $params[] = $ignoreId;

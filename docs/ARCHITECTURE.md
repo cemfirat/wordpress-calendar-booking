@@ -34,7 +34,11 @@ Initial adapters:
 4. Merge busy intervals from internal reservations/confirmed bookings and all blocking provider connections.
 5. Apply buffers, notice and horizon rules.
 6. Return HMAC-signed, short-lived slot tokens rather than trusting a client-supplied timestamp. Tokens bind booking type, canonical start/end and expiry and contain no personal data. They may be replayed during their short TTL, so the signature is never treated as a reservation.
-7. On submit: verify token, regenerate/revalidate the slot, then (with #2) acquire the resource/day lock, re-check and insert the reservation inside the same critical section.
+7. On submit: verify token and regenerate/revalidate the slot, acquire a MySQL advisory reservation lock, re-check availability while holding the lock, insert the unconfirmed reservation, then release the lock. The 2.0 single-resource model deliberately uses one conservative site-wide lock; a later resource model can narrow the lock key without weakening the invariant.
+
+## Reservation concurrency
+
+The initial reservation path performs a fast pre-check, then obtains a MySQL advisory lock and repeats the canonical slot check while serialized. Only the second check is authoritative. Unconfirmed reservations block availability only until `reserved_until`; an expired reservation no longer keeps a slot unavailable.
 
 ## Booking state machine
 
