@@ -544,6 +544,260 @@ $wpdb->delete( $wpdb->prefix . 'cemb_booking_type_calendar_connections', [ 'conn
 $wpdb->delete( $wpdb->prefix . 'cemb_calendar_connections', [ 'id' => $connection_id ] );
 remove_filter( 'cemb_calendar_providers', $provider_filter );
 
+/* Google Calendar OAuth, refresh, FreeBusy and Events API. */
+$google_client_id_backup = get_option( 'cemb_google_oauth_client_id', null );
+$google_client_secret_backup = get_option( 'cemb_google_oauth_client_secret_enc', null );
+$google_config = new Cemb\Calendar\GoogleOAuthConfig();
+$google_saved = $google_config->save( 'ci-google-client.apps.googleusercontent.com', 'CI-GOOGLE-CLIENT-SECRET' );
+cemb_smoke_assert( true === $google_saved && $google_config->configured(), 'Google OAuth client settings are stored with an encrypted secret.' );
+cemb_smoke_assert(
+	[ 'https://www.googleapis.com/auth/calendar.freebusy' ] === $google_config->scopes( true, false ),
+	'FreeBusy-only Google connection requests only the freebusy scope.'
+);
+cemb_smoke_assert(
+	[ 'https://www.googleapis.com/auth/calendar.events' ] === $google_config->scopes( false, true ),
+	'Write-back-only Google connection requests only the events scope.'
+);
+
+$oauth_controller = new Cemb\Calendar\GoogleOAuthController( $google_config );
+$oauth_original_user_id = get_current_user_id();
+wp_set_current_user( 1 );
+$oauth_state = $oauth_controller->issueState( [ 'purpose' => 'ci' ] );
+$oauth_url = $oauth_controller->authorizationUrl( true, true, $oauth_state );
+$oauth_query = [];
+parse_str( (string) wp_parse_url( $oauth_url, PHP_URL_QUERY ), $oauth_query );
+$oauth_scopes = preg_split( '/\s+/', trim( (string) ( $oauth_query['scope'] ?? '' ) ) ) ?: [];
+cemb_smoke_assert(
+	in_array( 'https://www.googleapis.com/auth/calendar.freebusy', $oauth_scopes, true )
+	&& in_array( 'https://www.googleapis.com/auth/calendar.events', $oauth_scopes, true )
+	&& $oauth_state === ( $oauth_query['state'] ?? '' ),
+	'Google authorization URL carries minimal requested scopes and an unpredictable state value.'
+);
+$consumed_state = $oauth_controller->consumeState( $oauth_state );
+cemb_smoke_assert( is_array( $consumed_state ) && ( $consumed_state['purpose'] ?? '' ) === 'ci', 'Google OAuth state is bound to the current administrator.' );
+cemb_smoke_assert( null === $oauth_controller->consumeState( $oauth_state ), 'Google OAuth state is one-time and cannot be replayed.' );
+
+$cross_user_state = $oauth_controller->issueState( [ 'purpose' => 'wrong-user' ] );
+wp_set_current_user( 0 );
+cemb_smoke_assert( null === $oauth_controller->consumeState( $cross_user_state ), 'Google OAuth state cannot be consumed by a different WordPress user.' );
+wp_set_current_user( $oauth_original_user_id );
+
+$pre_google_slot_service = new Cemb\Availability\SlotService();
+$pre_google_slots = $pre_google_slot_service->getSlots( $type_id, 21 );
+cemb_smoke_assert( ! empty( $pre_google_slots ), 'A canonical slot exists before Google FreeBusy blocking is attached.' );
+$google_blocked_slot = $pre_google_slots[0];
+
+$google_connection_repo = new Cemb\Calendar\CalendarConnectionRepository();
+$google_connection_id = $google_connection_repo->create(
+	[
+		'provider' => 'google',
+		'name' => 'Google CI',
+		'remote_calendar_id' => 'primary',
+		'blocks_availability' => 1,
+		'receives_bookings' => 1,
+	],
+	[
+		'access_token' => 'EXPIRED-GOOGLE-ACCESS',
+		'refresh_token' => 'CI-GOOGLE-REFRESH',
+		'expires_at' => time() - 60,
+		'scope' => implode( ' ', $google_config->scopes( true, true ) ),
+		'token_type' => 'Bearer',
+	]
+);
+cemb_smoke_assert( is_int( $google_connection_id ) && $google_connection_id > 0, 'Google OAuth tokens are stored in a provider connection.' );
+$google_connection_repo->setForBookingType(
+	$type_id,
+	[
+		[
+			'connection_id' => $google_connection_id,
+			'blocks_availability' => 1,
+			'receives_bookings' => 1,
+		],
+	]
+);
+$google_connection = $google_connection_repo->find( $google_connection_id );
+$google_requests = [];
+$google_http_filter = static function ( $preempt, $args, $url ) use ( &$google_requests, $google_blocked_slot ) {
+	$method = strtoupper( (string) ( $args['method'] ?? 'GET' ) );
+	$google_requests[] = [ 'method' => $method, 'url' => $url, 'body' => $args['body'] ?? null ];
+
+	if ( $url === 'https://oauth2.googleapis.com/token' ) {
+		return [
+			'headers' => [],
+			'response' => [ 'code' => 200, 'message' => 'OK' ],
+			'body' => wp_json_encode( [
+				'access_token' => 'REFRESHED-GOOGLE-ACCESS',
+				'expires_in' => 3600,
+				'scope' => 'calendar.freebusy calendar.events',
+				'token_type' => 'Bearer',
+			] ),
+		];
+	}
+
+	if ( $url === 'https://www.googleapis.com/calendar/v3/freeBusy' ) {
+		$start = Cemb\Support\Time::parseUtc( $google_blocked_slot['start'] );
+		$end = Cemb\Support\Time::parseUtc( $google_blocked_slot['end'] );
+		return [
+			'headers' => [],
+			'response' => [ 'code' => 200, 'message' => 'OK' ],
+			'body' => wp_json_encode( [
+				'calendars' => [
+					'primary' => [
+						'busy' => [
+							[
+								'start' => $start->format( DATE_RFC3339 ),
+								'end' => $end->format( DATE_RFC3339 ),
+							],
+						],
+					],
+				],
+			] ),
+		];
+	}
+
+	if ( preg_match( '#/calendar/v3/calendars/primary/events(?:/([^/?]+))?$#', $url, $match ) ) {
+		if ( $method === 'DELETE' ) {
+			return [
+				'headers' => [],
+				'response' => [ 'code' => 204, 'message' => 'No Content' ],
+				'body' => '',
+			];
+		}
+		return [
+			'headers' => [],
+			'response' => [ 'code' => 200, 'message' => 'OK' ],
+			'body' => wp_json_encode( [ 'id' => ! empty( $match[1] ) ? rawurldecode( $match[1] ) : 'google-event-ci' ] ),
+		];
+	}
+
+	if ( $url === 'https://oauth2.googleapis.com/revoke' ) {
+		return [
+			'headers' => [],
+			'response' => [ 'code' => 200, 'message' => 'OK' ],
+			'body' => '',
+		];
+	}
+
+	return $preempt;
+};
+add_filter( 'pre_http_request', $google_http_filter, 10, 3 );
+
+$google_provider = new Cemb\Calendar\GoogleCalendarProvider( $google_connection_repo, $google_config );
+$google_busy = $google_provider->busyBetween(
+	Cemb\Support\Time::addMinutes( $google_blocked_slot['start'], -60 ),
+	Cemb\Support\Time::addMinutes( $google_blocked_slot['end'], 60 ),
+	$google_connection
+);
+cemb_smoke_assert(
+	is_array( $google_busy ) && 1 === count( $google_busy )
+	&& $google_blocked_slot['start'] === $google_busy[0]['start'],
+	'Google FreeBusy response is normalized into canonical UTC busy intervals.'
+);
+$refreshed_google_credentials = $google_connection_repo->credentials( $google_connection_id );
+cemb_smoke_assert(
+	'REFRESHED-GOOGLE-ACCESS' === ( $refreshed_google_credentials['access_token'] ?? '' )
+	&& 'CI-GOOGLE-REFRESH' === ( $refreshed_google_credentials['refresh_token'] ?? '' ),
+	'Expired Google access token refreshes while preserving the encrypted refresh token.'
+);
+$google_health_after_read = $google_connection_repo->find( $google_connection_id );
+cemb_smoke_assert( null !== $google_health_after_read->lastReadAt, 'Successful Google FreeBusy updates last-read diagnostics.' );
+
+$google_block_check = new Cemb\Availability\SlotService();
+cemb_smoke_assert(
+	! $google_block_check->slotAvailable( $type_id, $google_blocked_slot['start'], $google_blocked_slot['end'] ),
+	'Google FreeBusy interval blocks the canonical booking slot.'
+);
+
+$google_booking_repo = new Cemb\Booking\BookingRepository();
+$google_now = Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc() );
+$google_booking_id = $google_booking_repo->create(
+	[
+		'booking_uuid' => wp_generate_uuid4(),
+		'booking_type_id' => $type_id,
+		'slot_start' => Cemb\Support\Time::addMinutes( $google_blocked_slot['start'], 180 ),
+		'slot_end' => Cemb\Support\Time::addMinutes( $google_blocked_slot['end'], 180 ),
+		'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+		'full_name' => 'Google CI Person',
+		'email' => 'google-ci@example.com',
+		'source' => 'ci',
+		'lang' => 'en',
+		'created_at' => $google_now,
+		'updated_at' => $google_now,
+	],
+	[ 'subject' => 'Google CI Subject', 'message' => 'Google CI Message' ]
+);
+$google_booking = (array) $google_booking_repo->find( $google_booking_id );
+$google_meta = $google_booking_repo->getMeta( $google_booking_id );
+$google_create = $google_provider->createEvent( $google_booking, $google_meta, $google_connection );
+cemb_smoke_assert( is_array( $google_create ) && 'google-event-ci' === ( $google_create['event_id'] ?? '' ), 'Confirmed booking creates a Google Calendar event.' );
+
+$google_queue = new Cemb\Sync\QueueService();
+$google_queue_job_id = $google_queue->enqueueCreate( $google_booking_id );
+cemb_smoke_assert( $google_queue_job_id > 0, 'Confirmed booking enqueues provider write-back for its selected Google destination.' );
+$google_queue->runNow();
+$google_queue_meta = $google_booking_repo->getMeta( $google_booking_id );
+cemb_smoke_assert(
+	'google-event-ci' === ( $google_queue_meta[ 'provider_event_google_' . $google_connection_id ] ?? '' ),
+	'Provider queue persists a remote Google event identifier per booking and connection.'
+);
+$google_queue_row = $wpdb->get_row(
+	$wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cemb_sync_jobs WHERE id = %d", $google_queue_job_id )
+);
+cemb_smoke_assert( $google_queue_row && 'done' === $google_queue_row->status, 'Google provider write-back completes through the leased sync queue.' );
+$google_sync_log = (string) $wpdb->get_var(
+	$wpdb->prepare(
+		"SELECT GROUP_CONCAT(message SEPARATOR ' ') FROM {$wpdb->prefix}cemb_sync_log WHERE booking_id = %d",
+		$google_booking_id
+	)
+);
+cemb_smoke_assert(
+	false === strpos( $google_sync_log, 'google-ci@example.com' )
+	&& false === strpos( $google_sync_log, 'Google CI Subject' )
+	&& false === strpos( $google_sync_log, 'CI-GOOGLE-REFRESH' ),
+	'Provider sync log does not copy customer content or OAuth secrets.'
+);
+$google_update = $google_provider->updateEvent( $google_booking, $google_meta, $google_connection, 'google-event-ci' );
+cemb_smoke_assert( is_array( $google_update ) && ! empty( $google_update['ok'] ), 'Booking update uses the Google Calendar Events API.' );
+$google_cancel = $google_provider->cancelEvent( $google_connection, 'google-event-ci' );
+cemb_smoke_assert( is_array( $google_cancel ) && ! empty( $google_cancel['ok'] ), 'Booking cancellation deletes the Google Calendar event.' );
+$google_health_after_write = $google_connection_repo->find( $google_connection_id );
+cemb_smoke_assert( null !== $google_health_after_write->lastWriteAt, 'Successful Google event write updates last-write diagnostics.' );
+
+$google_methods = array_column( $google_requests, 'method' );
+$google_urls = array_column( $google_requests, 'url' );
+cemb_smoke_assert(
+	in_array( 'POST', $google_methods, true ) && in_array( 'PUT', $google_methods, true ) && in_array( 'DELETE', $google_methods, true ),
+	'Mocked Google integration exercises create, update and cancel HTTP methods.'
+);
+$google_calendar_requests = array_values( array_filter(
+	$google_requests,
+	static fn( $request ) => 0 === strpos( (string) $request['url'], 'https://www.googleapis.com/calendar/v3/' )
+) );
+$google_calendar_request_dump = wp_json_encode( $google_calendar_requests );
+cemb_smoke_assert(
+	false === strpos( $google_calendar_request_dump, 'CI-GOOGLE-REFRESH' ),
+	'Google refresh token is never sent to Calendar API requests.'
+);
+
+remove_filter( 'pre_http_request', $google_http_filter, 10 );
+$google_connection_repo->setForBookingType( $type_id, [] );
+$google_connection_repo->delete( $google_connection_id );
+$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'booking_id' => $google_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'booking_id' => $google_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $google_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $google_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $google_booking_id ] );
+if ( $google_client_id_backup === null ) {
+	delete_option( 'cemb_google_oauth_client_id' );
+} else {
+	update_option( 'cemb_google_oauth_client_id', $google_client_id_backup, false );
+}
+if ( $google_client_secret_backup === null ) {
+	delete_option( 'cemb_google_oauth_client_secret_enc' );
+} else {
+	update_option( 'cemb_google_oauth_client_secret_enc', $google_client_secret_backup, false );
+}
+
 $slot_service = new Cemb\Availability\SlotService();
 $slots = $slot_service->getSlots( $type_id, 21 );
 cemb_smoke_assert( ! empty( $slots ), 'Server generates at least one canonical slot.' );
@@ -734,6 +988,28 @@ cemb_smoke_assert(
 	'Expired lease on the final attempt is terminalized instead of remaining stuck in running.'
 );
 
+$queue_connection_repo = new Cemb\Calendar\CalendarConnectionRepository();
+$queue_connection_id = $queue_connection_repo->create(
+	[
+		'provider' => 'ci-queue-provider',
+		'name' => 'Queue destination fixture',
+		'remote_calendar_id' => 'queue-calendar',
+		'blocks_availability' => 0,
+		'receives_bookings' => 1,
+	],
+	[]
+);
+$queue_connection_repo->setForBookingType(
+	$type_id,
+	[
+		[
+			'connection_id' => $queue_connection_id,
+			'blocks_availability' => 0,
+			'receives_bookings' => 1,
+		],
+	]
+);
+
 $calendar_queue = new Cemb\Sync\QueueService();
 $calendar_job_a = $calendar_queue->enqueueUpdate( $queue_booking_id );
 $calendar_job_b = $calendar_queue->enqueueUpdate( $queue_booking_id );
@@ -761,6 +1037,8 @@ if ( $calendar_job_c !== $calendar_job_a ) {
 	$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $calendar_job_c ] );
 	$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $calendar_job_c ] );
 }
+$queue_connection_repo->setForBookingType( $type_id, [] );
+$queue_connection_repo->delete( $queue_connection_id );
 $wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $queue_booking_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $queue_booking_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $queue_booking_id ] );

@@ -45,6 +45,8 @@ final class CalendarConnectionRepository {
             'is_active' => array_key_exists('is_active', $data) ? (!empty($data['is_active']) ? 1 : 0) : 1,
             'health_status' => 'unknown',
             'last_success_at' => null,
+            'last_read_at' => null,
+            'last_write_at' => null,
             'last_error_at' => null,
             'last_error_message' => '',
             'created_at' => $now,
@@ -60,7 +62,7 @@ final class CalendarConnectionRepository {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
             "SELECT id, provider, name, remote_calendar_id, blocks_availability, receives_bookings, is_active,
-                    health_status, last_success_at, last_error_at, last_error_message, created_at, updated_at
+                    health_status, last_success_at, last_read_at, last_write_at, last_error_at, last_error_message, created_at, updated_at
              FROM {$this->table} WHERE id = %d",
             $connectionId
         ));
@@ -71,7 +73,7 @@ final class CalendarConnectionRepository {
     public function all(bool $activeOnly = false): array {
         global $wpdb;
         $sql = "SELECT id, provider, name, remote_calendar_id, blocks_availability, receives_bookings, is_active,
-                       health_status, last_success_at, last_error_at, last_error_message, created_at, updated_at
+                       health_status, last_success_at, last_read_at, last_write_at, last_error_at, last_error_message, created_at, updated_at
                 FROM {$this->table}";
         if ($activeOnly) {
             $sql .= ' WHERE is_active = 1';
@@ -131,6 +133,12 @@ final class CalendarConnectionRepository {
             : true;
     }
 
+    public function delete(int $connectionId): void {
+        global $wpdb;
+        $wpdb->delete($this->mappingTable, ['connection_id' => $connectionId]);
+        $wpdb->delete($this->table, ['id' => $connectionId]);
+    }
+
     public function config(int $connectionId): array {
         global $wpdb;
         $json = $wpdb->get_var($wpdb->prepare(
@@ -141,15 +149,21 @@ final class CalendarConnectionRepository {
         return is_array($decoded) ? $decoded : [];
     }
 
-    public function setHealthSuccess(int $connectionId): void {
+    public function setHealthSuccess(int $connectionId, string $operation = ''): void {
         global $wpdb;
         $now = Time::formatUtc(Time::nowUtc());
-        $wpdb->update($this->table, [
+        $fields = [
             'health_status' => 'ok',
             'last_success_at' => $now,
             'last_error_message' => '',
             'updated_at' => $now,
-        ], ['id' => $connectionId]);
+        ];
+        if ($operation === 'read') {
+            $fields['last_read_at'] = $now;
+        } elseif ($operation === 'write') {
+            $fields['last_write_at'] = $now;
+        }
+        $wpdb->update($this->table, $fields, ['id' => $connectionId]);
     }
 
     public function setHealthError(int $connectionId, string $message): void {

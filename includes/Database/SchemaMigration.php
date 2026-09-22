@@ -6,7 +6,7 @@ namespace Cemb\Database;
  */
 final class SchemaMigration {
     private const OPTION = 'cemb_schema_version';
-    private const VERSION = 4;
+    private const VERSION = 5;
 
     public static function maybeRun(): void {
         if ((int)get_option(self::OPTION, 0) >= self::VERSION) {

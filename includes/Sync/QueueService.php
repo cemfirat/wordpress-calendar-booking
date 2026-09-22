@@ -3,16 +3,22 @@ namespace Cemb\Sync;
 
 use Cemb\Booking\BookingRepository;
 use Cemb\Admin\Settings;
+use Cemb\Calendar\CalendarConnectionRepository;
+use Cemb\Calendar\ProviderSyncService;
 
 class QueueService {
     private JobRepository $jobs;
     private IcloudSyncService $sync;
     private BookingRepository $bookings;
+    private CalendarConnectionRepository $connections;
+    private ProviderSyncService $providerSync;
 
     public function __construct() {
         $this->jobs = new JobRepository();
         $this->sync = new IcloudSyncService();
         $this->bookings = new BookingRepository();
+        $this->connections = new CalendarConnectionRepository();
+        $this->providerSync = new ProviderSyncService();
     }
 
     public function boot(): void {
@@ -82,35 +88,75 @@ class QueueService {
             return 0;
         }
 
-        $settings = Settings::get();
-        $meta = $this->bookings->getMeta($bookingId);
-        $destination = (string)($meta['icloud_calendar_url'] ?? $settings['icloud_sync_target_calendar_url'] ?? '');
-        if ($jobType === 'cancel' && !empty($meta['icloud_event_url'])) {
-            $destination = (string)$meta['icloud_event_url'];
+        $jobIds = [];
+        foreach ($this->connections->writeDestinationsForBookingType((int)$booking->booking_type_id) as $connection) {
+            $desiredVersion = hash('sha256', wp_json_encode([
+                'booking_id' => $bookingId,
+                'status' => (string)$booking->status,
+                'slot_start' => (string)$booking->slot_start,
+                'slot_end' => (string)$booking->slot_end,
+                'updated_at' => (string)$booking->updated_at,
+                'connection_id' => $connection->id,
+                'provider' => $connection->provider,
+                'remote_calendar_id' => $connection->remoteCalendarId,
+            ]));
+
+            $operation = $jobType === 'cancel' ? 'cancel' : 'upsert';
+            $idempotencyKey = 'calendar:provider:' . $operation . ':' . $bookingId . ':' . $connection->id . ':' . substr($desiredVersion, 0, 40);
+            $jobIds[] = $this->jobs->enqueue(
+                'provider_' . $jobType,
+                $bookingId,
+                [
+                    'connection_id' => $connection->id,
+                    'desired_version' => $desiredVersion,
+                ],
+                $idempotencyKey
+            );
         }
 
-        $desiredVersion = hash('sha256', wp_json_encode([
-            'booking_id' => $bookingId,
-            'status' => (string)$booking->status,
-            'slot_start' => (string)$booking->slot_start,
-            'slot_end' => (string)$booking->slot_end,
-            'updated_at' => (string)$booking->updated_at,
-            'destination' => $destination,
-        ]));
+        // Keep the imported 1.x iCloud path alive until #16 migrates it to
+        // provider-neutral CalDAV connections.
+        $settings = Settings::get();
+        $meta = $this->bookings->getMeta($bookingId);
+        $legacyEnabled = !empty($settings['icloud_sync_enabled']);
+        if ($jobType === 'update') {
+            $legacyEnabled = $legacyEnabled && !empty($settings['icloud_sync_updates']);
+        } elseif ($jobType === 'cancel') {
+            $legacyEnabled = $legacyEnabled && !empty($settings['icloud_sync_cancellations']);
+        }
+        if ($legacyEnabled) {
+            $destination = (string)($meta['icloud_calendar_url'] ?? $settings['icloud_sync_target_calendar_url'] ?? '');
+            if ($jobType === 'cancel' && !empty($meta['icloud_event_url'])) {
+                $destination = (string)$meta['icloud_event_url'];
+            }
 
-        $operation = $jobType === 'cancel' ? 'cancel' : 'upsert';
-        $idempotencyKey = 'calendar:' . $operation . ':' . $bookingId . ':' . substr($desiredVersion, 0, 48);
-        $this->bookings->updateMeta($bookingId, 'sync_status', 'queued_' . $jobType);
-
-        return $this->jobs->enqueue(
-            $jobType,
-            $bookingId,
-            [
+            $desiredVersion = hash('sha256', wp_json_encode([
+                'booking_id' => $bookingId,
+                'status' => (string)$booking->status,
+                'slot_start' => (string)$booking->slot_start,
+                'slot_end' => (string)$booking->slot_end,
+                'updated_at' => (string)$booking->updated_at,
                 'destination' => $destination,
-                'desired_version' => $desiredVersion,
-            ],
-            $idempotencyKey
-        );
+                'legacy' => 'icloud',
+            ]));
+            $operation = $jobType === 'cancel' ? 'cancel' : 'upsert';
+            $jobIds[] = $this->jobs->enqueue(
+                $jobType,
+                $bookingId,
+                [
+                    'destination' => $destination,
+                    'desired_version' => $desiredVersion,
+                ],
+                'calendar:legacy:' . $operation . ':' . $bookingId . ':' . substr($desiredVersion, 0, 48)
+            );
+        }
+
+        $jobIds = array_values(array_filter(array_map('intval', $jobIds)));
+        if ($jobIds) {
+            $this->bookings->updateMeta($bookingId, 'sync_status', 'queued_' . $jobType);
+            return $jobIds[0];
+        }
+        return 0;
     }
 
     private function workerId(): string {
@@ -122,14 +168,23 @@ class QueueService {
     }
 
     private function runJob(object $job): array {
+        $payload = json_decode((string)($job->payload_json ?? ''), true);
+        $payload = is_array($payload) ? $payload : [];
+
         switch ((string)$job->job_type) {
+            case 'provider_create':
+                return $this->providerSync->run('create', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
+            case 'provider_update':
+                return $this->providerSync->run('update', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
+            case 'provider_cancel':
+                return $this->providerSync->run('cancel', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
             case 'create':
             case 'update':
                 return $this->sync->syncBooking((int)$job->booking_id);
             case 'cancel':
                 return $this->sync->cancelBooking((int)$job->booking_id);
             default:
-                return ['ok' => false, 'message' => 'Unbekannter Jobtyp'];
+                return ['ok' => false, 'message' => 'Unknown calendar job type.'];
         }
     }
 }

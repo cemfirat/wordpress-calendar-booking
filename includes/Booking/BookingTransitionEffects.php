@@ -32,9 +32,8 @@ final class BookingTransitionEffects {
         if ($target === BookingStatus::PENDING_APPROVAL) {
             $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'pending', $bookingArray, $meta, $this->actionLinks($bookingId), false);
         } elseif ($target === BookingStatus::CONFIRMED) {
-            if (!empty($settings['icloud_sync_enabled'])) {
-                $queue = new QueueService();
-                $queue->enqueueCreate($bookingId);
+            $queue = new QueueService();
+            if ($queue->enqueueCreate($bookingId) > 0) {
                 $queue->runNow();
             }
             $template = $event === BookingStateMachine::ADMIN_APPROVED ? 'approved' : 'confirmed';
@@ -42,9 +41,8 @@ final class BookingTransitionEffects {
         } elseif ($target === BookingStatus::REJECTED) {
             $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'rejected', $bookingArray, $meta, [], false);
         } elseif ($target === BookingStatus::CANCELLED) {
-            if (!empty($settings['icloud_sync_cancellations'])) {
-                $queue = new QueueService();
-                $queue->enqueueCancel($bookingId);
+            $queue = new QueueService();
+            if ($queue->enqueueCancel($bookingId) > 0) {
                 $queue->runNow();
             }
             $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'cancelled', $bookingArray, $meta, [], false);
@@ -65,9 +63,8 @@ final class BookingTransitionEffects {
         $meta = $repo->getMeta($bookingId);
         $settings = Settings::get();
 
-        if (!empty($settings['icloud_sync_updates'])) {
-            $queue = new QueueService();
-            $queue->enqueueUpdate($bookingId);
+        $queue = new QueueService();
+        if ($queue->enqueueUpdate($bookingId) > 0) {
             $queue->runNow();
         }
 

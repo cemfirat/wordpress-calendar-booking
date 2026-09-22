@@ -200,6 +200,8 @@ class Schema {
             is_active tinyint(1) NOT NULL DEFAULT 1,
             health_status varchar(30) NOT NULL DEFAULT 'unknown',
             last_success_at datetime DEFAULT NULL,
+            last_read_at datetime DEFAULT NULL,
+            last_write_at datetime DEFAULT NULL,
             last_error_at datetime DEFAULT NULL,
             last_error_message text DEFAULT NULL,
             created_at datetime NOT NULL,

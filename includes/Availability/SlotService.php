@@ -5,6 +5,7 @@ use Cemb\Booking\BookingRepository;
 use Cemb\Booking\BookingTypeRepository;
 use Cemb\Calendar\IcloudProvider;
 use Cemb\Calendar\PublicBusyPresenter;
+use Cemb\Calendar\ConnectionBusyService;
 use Cemb\Support\Time;
 
 class SlotService {
@@ -13,6 +14,7 @@ class SlotService {
     private IcloudProvider $calendar;
     private BookingTypeRepository $types;
     private PublicBusyPresenter $publicBusy;
+    private ConnectionBusyService $connectionBusy;
 
     public function __construct() {
         $this->repo = new AvailabilityRepository();
@@ -20,6 +22,7 @@ class SlotService {
         $this->calendar = new IcloudProvider();
         $this->types = new BookingTypeRepository();
         $this->publicBusy = new PublicBusyPresenter();
+        $this->connectionBusy = new ConnectionBusyService();
     }
 
     public function getSlots(int $typeId, int $days = 14, ?int $ignoreBookingId = null): array {
@@ -35,7 +38,10 @@ class SlotService {
         $from = Time::formatUtc($nowUtc);
         $to = Time::formatUtc($windowEndLocal);
 
-        $calendarEvents = $this->calendar->events($from, $to);
+        $calendarEvents = array_merge(
+            $this->calendar->events($from, $to),
+            $this->connectionBusy->busyForBookingType($typeId, $from, $to)
+        );
         $exceptions = $this->repo->exceptions($from, $to, $typeId);
         $out = [];
 
@@ -172,7 +178,13 @@ class SlotService {
 
         $calendarFrom = Time::addMinutes($start, -1440);
         $calendarTo = Time::addMinutes($end, 1440);
-        $events = ($calendarFrom && $calendarTo) ? $this->calendar->events($calendarFrom, $calendarTo) : [];
+        $events = [];
+        if ($calendarFrom && $calendarTo) {
+            $events = array_merge(
+                $this->calendar->events($calendarFrom, $calendarTo),
+                $this->connectionBusy->busyForBookingType($typeId, $calendarFrom, $calendarTo)
+            );
+        }
         return !$this->isBlockedByCalendar($start, $end, $bufferBefore, $bufferAfter, $events);
     }
 
