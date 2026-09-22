@@ -27,7 +27,7 @@ class SlotTokenService {
         return $encoded . '.' . $this->base64UrlEncode($signature);
     }
 
-    public function verify(string $token): ?array {
+    public function verify(string $token, ?int $now = null): ?array {
         $parts = explode('.', $token);
         if (count($parts) !== 2 || $parts[0] === '' || $parts[1] === '') {
             return null;
@@ -66,7 +66,7 @@ class SlotTokenService {
             || !$this->validDateTime($start)
             || !$this->validDateTime($end)
             || strtotime($end) <= strtotime($start)
-            || $expires < time()
+            || $expires < ($now ?? time())
         ) {
             return null;
         }
