@@ -77,10 +77,10 @@ class Mailer {
                 $deliveries->markSent((int)$delivery['id']);
                 return true;
             }
-            $deliveries->markFailed((int)$delivery['id'], 'wp_mail returned false before accepting the internal message.');
+            $deliveries->markFailed((int)$delivery['id'], 'wp_mail returned false before accepting the internal message.', 'wp_mail_false');
             return false;
         } catch (\Throwable $error) {
-            $deliveries->markFailed((int)$delivery['id'], $error->getMessage());
+            $deliveries->markFailed((int)$delivery['id'], $error->getMessage(), 'mail_exception');
             return false;
         }
     }
