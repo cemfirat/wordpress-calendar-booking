@@ -65,7 +65,7 @@ Cemb\Admin\Settings::update(['reminders_enabled' => 0]);
 cemb_health_assert((string)get_option(Cemb\Reliability\SchedulerHealth::REMINDER_LAST_RUN_OPTION, '') !== '2020-01-01 00:00:00', 'Hourly reminder task records its timestamp even when reminders are disabled.');
 Cemb\Admin\Settings::update(['reminders_enabled' => $oldReminders ? 1 : 0]);
 
-$adminSource = file_get_contents(CEMB_PATH . 'includes/Admin/Admin.php');
+$adminSource = file_get_contents(CEMB_DIR . 'includes/Admin/Admin.php');
 cemb_health_assert(strpos($adminSource, "run_hourly_tasks") !== false, 'System health provides a manual hourly run action.');
 cemb_health_assert(strpos($adminSource, "wp_nonce_field('cemb_admin_action')") !== false, 'Manual scheduler actions use a WordPress nonce.');
 cemb_health_assert(strpos($adminSource, "current_user_can('manage_options')") !== false, 'Manual scheduler actions require administrator capability.');
