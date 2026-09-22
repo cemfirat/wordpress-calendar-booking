@@ -17,9 +17,12 @@ class ComponentRenderer {
     }
     public function bookingForm(): string {
         $this->assets->enqueue(true);
+        do_action('cemb_before_component', 'booking_form');
         $classes = apply_filters('cemb_booking_wrapper_classes', ['cemb-booking-form-wrap'], 'booking_form');
         $html = '<div class="' . esc_attr(implode(' ', array_filter(array_map('sanitize_html_class', (array)$classes)))) . '">' . $this->renderBookingFormMarkup(false) . '</div>';
-        return (string)apply_filters('cemb_render_booking_form', $html);
+        $html = (string)apply_filters('cemb_render_booking_form', $html);
+        do_action('cemb_after_component', 'booking_form', $html);
+        return $html;
     }
 
     private function renderBookingFormMarkup(bool $isModal = false): string {
@@ -111,6 +114,7 @@ class ComponentRenderer {
 
     public function calendarList(): string {
         $this->assets->enqueue(false);
+        do_action('cemb_before_component', 'calendar_list');
         $settings = Settings::get();
         $provider = new IcloudProvider();
         $from = Time::formatUtc(Time::nowUtc());
@@ -120,7 +124,8 @@ class ComponentRenderer {
         $events = array_slice($events, 0, (int)$settings['show_calendar_limit']);
         $presenter = new PublicBusyPresenter();
         ob_start();
-        echo '<div class="cemb-calendar-list uk-grid uk-child-width-1-1" uk-grid>';
+        $wrapperClasses = (array)apply_filters('cemb_calendar_wrapper_classes', ['cemb-calendar-list', 'uk-grid', 'uk-child-width-1-1'], 'calendar_list');
+        echo '<div class="' . esc_attr(implode(' ', array_filter(array_map('sanitize_html_class', $wrapperClasses)))) . '" uk-grid>';
         if (!$events) {
             echo '<p>Keine Termine vorhanden.</p>';
         } else {
@@ -133,11 +138,15 @@ class ComponentRenderer {
             }
         }
         echo '</div>';
-        return (string)ob_get_clean();
+        $html = (string)ob_get_clean();
+        $html = (string)apply_filters('cemb_render_calendar_list', $html);
+        do_action('cemb_after_component', 'calendar_list', $html);
+        return $html;
     }
 
     public function bookingCalendar(array $atts = []): string {
         $this->assets->enqueue(true);
+        do_action('cemb_before_component', 'booking_calendar');
         $atts = shortcode_atts(['month' => Time::nowLocal()->format('Y-m')], $atts, 'cemb_booking_calendar');
         $requestedMonth = isset($_GET['cemb_month']) ? sanitize_text_field(wp_unslash($_GET['cemb_month'])) : (string)$atts['month'];
         $month = preg_match('/^\d{4}-\d{2}$/', $requestedMonth) ? $requestedMonth : Time::nowLocal()->format('Y-m');
@@ -145,14 +154,15 @@ class ComponentRenderer {
         $display = $slotService->getMonthDisplay($month);
         $weeks = array_chunk($display['days'], 7);
         ob_start(); ?>
-        <div class="cemb-booking-calendar-wrap" data-cemb-booking-calendar>
+        <?php $calendarClasses = (array)apply_filters('cemb_calendar_wrapper_classes', ['cemb-booking-calendar-wrap'], 'booking_calendar'); ?>
+        <div class="<?php echo esc_attr(implode(' ', array_filter(array_map('sanitize_html_class', $calendarClasses)))); ?>" data-cemb-booking-calendar>
             <div class="cemb-calendar-toolbar uk-flex uk-flex-between uk-flex-middle uk-flex-wrap gap-1">
                 <div class="uk-flex uk-flex-middle uk-flex-wrap gap-1">
                     <a class="uk-button uk-button-default" href="<?php echo esc_url(add_query_arg(['cemb_month' => $display['prev']])); ?>">&lsaquo;</a>
                     <strong class="uk-text-large"><?php echo esc_html($display['title']); ?></strong>
                     <a class="uk-button uk-button-default" href="<?php echo esc_url(add_query_arg(['cemb_month' => $display['next']])); ?>">&rsaquo;</a>
                 </div>
-                <a href="#cemb-booking-modal" class="uk-button uk-button-primary" data-cemb-open-toolbar-modal>+</a>
+                <a href="#cemb-booking-modal" class="uk-button uk-button-primary" data-cemb-open-toolbar-modal aria-haspopup="dialog" aria-label="<?php echo esc_attr__('Book an appointment', 'cemb'); ?>">+</a>
             </div>
             <div class="cemb-apple-calendar">
                 <div class="cemb-week-header uk-text-muted">KW</div>
@@ -181,14 +191,18 @@ class ComponentRenderer {
                     <?php endforeach; ?>
                 <?php endforeach; ?>
             </div>
-            <div id="cemb-booking-modal" class="cemb-booking-modal" hidden data-cemb-modal>
-                <div class="cemb-modal-panel uk-card uk-card-default uk-card-body">
-                    <button type="button" class="cemb-modal-close" data-cemb-close-modal aria-label="Schließen">&times;</button>
-                    <h3 class="uk-margin-small-bottom">Termin buchen</h3>
+            <div id="cemb-booking-modal" class="cemb-booking-modal" hidden data-cemb-modal role="dialog" aria-modal="true" aria-labelledby="cemb-booking-modal-title">
+                <div class="cemb-modal-panel uk-card uk-card-default uk-card-body" tabindex="-1" data-cemb-modal-panel>
+                    <button type="button" class="cemb-modal-close" data-cemb-close-modal aria-label="<?php echo esc_attr__('Close booking dialog', 'cemb'); ?>">&times;</button>
+                    <h3 id="cemb-booking-modal-title" class="uk-margin-small-bottom">Termin buchen</h3>
                     <?php echo $this->renderBookingFormMarkup(true); ?>
                 </div>
             </div>
         </div>
-        <?php return (string)ob_get_clean();
+        <?php
+        $html = (string)ob_get_clean();
+        $html = (string)apply_filters('cemb_render_booking_calendar', $html, $display);
+        do_action('cemb_after_component', 'booking_calendar', $html);
+        return $html;
     }
 }
