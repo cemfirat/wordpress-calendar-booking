@@ -78,7 +78,7 @@ class Admin {
                         add_query_arg(
                             [
                                 'page' => 'cemb_settings',
-                                'cemb_error' => rawurlencode($settings_result->get_error_message()),
+                                'cemb_error' => $settings_result->get_error_message(),
                             ],
                             admin_url('admin.php')
                         )
