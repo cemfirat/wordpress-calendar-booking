@@ -131,6 +131,12 @@ final class CalendarConnectionRepository {
             : true;
     }
 
+    public function delete(int $connectionId): void {
+        global $wpdb;
+        $wpdb->delete($this->mappingTable, ['connection_id' => $connectionId]);
+        $wpdb->delete($this->table, ['id' => $connectionId]);
+    }
+
     public function config(int $connectionId): array {
         global $wpdb;
         $json = $wpdb->get_var($wpdb->prepare(
