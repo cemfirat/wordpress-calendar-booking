@@ -496,6 +496,96 @@ cemb_smoke_assert(
 $wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $legacy_status_booking_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $legacy_status_booking_id ] );
 
+
+/* Queue lease and side-effect idempotency regression fixtures. */
+$delivery_table = $wpdb->prefix . 'cemb_deliveries';
+cemb_smoke_assert(
+	$delivery_table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $delivery_table ) ),
+	'Delivery idempotency table exists.'
+);
+
+$delivery_repo = new Cemb\Reliability\DeliveryRepository();
+$delivery_key = 'ci:delivery:' . wp_generate_uuid4();
+$delivery = $delivery_repo->begin( $type_id, $delivery_key, 'email', 'ci' );
+cemb_smoke_assert( ! empty( $delivery['should_run'] ) && (int) $delivery['id'] > 0, 'First delivery claim may run.' );
+cemb_smoke_assert( $delivery_repo->markSending( (int) $delivery['id'] ), 'Delivery enters sending state atomically.' );
+$delivery_retry = $delivery_repo->begin( $type_id, $delivery_key, 'email', 'ci' );
+cemb_smoke_assert( empty( $delivery_retry['should_run'] ) && 'sending' === $delivery_retry['status'], 'Uncertain in-flight email is not sent twice.' );
+$delivery_repo->markSent( (int) $delivery['id'] );
+$delivery_done = $delivery_repo->begin( $type_id, $delivery_key, 'email', 'ci' );
+cemb_smoke_assert( empty( $delivery_done['should_run'] ) && 'sent' === $delivery_done['status'], 'Completed email delivery is idempotent.' );
+
+$jobs = new Cemb\Sync\JobRepository();
+$queue_booking_id = $private_booking_id ?? 0;
+if ( ! $queue_booking_id ) {
+	$queue_booking_id = $wpdb->get_var( "SELECT id FROM {$wpdb->prefix}cemb_bookings ORDER BY id ASC LIMIT 1" );
+}
+$queue_booking_id = (int) $queue_booking_id;
+$queue_key = 'ci:queue:' . wp_generate_uuid4();
+$queue_job_id = $jobs->enqueue( 'update', $queue_booking_id, [ 'ci' => true ], $queue_key );
+cemb_smoke_assert( $queue_job_id > 0, 'Idempotent queue job is created.' );
+cemb_smoke_assert(
+	$queue_job_id === $jobs->enqueue( 'update', $queue_booking_id, [ 'ci' => true ], $queue_key ),
+	'Repeated enqueue with the same idempotency key reuses the existing job.'
+);
+
+$claimed_a = $jobs->claim( 'ci-worker-a', 1, 60 );
+cemb_smoke_assert( 1 === count( $claimed_a ) && (int) $claimed_a[0]->id === $queue_job_id, 'First worker atomically claims the pending job.' );
+cemb_smoke_assert( [] === $jobs->claim( 'ci-worker-b', 1, 60 ), 'Second worker cannot claim a live leased job.' );
+
+$wpdb->update(
+	$wpdb->prefix . 'cemb_sync_jobs',
+	[ 'lease_expires_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-1 minute' ) ) ],
+	[ 'id' => $queue_job_id ]
+);
+$claimed_b = $jobs->claim( 'ci-worker-b', 1, 60 );
+cemb_smoke_assert( 1 === count( $claimed_b ) && (int) $claimed_b[0]->attempts === 2, 'Stale running job is reclaimable by a new worker.' );
+cemb_smoke_assert(
+	$jobs->markFailed( $queue_job_id, $queue_booking_id, 'ci-worker-b', 'Authorization: SECRET Bearer super-secret-token' ),
+	'Leased worker can record a retryable failure.'
+);
+$failed_once = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cemb_sync_jobs WHERE id = %d", $queue_job_id ) );
+cemb_smoke_assert( 'pending' === $failed_once->status && null === $failed_once->lease_owner, 'Retryable failure releases the lease and returns to pending.' );
+cemb_smoke_assert( false === strpos( (string) $failed_once->last_error, 'SECRET' ) && false === strpos( (string) $failed_once->last_error, 'super-secret-token' ), 'Queue errors redact obvious authorization secrets.' );
+
+$wpdb->update(
+	$wpdb->prefix . 'cemb_sync_jobs',
+	[ 'available_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-1 minute' ) ) ],
+	[ 'id' => $queue_job_id ]
+);
+$claimed_c = $jobs->claim( 'ci-worker-c', 1, 60 );
+cemb_smoke_assert( 1 === count( $claimed_c ), 'Backoff job becomes claimable again when available_at is reached.' );
+cemb_smoke_assert( $jobs->markDone( $queue_job_id, $queue_booking_id, 'ci-worker-c', 'CI complete' ), 'Lease owner can complete its claimed job.' );
+cemb_smoke_assert(
+	'done' === $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}cemb_sync_jobs WHERE id = %d", $queue_job_id ) ),
+	'Completed queue job persists done state.'
+);
+cemb_smoke_assert( [] === $jobs->claim( 'ci-worker-d', 1, 60 ), 'Completed idempotent job is not claimed again.' );
+
+$terminal_key = 'ci:queue:max:' . wp_generate_uuid4();
+$terminal_job_id = $jobs->enqueue( 'update', $queue_booking_id, [], $terminal_key );
+$wpdb->update(
+	$wpdb->prefix . 'cemb_sync_jobs',
+	[
+		'attempts' => 4,
+		'available_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-1 minute' ) ),
+	],
+	[ 'id' => $terminal_job_id ]
+);
+$terminal_claim = $jobs->claim( 'ci-worker-terminal', 1, 60 );
+cemb_smoke_assert( 1 === count( $terminal_claim ) && 5 === (int) $terminal_claim[0]->attempts, 'Fifth queue attempt can run.' );
+$jobs->markFailed( $terminal_job_id, $queue_booking_id, 'ci-worker-terminal', 'Permanent CI failure' );
+cemb_smoke_assert(
+	'failed' === $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}cemb_sync_jobs WHERE id = %d", $terminal_job_id ) ),
+	'Queue stops retrying after the bounded maximum attempt count.'
+);
+
+$wpdb->delete( $delivery_table, [ 'idempotency_key' => $delivery_key ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $queue_job_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $terminal_job_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $queue_job_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $terminal_job_id ] );
+
 $machine = new Cemb\Booking\BookingStateMachine();
 cemb_smoke_assert(
 	[] === $machine->adminEventsFor( Cemb\Booking\BookingStatus::RESERVED_UNCONFIRMED ),
