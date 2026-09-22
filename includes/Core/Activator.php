@@ -3,10 +3,12 @@ namespace Cemb\Core;
 
 use Cemb\Database\Schema;
 use Cemb\Support\Time;
+use Cemb\Support\TimeMigration;
 
 class Activator {
     public static function activate(): void {
         Schema::install();
+        TimeMigration::maybeRun();
         self::seed_defaults();
         flush_rewrite_rules();
     }
