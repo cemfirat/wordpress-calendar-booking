@@ -102,6 +102,9 @@ $tables = array(
 	'tokens',
 	'booking_status_log',
 	'sync_jobs',
+	'calendar_connections',
+	'booking_type_calendar_connections',
+	'deliveries',
 	'sync_log',
 );
 foreach ( $tables as $suffix ) {
@@ -421,6 +424,126 @@ $types = $type_repo->all( true );
 cemb_smoke_assert( ! empty( $types ), 'At least one public booking type is available for slot tests.' );
 
 $type_id = (int) $types[0]->id;
+
+/* Provider-neutral connection model. */
+$provider_filter = static function ( $providers ) {
+	$providers[] = new class implements Cemb\Calendar\CalendarProviderInterface {
+		public function id(): string { return 'ci-provider'; }
+		public function label(): string { return 'CI Provider'; }
+		public function capabilities(): array {
+			return [
+				Cemb\Calendar\ProviderCapabilities::BUSY_READ,
+				Cemb\Calendar\ProviderCapabilities::EVENT_CREATE,
+				'not-a-real-capability',
+			];
+		}
+	};
+	return $providers;
+};
+add_filter( 'cemb_calendar_providers', $provider_filter );
+$provider_registry = new Cemb\Calendar\ProviderRegistry();
+cemb_smoke_assert( null !== $provider_registry->get( 'ci-provider' ), 'Calendar provider registry accepts extensible provider adapters.' );
+cemb_smoke_assert(
+	$provider_registry->supports( 'ci-provider', Cemb\Calendar\ProviderCapabilities::BUSY_READ ),
+	'Provider registry exposes advertised busy-read capability.'
+);
+cemb_smoke_assert(
+	! $provider_registry->supports( 'ci-provider', Cemb\Calendar\ProviderCapabilities::EVENT_CANCEL ),
+	'Provider registry does not invent unsupported capabilities.'
+);
+
+$connection_repo = new Cemb\Calendar\CalendarConnectionRepository();
+$connection_id = $connection_repo->create(
+	[
+		'provider' => 'ci-provider',
+		'name' => 'CI Calendar',
+		'remote_calendar_id' => 'calendar-primary',
+		'blocks_availability' => 1,
+		'receives_bookings' => 1,
+		'config' => [ 'account_hint' => 'ci@example.test', 'nested_secret' => [ 'ignored' ] ],
+	],
+	[
+		'access_token' => 'PRIVATE-PROVIDER-TOKEN',
+		'refresh_token' => 'PRIVATE-PROVIDER-REFRESH',
+	]
+);
+cemb_smoke_assert( is_int( $connection_id ) && $connection_id > 0, 'Provider-neutral calendar connection can be stored.' );
+$connection = $connection_repo->find( $connection_id );
+cemb_smoke_assert(
+	$connection instanceof Cemb\Calendar\CalendarConnection
+	&& 'ci-provider' === $connection->provider
+	&& 'calendar-primary' === $connection->remoteCalendarId,
+	'Connection model retains provider and selected remote calendar identifier.'
+);
+cemb_smoke_assert(
+	! property_exists( $connection, 'credentials' ) && ! property_exists( $connection, 'credentials_enc' ),
+	'Normal connection reads do not expose credential payloads.'
+);
+$raw_connection_secret = (string) $wpdb->get_var(
+	$wpdb->prepare(
+		"SELECT credentials_enc FROM {$wpdb->prefix}cemb_calendar_connections WHERE id = %d",
+		$connection_id
+	)
+);
+cemb_smoke_assert(
+	false === strpos( $raw_connection_secret, 'PRIVATE-PROVIDER-TOKEN' )
+	&& 0 === strpos( $raw_connection_secret, 'v2:' ),
+	'Provider credentials are authenticated-encrypted at rest.'
+);
+$decrypted_connection_secret = $connection_repo->credentials( $connection_id );
+cemb_smoke_assert(
+	is_array( $decrypted_connection_secret )
+	&& 'PRIVATE-PROVIDER-TOKEN' === ( $decrypted_connection_secret['access_token'] ?? '' ),
+	'Provider credentials decrypt only through explicit secret access.'
+);
+$connection_repo->setForBookingType(
+	$type_id,
+	[
+		[
+			'connection_id' => $connection_id,
+			'blocks_availability' => 1,
+			'receives_bookings' => 0,
+		],
+	]
+);
+$selected_connections = $connection_repo->forBookingType( $type_id );
+cemb_smoke_assert(
+	1 === count( $selected_connections )
+	&& ! empty( $selected_connections[0]['blocks_availability'] )
+	&& empty( $selected_connections[0]['receives_bookings'] ),
+	'Booking type selects provider connections independently for blocking and write-back.'
+);
+cemb_smoke_assert(
+	1 === count( $connection_repo->blockingForBookingType( $type_id ) )
+	&& 0 === count( $connection_repo->writeDestinationsForBookingType( $type_id ) ),
+	'Booking-domain queries resolve only the requested connection role.'
+);
+$connection_repo->setHealthError( $connection_id, 'CI health error' );
+$health_error = $connection_repo->find( $connection_id );
+cemb_smoke_assert(
+	'error' === $health_error->healthStatus
+	&& null !== $health_error->lastErrorAt
+	&& 'CI health error' === $health_error->lastErrorMessage,
+	'Connection health stores last error metadata.'
+);
+$connection_repo->setHealthSuccess( $connection_id );
+$health_ok = $connection_repo->find( $connection_id );
+cemb_smoke_assert(
+	'ok' === $health_ok->healthStatus
+	&& null !== $health_ok->lastSuccessAt
+	&& '' === $health_ok->lastErrorMessage,
+	'Connection health stores last successful check metadata.'
+);
+$connection_config = $connection_repo->config( $connection_id );
+cemb_smoke_assert(
+	'ci@example.test' === ( $connection_config['account_hint'] ?? '' )
+	&& ! isset( $connection_config['nested_secret'] ),
+	'Non-secret provider config is stored separately and restricted to scalar values.'
+);
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_type_calendar_connections', [ 'connection_id' => $connection_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_calendar_connections', [ 'id' => $connection_id ] );
+remove_filter( 'cemb_calendar_providers', $provider_filter );
+
 $slot_service = new Cemb\Availability\SlotService();
 $slots = $slot_service->getSlots( $type_id, 21 );
 cemb_smoke_assert( ! empty( $slots ), 'Server generates at least one canonical slot.' );
