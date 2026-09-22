@@ -73,6 +73,16 @@ class BookingRepository {
         $wpdb->update($this->table, $data, ['id' => $bookingId]);
     }
 
+    public function updateWhenStatus(int $bookingId, string $expectedStatus, array $data): bool {
+        global $wpdb;
+        $data['updated_at'] = Time::formatUtc(Time::nowUtc());
+        return 1 === $wpdb->update(
+            $this->table,
+            $data,
+            ['id' => $bookingId, 'status' => $expectedStatus]
+        );
+    }
+
     public function replaceMeta(int $bookingId, array $meta): void {
         global $wpdb;
         $wpdb->delete($this->metaTable, ['booking_id' => $bookingId]);
