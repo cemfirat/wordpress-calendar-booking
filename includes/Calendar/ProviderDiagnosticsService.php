@@ -150,9 +150,11 @@ final class ProviderDiagnosticsService {
 
     private function safeMessage(string $message): string {
         $message = wp_strip_all_tags($message);
-        $message = preg_replace('/Authorization:\s*[^\s]+/i', 'Authorization: [redacted]', $message);
-        $message = preg_replace('/Bearer\s+[A-Za-z0-9._~-]+/i', 'Bearer [redacted]', (string)$message);
+        $message = preg_replace('/Authorization:\s*(?:Bearer|Basic)\s+[^\s,;]+/i', 'Authorization: [redacted]', $message);
+        $message = preg_replace('/Authorization:\s*[^,;]+/i', 'Authorization: [redacted]', (string)$message);
+        $message = preg_replace('/Bearer\s+[^\s,;]+/i', 'Bearer [redacted]', (string)$message);
         $message = preg_replace('/(?:access|refresh|id)[_-]?token\s*[:=]\s*[^\s,;]+/i', 'token=[redacted]', (string)$message);
+        $message = preg_replace('/(?:password|secret)\s*[:=]\s*[^\s,;]+/i', 'secret=[redacted]', (string)$message);
         return mb_substr((string)$message, 0, 1000);
     }
 }
