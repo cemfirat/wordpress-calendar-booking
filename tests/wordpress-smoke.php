@@ -562,10 +562,13 @@ cemb_smoke_assert(
 $oauth_controller = new Cemb\Calendar\GoogleOAuthController( $google_config );
 $oauth_state = $oauth_controller->issueState( [ 'purpose' => 'ci' ] );
 $oauth_url = $oauth_controller->authorizationUrl( true, true, $oauth_state );
+$oauth_query = [];
+parse_str( (string) wp_parse_url( $oauth_url, PHP_URL_QUERY ), $oauth_query );
+$oauth_scopes = preg_split( '/\s+/', trim( (string) ( $oauth_query['scope'] ?? '' ) ) ) ?: [];
 cemb_smoke_assert(
-	false !== strpos( $oauth_url, rawurlencode( 'https://www.googleapis.com/auth/calendar.freebusy' ) )
-	&& false !== strpos( $oauth_url, rawurlencode( 'https://www.googleapis.com/auth/calendar.events' ) )
-	&& false !== strpos( $oauth_url, 'state=' . $oauth_state ),
+	in_array( 'https://www.googleapis.com/auth/calendar.freebusy', $oauth_scopes, true )
+	&& in_array( 'https://www.googleapis.com/auth/calendar.events', $oauth_scopes, true )
+	&& $oauth_state === ( $oauth_query['state'] ?? '' ),
 	'Google authorization URL carries minimal requested scopes and an unpredictable state value.'
 );
 $consumed_state = $oauth_controller->consumeState( $oauth_state );
