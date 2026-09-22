@@ -34,6 +34,22 @@ final class TimeMigration {
         update_option(self::OPTION, self::VERSION, false);
     }
 
+    private static function legacyLocalToUtc(string $value): ?string {
+        if (!preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value)) {
+            return null;
+        }
+
+        // Legacy 1.x did not record an offset/fold flag. Use PHP's deterministic
+        // interpretation in the configured IANA zone for those historic rows.
+        // New 2.0 input uses Time::parseLocal(), which rejects ambiguous/gap times.
+        $date = \DateTimeImmutable::createFromFormat('!' . Time::STORAGE_FORMAT, $value, Time::bookingTimezone());
+        $errors = \DateTimeImmutable::getLastErrors();
+        if ($date === false || ($errors !== false && $errors['error_count'])) {
+            return null;
+        }
+        return Time::formatUtc($date);
+    }
+
     private static function migrateTable(string $table, string $primaryKey, array $columns): void {
         global $wpdb;
 
@@ -52,7 +68,7 @@ final class TimeMigration {
                     continue;
                 }
 
-                $utc = Time::localToUtc($value);
+                $utc = self::legacyLocalToUtc($value);
                 if ($utc !== null && $utc !== $value) {
                     $changes[$column] = $utc;
                 }
