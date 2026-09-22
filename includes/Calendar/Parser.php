@@ -2,105 +2,90 @@
 namespace Cemb\Calendar;
 
 use Cemb\Support\Time;
+use Sabre\VObject\DateTimeParser;
+use Sabre\VObject\Reader;
 
 class Parser {
     public function parse(string $ics, string $from, string $to): array {
-        $ics = preg_replace("/\r\n[ \t]/", '', $ics);
-        preg_match_all('/BEGIN:VEVENT(.*?)END:VEVENT/s', $ics, $matches);
+        $fromUtc = Time::parseUtc($from);
+        $toUtc = Time::parseUtc($to);
+        if (!$fromUtc || !$toUtc || $toUtc <= $fromUtc || !class_exists(Reader::class)) {
+            return [];
+        }
+
+        try {
+            $calendar = Reader::read($ics, Reader::OPTION_FORGIVING);
+            if (!method_exists($calendar, 'expand')) {
+                return [];
+            }
+
+            // Expansion is always bounded to the requested availability window.
+            // This is both a correctness rule and a resource-use safety boundary.
+            $expanded = $calendar->expand($fromUtc, $toUtc, Time::bookingTimezone());
+        } catch (\Throwable $error) {
+            return [];
+        }
+
         $events = [];
-        foreach ($matches[1] as $block) {
-            $event = $this->parseEventBlock($block);
-            if (!$event || empty($event['start']) || empty($event['end'])) {
+        foreach ($expanded->select('VEVENT') as $event) {
+            $status = strtoupper(trim((string)($event->STATUS ?? '')));
+            if ($status === 'CANCELLED' || !isset($event->DTSTART)) {
                 continue;
             }
-            if ($event['start'] < $to && $event['end'] > $from) {
-                $events[] = $event;
+
+            $range = $this->eventRange($event);
+            if (!$range) {
+                continue;
             }
+
+            [$start, $end, $allDay] = $range;
+            if ($start >= $to || $end <= $from) {
+                continue;
+            }
+
+            $events[] = [
+                'uid' => trim((string)($event->UID ?? '')),
+                'recurrence_id' => isset($event->{'RECURRENCE-ID'}) ? trim((string)$event->{'RECURRENCE-ID'}) : '',
+                'summary' => trim((string)($event->SUMMARY ?? '')),
+                'description' => trim((string)($event->DESCRIPTION ?? '')),
+                'location' => trim((string)($event->LOCATION ?? '')),
+                'start' => $start,
+                'end' => $end,
+                'all_day' => $allDay,
+            ];
         }
+
+        usort($events, static fn(array $a, array $b): int => strcmp($a['start'], $b['start']));
         return $events;
     }
 
-    private function parseEventBlock(string $block): ?array {
-        $lines = preg_split('/\n/', trim($block));
-        $properties = [];
-        foreach ($lines as $line) {
-            $line = trim($line, "\r\n");
-            if ($line === '' || strpos($line, ':') === false) {
-                continue;
-            }
-            [$key, $value] = explode(':', $line, 2);
-            $properties[] = [$key, $value];
-        }
+    private function eventRange($event): ?array {
+        try {
+            $referenceTimezone = Time::bookingTimezone();
+            $startDate = $event->DTSTART->getDateTime($referenceTimezone);
+            $allDay = !$event->DTSTART->hasTime();
 
-        $startProperty = $this->findProperty($properties, 'DTSTART');
-        $endProperty = $this->findProperty($properties, 'DTEND');
-        if (!$startProperty || !$endProperty) {
-            return null;
-        }
-
-        $start = $this->parseDate($startProperty[0], $startProperty[1]);
-        $end = $this->parseDate($endProperty[0], $endProperty[1]);
-        if (!$start || !$end) {
-            return null;
-        }
-
-        return [
-            'uid' => $this->propertyValue($properties, 'UID'),
-            'summary' => $this->propertyValue($properties, 'SUMMARY'),
-            'description' => $this->propertyValue($properties, 'DESCRIPTION'),
-            'location' => $this->propertyValue($properties, 'LOCATION'),
-            'start' => $start,
-            'end' => $end,
-        ];
-    }
-
-    private function findProperty(array $properties, string $name): ?array {
-        foreach ($properties as $property) {
-            $key = (string)$property[0];
-            if ($key === $name || strpos($key, $name . ';') === 0) {
-                return [$key, (string)$property[1]];
-            }
-        }
-        return null;
-    }
-
-    private function propertyValue(array $properties, string $name): string {
-        $property = $this->findProperty($properties, $name);
-        return $property ? (string)$property[1] : '';
-    }
-
-    private function parseDate(string $key, string $value): ?string {
-        if ($value === '') {
-            return null;
-        }
-
-        $timezone = Time::bookingTimezone();
-        if (preg_match('/;TZID=([^;:]+)/i', $key, $tzid)) {
-            try {
-                $timezone = new \DateTimeZone($tzid[1]);
-            } catch (\Exception $e) {
+            if (isset($event->DTEND)) {
+                $endDate = $event->DTEND->getDateTime($referenceTimezone);
+            } elseif (isset($event->DURATION)) {
+                $endDate = $startDate->add(DateTimeParser::parseDuration((string)$event->DURATION));
+            } elseif ($allDay) {
+                $endDate = $startDate->modify('+1 day');
+            } else {
                 return null;
             }
-        }
 
-        if (preg_match('/^(\d{8})$/', $value, $match)) {
-            $local = \DateTimeImmutable::createFromFormat('!Ymd H:i:s', $match[1] . ' 00:00:00', $timezone);
-            return $local ? Time::formatUtc($local) : null;
-        }
-
-        if (preg_match('/^(\d{8})T(\d{6})Z$/', $value, $match)) {
-            $utc = \DateTimeImmutable::createFromFormat('!Ymd His', $match[1] . ' ' . $match[2], Time::utc());
-            return $utc ? Time::formatUtc($utc) : null;
-        }
-
-        if (preg_match('/^(\d{8})T(\d{6})$/', $value, $match)) {
-            $local = \DateTimeImmutable::createFromFormat('!Ymd His', $match[1] . ' ' . $match[2], $timezone);
-            if (!$local) {
+            if ($endDate <= $startDate) {
                 return null;
             }
-            return Time::formatUtc($local);
-        }
 
-        return null;
+            return [
+                Time::formatUtc($startDate),
+                Time::formatUtc($endDate),
+                $allDay,
+            ];
+        } catch (\Throwable $error) {
+            return null;
+        }
     }
 }
