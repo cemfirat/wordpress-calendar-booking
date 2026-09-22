@@ -34,6 +34,15 @@ final class BookingStatusMigration {
             );
         }
 
+        $logTable = $wpdb->prefix . 'cemb_booking_status_log';
+        $logExists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $logTable));
+        if ($logExists === $logTable) {
+            foreach ($map as $legacy => $canonical) {
+                $wpdb->query($wpdb->prepare("UPDATE {$logTable} SET old_status = %s WHERE old_status = %s", $canonical, $legacy));
+                $wpdb->query($wpdb->prepare("UPDATE {$logTable} SET new_status = %s WHERE new_status = %s", $canonical, $legacy));
+            }
+        }
+
         update_option(self::OPTION, self::VERSION, false);
     }
 }
