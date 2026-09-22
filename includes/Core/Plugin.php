@@ -10,11 +10,13 @@ use Cemb\Support\TimeMigration;
 use Cemb\Booking\BookingStatusMigration;
 use Cemb\Booking\BookingTransitionEffects;
 use Cemb\Tokens\TokenMigration;
+use Cemb\Security\SecretMigration;
 
 class Plugin {
     public function boot(): void {
         SchemaMigration::maybeRun();
         TokenMigration::maybeRun();
+        SecretMigration::maybeRun();
         TimeMigration::maybeRun();
         BookingStatusMigration::maybeRun();
         load_plugin_textdomain('cemb', false, dirname(CEMB_BASENAME) . '/languages');
