@@ -1,6 +1,8 @@
 <?php
 namespace Cemb\ICS;
 
+use Cemb\Support\Time;
+
 class IcsGenerator {
     public function generate(array $booking, array $meta, string $title, string $location = '', string $uid = ''): string {
         $uid = $uid !== '' ? $uid : (!empty($booking['booking_uuid']) ? $booking['booking_uuid'] . '@' . wp_parse_url(home_url(), PHP_URL_HOST) : wp_generate_uuid4());
