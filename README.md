@@ -16,10 +16,16 @@ Privacy-conscious appointment booking for WordPress with configurable availabili
 ## Calendar providers
 
 - Public ICS / webcal feed — read-only busy blocking
-- Generic CalDAV — busy blocking and optional write-back
-- iCloud — Apple-focused CalDAV connection preset
+- Generic CalDAV — standards-based discovery, bounded busy blocking and ETag-safe write-back
+- iCloud — Apple-focused preset on top of the generic CalDAV provider
 - Google Calendar — OAuth + FreeBusy + Events API
 - Microsoft 365 / Outlook — Microsoft Graph OAuth, account-type-aware availability and event write-back
+
+### CalDAV and iCloud
+
+Generic CalDAV connections use `current-user-principal`, `calendar-home-set` and calendar collection discovery where the server supports them. Busy reads use a bounded RFC 4791 `calendar-query`; event updates/deletes use ETags with `If-Match` so remote changes are not overwritten silently.
+
+The iCloud preset uses `https://caldav.icloud.com/` and the same generic provider. For direct username/password-style CalDAV access, use an Apple Account email plus an app-specific password. Apple requires two-factor authentication for app-specific passwords. Apple also supports account authorization for compatible third-party apps; that can replace app-specific passwords when an app implements Apple's authorization flow.
 
 ### Microsoft Graph behavior
 
