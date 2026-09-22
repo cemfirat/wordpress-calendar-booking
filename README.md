@@ -1,0 +1,76 @@
+# WordPress Calendar Booking
+
+Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
+
+> **Development status:** 2.0 is under active development. The imported 1.x prototype is not considered a stable public release. Security, privacy, recurrence and concurrency issues tracked in GitHub Issues are release blockers.
+
+## Product principles
+
+- Booking rules live in WordPress; external calendars only contribute busy intervals and optional write-back.
+- The server generates and validates bookable slots. Browser-provided timestamps are never trusted as availability proof.
+- Public calendar output is busy-only by default.
+- Calendar connections are opt-in and request the minimum useful permissions.
+- YOOtheme Pro uses its existing UIkit/theme system. Without YOOtheme, the plugin uses a locally bundled UIkit fallback only where booking components are rendered.
+- Core booking works without Google, Microsoft, Apple or any other third-party account.
+
+## Planned calendar providers
+
+- Public ICS / webcal feed — read-only busy blocking
+- Generic CalDAV — busy blocking and optional write-back
+- iCloud — Apple-focused CalDAV connection preset
+- Google Calendar — OAuth + FreeBusy + Events API
+- Microsoft 365 / Outlook — Microsoft Graph with account-type-aware availability strategy
+
+## Booking flow
+
+1. Administrator configures booking types, duration, buffers, weekly rules, exceptions, notice and horizon.
+2. Optional calendar connections add busy intervals.
+3. Visitor receives server-generated available slots in the selected time zone.
+4. Submission revalidates and atomically reserves the slot.
+5. Double Opt-In confirms the visitor email.
+6. Optional admin approval confirms or rejects the booking.
+7. Notifications include standards-compliant calendar data.
+8. Calendar write-back is queued, idempotent and retryable.
+
+## Frontend architecture
+
+One semantic component/render layer serves:
+
+- YOOtheme Pro native Builder elements when YOOtheme is installed
+- Shortcodes for compatibility
+- WordPress blocks for new installations
+- UIkit fallback assets when no compatible UIkit/YOOtheme runtime is present
+
+The plugin does **not** scrape arbitrary themes and copy their CSS classes. Themes can integrate through filters, render hooks, wrapper/button/form class filters and CSS variables.
+
+## Privacy and security
+
+Before a stable release, 2.0 must provide:
+
+- signed short-lived slot tokens
+- atomic conflict prevention
+- UTC/IANA time-zone storage and DST tests
+- recurrence-capable busy-time parsing
+- busy-only public output
+- explicit booking state transitions
+- POST-only state changes for cancellation/rescheduling/confirmation
+- indexed selector/verifier tokens
+- authenticated encryption for calendar credentials
+- idempotent queue/notification processing
+- WordPress privacy exporter/eraser and retention controls
+
+See [SECURITY.md](SECURITY.md), [docs/SECURITY-PRIVACY.md](docs/SECURITY-PRIVACY.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+## Development
+
+The GitHub issue tracker is the source of truth for release work. Pull requests should close focused issues and include tests for behavior changes.
+
+- Product definition: [docs/PRODUCT.md](docs/PRODUCT.md)
+- Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
+- Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
+- Initial issue backlog: [docs/GITHUB-ISSUES.md](docs/GITHUB-ISSUES.md)
+- Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
+
+## License
+
+GPL-2.0-or-later. Copyright © 2026 Cem Firat.
