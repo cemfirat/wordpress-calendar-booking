@@ -20,6 +20,7 @@ final class MicrosoftOAuthController {
 
     public function boot(): void {
         add_filter('cemb_calendar_providers', [$this, 'registerProvider']);
+        add_action('admin_menu', [$this, 'menu']);
         add_action('admin_post_cemb_microsoft_save_oauth', [$this, 'saveOAuthConfig']);
         add_action('admin_post_cemb_microsoft_connect', [$this, 'startConnect']);
         add_action('admin_post_cemb_microsoft_oauth_callback', [$this, 'callback']);
@@ -29,6 +30,99 @@ final class MicrosoftOAuthController {
     public function registerProvider(array $providers): array {
         $providers[] = new MicrosoftGraphProvider($this->connections, $this->config);
         return $providers;
+    }
+
+    public function menu(): void {
+        add_submenu_page(
+            'cemb_dashboard',
+            'Microsoft Calendar',
+            'Microsoft Calendar',
+            'manage_options',
+            'cemb_microsoft_connections',
+            [$this, 'page']
+        );
+    }
+
+    public function page(): void {
+        if (!current_user_can('manage_options')) {
+            return;
+        }
+        $connections = array_values(array_filter(
+            $this->connections->all(false),
+            static fn(CalendarConnection $connection): bool => $connection->provider === 'microsoft'
+        ));
+        ?>
+        <div class="wrap">
+            <h1>Microsoft 365 / Outlook</h1>
+            <?php if (isset($_GET['cemb_microsoft_notice'])): ?>
+                <div class="notice notice-success"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['cemb_microsoft_notice']))); ?></p></div>
+            <?php endif; ?>
+            <?php if (isset($_GET['cemb_microsoft_error'])): ?>
+                <div class="notice notice-error"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['cemb_microsoft_error']))); ?></p></div>
+            <?php endif; ?>
+
+            <h2>Microsoft Entra app registration</h2>
+            <p>Register this Web redirect URI in the Microsoft identity platform:</p>
+            <p><code><?php echo esc_html($this->config->redirectUri()); ?></code></p>
+            <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                <?php wp_nonce_field('cemb_microsoft_save_oauth'); ?>
+                <input type="hidden" name="action" value="cemb_microsoft_save_oauth">
+                <table class="form-table" role="presentation">
+                    <tr><th><label for="cemb_ms_client_id">Client ID</label></th>
+                    <td><input class="regular-text" id="cemb_ms_client_id" name="client_id" value="<?php echo esc_attr($this->config->clientId()); ?>" autocomplete="off"></td></tr>
+                    <tr><th><label for="cemb_ms_client_secret">Client secret</label></th>
+                    <td><input class="regular-text" type="password" id="cemb_ms_client_secret" name="client_secret" value="" autocomplete="new-password"><p class="description">Leave blank to keep the encrypted secret. Constants CEMB_MICROSOFT_CLIENT_ID / CEMB_MICROSOFT_CLIENT_SECRET override these fields.</p></td></tr>
+                </table>
+                <?php submit_button('Save Microsoft OAuth settings'); ?>
+            </form>
+
+            <hr>
+            <h2>Connect Microsoft Calendar</h2>
+            <?php if (!$this->config->configured()): ?>
+                <p>Save the Microsoft OAuth client ID and secret first.</p>
+            <?php else: ?>
+                <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                    <?php wp_nonce_field('cemb_microsoft_connect'); ?>
+                    <input type="hidden" name="action" value="cemb_microsoft_connect">
+                    <table class="form-table" role="presentation">
+                        <tr><th><label for="cemb_ms_name">Connection name</label></th>
+                        <td><input class="regular-text" id="cemb_ms_name" name="connection_name" value="Microsoft Calendar" required></td></tr>
+                        <tr><th><label for="cemb_ms_calendar">Calendar ID</label></th>
+                        <td><input class="regular-text" id="cemb_ms_calendar" name="remote_calendar_id" value="primary" required><p class="description">Use <code>primary</code> for the signed-in default calendar. A specific Graph calendar ID uses calendarView availability.</p></td></tr>
+                        <tr><th>Capabilities</th><td>
+                            <label><input type="checkbox" name="blocks_availability" value="1" checked> Block availability</label><br>
+                            <label><input type="checkbox" name="receives_bookings" value="1"> Write confirmed bookings</label>
+                        </td></tr>
+                    </table>
+                    <?php submit_button('Connect Microsoft Calendar'); ?>
+                </form>
+            <?php endif; ?>
+
+            <hr>
+            <h2>Microsoft connections</h2>
+            <?php if (!$connections): ?>
+                <p>No Microsoft Calendar connection yet.</p>
+            <?php else: ?>
+                <table class="widefat striped"><thead><tr><th>Name</th><th>Calendar</th><th>Use</th><th>Health</th><th>Action</th></tr></thead><tbody>
+                <?php foreach ($connections as $connection): ?>
+                    <tr>
+                        <td><?php echo esc_html($connection->name); ?></td>
+                        <td><code><?php echo esc_html($connection->remoteCalendarId); ?></code></td>
+                        <td><?php echo esc_html(trim(($connection->blocksAvailability ? 'Busy ' : '') . ($connection->receivesBookings ? 'Write-back' : ''))); ?></td>
+                        <td><?php echo esc_html($connection->healthStatus); ?></td>
+                        <td><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
+                            <?php wp_nonce_field('cemb_microsoft_disconnect_' . $connection->id); ?>
+                            <input type="hidden" name="action" value="cemb_microsoft_disconnect">
+                            <input type="hidden" name="connection_id" value="<?php echo (int)$connection->id; ?>">
+                            <?php submit_button('Disconnect', 'secondary', 'submit', false); ?>
+                        </form></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody></table>
+            <?php endif; ?>
+            <p class="description">Work/school default calendars use Graph getSchedule when available. Personal Microsoft accounts and specific calendars use calendarView.</p>
+        </div>
+        <?php
     }
 
     public function saveOAuthConfig(): void {
@@ -212,7 +306,7 @@ final class MicrosoftOAuthController {
 
     private function redirectNotice(string $message): void {
         wp_safe_redirect(add_query_arg([
-            'page' => 'cemb_calendar_connections',
+            'page' => 'cemb_microsoft_connections',
             'cemb_microsoft_notice' => $message,
         ], admin_url('admin.php')));
         exit;
@@ -220,7 +314,7 @@ final class MicrosoftOAuthController {
 
     private function redirectError(string $message): void {
         wp_safe_redirect(add_query_arg([
-            'page' => 'cemb_calendar_connections',
+            'page' => 'cemb_microsoft_connections',
             'cemb_microsoft_error' => $message,
         ], admin_url('admin.php')));
         exit;
