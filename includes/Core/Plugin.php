@@ -11,6 +11,7 @@ use Cemb\Booking\BookingStatusMigration;
 use Cemb\Booking\BookingTransitionEffects;
 use Cemb\Tokens\TokenMigration;
 use Cemb\Security\SecretMigration;
+use Cemb\Privacy\PrivacyService;
 
 class Plugin {
     public function boot(): void {
@@ -25,5 +26,6 @@ class Plugin {
         (new Shortcodes())->boot();
         (new Actions())->boot();
         (new QueueService())->boot();
+        (new PrivacyService())->boot();
     }
 }
