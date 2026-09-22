@@ -1530,4 +1530,51 @@ cemb_smoke_assert( ! wp_script_is( 'cemb-uikit', 'enqueued' ), 'YOOtheme mode do
 cemb_smoke_assert( wp_style_is( 'cemb-frontend', 'enqueued' ), 'Plugin-specific component CSS remains available with YOOtheme.' );
 cemb_smoke_assert( wp_script_is( 'cemb-frontend', 'enqueued' ), 'Plugin booking behavior remains available with YOOtheme.' );
 
+/* Stable GitHub updater integration. */
+$release_fixture = [
+	'tag_name' => 'v2.0.1',
+	'draft' => false,
+	'prerelease' => false,
+	'body' => "Requires WordPress: 6.5\nRequires PHP: 8.0\n\nUpdater fixture.",
+	'assets' => [
+		[
+			'name' => Cemb\Updates\GitHubUpdater::ASSET,
+			'browser_download_url' => Cemb\Updates\GitHubUpdater::REPOSITORY . '/releases/download/v2.0.1/' . Cemb\Updates\GitHubUpdater::ASSET,
+			'state' => 'uploaded',
+			'size' => 12345,
+		],
+	],
+];
+$parsed_release = Cemb\Updates\GitHubUpdater::parseRelease( $release_fixture );
+cemb_smoke_assert( is_array( $parsed_release ) && '2.0.1' === $parsed_release['version'], 'Stable GitHub release metadata is parsed.' );
+cemb_smoke_assert( '6.5' === $parsed_release['requires'] && '8.0' === $parsed_release['requires_php'], 'Updater parses WordPress/PHP requirements.' );
+$draft_fixture = $release_fixture;
+$draft_fixture['draft'] = true;
+cemb_smoke_assert( false === Cemb\Updates\GitHubUpdater::parseRelease( $draft_fixture ), 'Updater rejects draft releases.' );
+$wrong_asset_fixture = $release_fixture;
+$wrong_asset_fixture['assets'][0]['name'] = 'wrong.zip';
+cemb_smoke_assert( false === Cemb\Updates\GitHubUpdater::parseRelease( $wrong_asset_fixture ), 'Updater requires the exact release ZIP asset.' );
+
+set_site_transient( Cemb\Updates\GitHubUpdater::CACHE_KEY, $parsed_release, HOUR_IN_SECONDS );
+$update_result = apply_filters(
+	'update_plugins_github.com',
+	false,
+	get_plugin_data( CEMB_FILE ),
+	plugin_basename( CEMB_FILE )
+);
+cemb_smoke_assert( is_array( $update_result ) && '2.0.1' === $update_result['version'], 'WordPress Update URI filter receives a newer GitHub version.' );
+cemb_smoke_assert(
+	Cemb\Updates\GitHubUpdater::REPOSITORY . '/releases/download/v2.0.1/' . Cemb\Updates\GitHubUpdater::ASSET === $update_result['package'],
+	'Updater advertises the exact stable release asset.'
+);
+
+wp_set_current_user( 1 );
+set_site_transient( Cemb\Updates\GitHubUpdater::CACHE_KEY, $parsed_release, HOUR_IN_SECONDS );
+set_site_transient( 'update_plugins', (object) [ 'last_checked' => time(), 'checked' => [] ], HOUR_IN_SECONDS );
+$_GET['force-check'] = '1';
+( new Cemb\Updates\GitHubUpdater( CEMB_FILE ) )->maybeForceCheck();
+unset( $_GET['force-check'] );
+cemb_smoke_assert( false === get_site_transient( Cemb\Updates\GitHubUpdater::CACHE_KEY ), 'Manual Check again clears GitHub release metadata.' );
+cemb_smoke_assert( false === get_site_transient( 'update_plugins' ), 'Manual Check again clears WordPress plugin-update state before its check.' );
+
 WP_CLI::success( 'WordPress Calendar Booking smoke test passed on WordPress ' . get_bloginfo( 'version' ) . ' / PHP ' . PHP_VERSION . '.' );
