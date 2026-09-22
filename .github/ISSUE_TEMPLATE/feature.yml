@@ -1,0 +1,24 @@
+name: Feature request
+description: Propose a product or integration improvement
+title: "[Feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    attributes:
+      label: Problem
+      description: What user or administrator problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Proposed outcome
+  - type: textarea
+    attributes:
+      label: Alternatives
+  - type: checkboxes
+    attributes:
+      label: Scope
+      options:
+        - label: Works without a third-party calendar when applicable
+        - label: Considers privacy and minimum provider permissions
+        - label: Reuses the shared UIkit/YOOtheme component layer when frontend-related
