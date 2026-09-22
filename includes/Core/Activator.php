@@ -5,11 +5,13 @@ use Cemb\Database\SchemaMigration;
 use Cemb\Support\Time;
 use Cemb\Support\TimeMigration;
 use Cemb\Tokens\TokenMigration;
+use Cemb\Security\SecretMigration;
 
 class Activator {
     public static function activate(): void {
         SchemaMigration::maybeRun();
         TokenMigration::maybeRun();
+        SecretMigration::maybeRun();
         TimeMigration::maybeRun();
         self::seed_defaults();
         flush_rewrite_rules();
