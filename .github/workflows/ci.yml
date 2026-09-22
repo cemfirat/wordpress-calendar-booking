@@ -77,13 +77,13 @@ jobs:
         run: |
           set -euo pipefail
           fixture="$(wp eval '
-            $types = (new Cemb\\Booking\\BookingTypeRepository())->all(true);
+            $types = (new Cemb\Booking\BookingTypeRepository())->all(true);
             $type = $types[0] ?? null;
             if (!$type) { exit(1); }
-            $slots = (new Cemb\\Availability\\SlotService())->getSlots((int)$type->id, 21);
+            $slots = (new Cemb\Availability\SlotService())->getSlots((int)$type->id, 21);
             if (!$slots) { exit(2); }
             $slot = $slots[0];
-            echo (int)$type->id . "|" . (new Cemb\\Tokens\\SlotTokenService())->issue((int)$type->id, $slot["start"], $slot["end"]);
+            echo (int)$type->id . "|" . (new Cemb\Tokens\SlotTokenService())->issue((int)$type->id, $slot["start"], $slot["end"]);
           ' --path="$RUNNER_TEMP/wordpress")"
           export CEMB_TYPE_ID="${fixture%%|*}"
           export CEMB_SLOT_TOKEN="${fixture#*|}"
