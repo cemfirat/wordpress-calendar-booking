@@ -126,8 +126,9 @@ class Actions {
         $links = [
             'confirm' => $this->linkUrl('confirm', $doiToken),
         ];
-        (new Mailer())->sendTemplate('doi', $booking, $meta, $links, false);
-        (new Mailer())->sendInternal($booking, $meta);
+        $mailer = new Mailer();
+        $mailer->sendTemplateOnce('mail:user:' . $bookingId . ':doi', 'doi', $booking, $meta, $links, false);
+        $mailer->sendInternalOnce('mail:internal:' . $bookingId . ':reserved', $booking, $meta);
         wp_safe_redirect(add_query_arg('cemb_notice', rawurlencode('Bitte bestätige deine E-Mail über den Link in der Nachricht.'), wp_get_referer() ?: home_url('/')));
         exit;
     }
@@ -457,7 +458,14 @@ class Actions {
             $diffHours = ($bookingStart->getTimestamp() - Time::nowUtc()->getTimestamp()) / 3600;
             if ($diffHours <= (int)$settings['reminder_hours'] && $diffHours > ((int)$settings['reminder_hours'] - 1)) {
                 $meta = $repo->getMeta((int)$booking->id);
-                (new Mailer())->sendTemplate('reminder', (array)$booking, $meta, [], false);
+                (new Mailer())->sendTemplateOnce(
+                    'mail:user:' . (int)$booking->id . ':reminder:' . hash('sha256', (string)$booking->slot_start),
+                    'reminder',
+                    (array)$booking,
+                    $meta,
+                    [],
+                    false
+                );
             }
         }
     }
