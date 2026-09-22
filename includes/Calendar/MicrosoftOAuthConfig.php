@@ -63,7 +63,7 @@ final class MicrosoftOAuthConfig {
 
     /** @return string[] */
     public function scopes(bool $blocksAvailability, bool $receivesBookings): array {
-        $scopes = ['offline_access'];
+        $scopes = ['openid', 'profile', 'email', 'offline_access'];
         if ($receivesBookings) {
             $scopes[] = 'Calendars.ReadWrite';
         } elseif ($blocksAvailability) {
