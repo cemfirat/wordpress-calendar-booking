@@ -2,6 +2,7 @@
 namespace Cemb\Sync;
 
 use Cemb\Booking\BookingRepository;
+use Cemb\Admin\Settings;
 
 class QueueService {
     private JobRepository $jobs;
@@ -33,39 +34,91 @@ class QueueService {
     }
 
     public function enqueueCreate(int $bookingId): int {
-        $this->bookings->updateMeta($bookingId, 'sync_status', 'queued_create');
-        return $this->jobs->enqueue('create', $bookingId);
+        return $this->enqueueCalendarJob('create', $bookingId);
     }
 
     public function enqueueUpdate(int $bookingId): int {
-        $this->bookings->updateMeta($bookingId, 'sync_status', 'queued_update');
-        return $this->jobs->enqueue('update', $bookingId);
+        return $this->enqueueCalendarJob('update', $bookingId);
     }
 
     public function enqueueCancel(int $bookingId): int {
-        $this->bookings->updateMeta($bookingId, 'sync_status', 'queued_cancel');
-        return $this->jobs->enqueue('cancel', $bookingId);
+        return $this->enqueueCalendarJob('cancel', $bookingId);
     }
 
-    public function processPending(): void {
-        $items = $this->jobs->nextPending(10);
+    public function processPending(int $limit = 10): void {
+        $worker = $this->workerId();
+        $items = $this->jobs->claim($worker, $limit, 120);
         foreach ($items as $job) {
-            $this->jobs->markRunning((int)$job->id);
             try {
                 $result = $this->runJob($job);
                 if (!empty($result['ok'])) {
-                    $this->jobs->markDone((int)$job->id, (int)$job->booking_id, (string)($result['message'] ?? 'Erfolgreich synchronisiert'));
+                    $this->jobs->markDone(
+                        (int)$job->id,
+                        (int)$job->booking_id,
+                        $worker,
+                        (string)($result['message'] ?? 'Calendar sync completed')
+                    );
                 } else {
-                    $this->jobs->markFailed((int)$job->id, (int)$job->booking_id, (string)($result['message'] ?? 'Synchronisierung fehlgeschlagen'));
+                    $this->jobs->markFailed(
+                        (int)$job->id,
+                        (int)$job->booking_id,
+                        $worker,
+                        (string)($result['message'] ?? 'Calendar sync failed')
+                    );
                 }
             } catch (\Throwable $e) {
-                $this->jobs->markFailed((int)$job->id, (int)$job->booking_id, $e->getMessage());
+                $this->jobs->markFailed((int)$job->id, (int)$job->booking_id, $worker, $e->getMessage());
             }
         }
     }
 
     public function runNow(int $limit = 10): void {
-        $this->processPending();
+        $this->processPending($limit);
+    }
+
+    private function enqueueCalendarJob(string $jobType, int $bookingId): int {
+        $booking = $this->bookings->find($bookingId);
+        if (!$booking) {
+            return 0;
+        }
+
+        $settings = Settings::get();
+        $meta = $this->bookings->getMeta($bookingId);
+        $destination = (string)($meta['icloud_calendar_url'] ?? $settings['icloud_sync_target_calendar_url'] ?? '');
+        if ($jobType === 'cancel' && !empty($meta['icloud_event_url'])) {
+            $destination = (string)$meta['icloud_event_url'];
+        }
+
+        $desiredVersion = hash('sha256', wp_json_encode([
+            'booking_id' => $bookingId,
+            'status' => (string)$booking->status,
+            'slot_start' => (string)$booking->slot_start,
+            'slot_end' => (string)$booking->slot_end,
+            'updated_at' => (string)$booking->updated_at,
+            'destination' => $destination,
+        ]));
+
+        $operation = $jobType === 'cancel' ? 'cancel' : 'upsert';
+        $idempotencyKey = 'calendar:' . $operation . ':' . $bookingId . ':' . substr($desiredVersion, 0, 48);
+        $this->bookings->updateMeta($bookingId, 'sync_status', 'queued_' . $jobType);
+
+        return $this->jobs->enqueue(
+            $jobType,
+            $bookingId,
+            [
+                'destination' => $destination,
+                'desired_version' => $desiredVersion,
+            ],
+            $idempotencyKey
+        );
+    }
+
+    private function workerId(): string {
+        return substr(
+            'wp:' . md5(home_url('/') . '|' . getmypid() . '|' . wp_generate_uuid4()),
+            0,
+            64
+        );
     }
 
     private function runJob(object $job): array {
