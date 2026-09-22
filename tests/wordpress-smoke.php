@@ -35,6 +35,30 @@ cemb_smoke_assert( null === Cemb\Support\Time::parseLocal( '2026-10-25 02:30:00'
 cemb_smoke_assert( '2026-07-15 09:00:00' === Cemb\Support\Time::utcToLocal( '2026-07-15 07:00:00' ), 'UTC storage converts back to booking wall time.' );
 cemb_smoke_assert( 'UTC' === Cemb\Admin\Settings::normalizeTimezone( 'GMT+2' ), 'Fixed/invalid timezone strings are rejected in favor of a canonical IANA fallback.' );
 
+$recurring_ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//CEMB CI//EN\r\n"
+	. "BEGIN:VTIMEZONE\r\nTZID:Europe/Vienna\r\n"
+	. "BEGIN:STANDARD\r\nDTSTART:19701025T030000\r\nRRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\r\nTZOFFSETFROM:+0200\r\nTZOFFSETTO:+0100\r\nTZNAME:CET\r\nEND:STANDARD\r\n"
+	. "BEGIN:DAYLIGHT\r\nDTSTART:19700329T020000\r\nRRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU\r\nTZOFFSETFROM:+0100\r\nTZOFFSETTO:+0200\r\nTZNAME:CEST\r\nEND:DAYLIGHT\r\nEND:VTIMEZONE\r\n"
+	. "BEGIN:VEVENT\r\nUID:weekly-ci\r\nDTSTAMP:20260101T000000Z\r\nDTSTART;TZID=Europe/Vienna:20261005T090000\r\nDTEND;TZID=Europe/Vienna:20261005T093000\r\nRRULE:FREQ=WEEKLY;COUNT=4\r\nEXDATE;TZID=Europe/Vienna:20261019T090000\r\nSUMMARY:PRIVATE SERIES\r\nEND:VEVENT\r\n"
+	. "BEGIN:VEVENT\r\nUID:weekly-ci\r\nDTSTAMP:20260101T000000Z\r\nRECURRENCE-ID;TZID=Europe/Vienna:20261012T090000\r\nDTSTART;TZID=Europe/Vienna:20261012T110000\r\nDTEND;TZID=Europe/Vienna:20261012T113000\r\nSUMMARY:PRIVATE OVERRIDE\r\nEND:VEVENT\r\n"
+	. "BEGIN:VEVENT\r\nUID:cancelled-ci\r\nDTSTAMP:20260101T000000Z\r\nDTSTART:20261008T090000Z\r\nDTEND:20261008T100000Z\r\nSTATUS:CANCELLED\r\nEND:VEVENT\r\n"
+	. "BEGIN:VEVENT\r\nUID:allday-ci\r\nDTSTAMP:20260101T000000Z\r\nDTSTART;VALUE=DATE:20261010\r\nDTEND;VALUE=DATE:20261011\r\nSUMMARY:PRIVATE ALL DAY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+
+$calendar_parser = new Cemb\Calendar\Parser();
+$expanded_events = $calendar_parser->parse( $recurring_ics, '2026-10-01 00:00:00', '2026-11-05 00:00:00' );
+$weekly_events = array_values( array_filter( $expanded_events, static fn( $event ) => ( $event['uid'] ?? '' ) === 'weekly-ci' ) );
+cemb_smoke_assert( 3 === count( $weekly_events ), 'RRULE expands occurrences while EXDATE removes the excluded instance.' );
+cemb_smoke_assert( '2026-10-05 07:00:00' === $weekly_events[0]['start'], 'Recurring CEST occurrence is normalized to UTC.' );
+cemb_smoke_assert( '2026-10-12 09:00:00' === $weekly_events[1]['start'], 'RECURRENCE-ID override replaces and moves one occurrence.' );
+cemb_smoke_assert( '2026-10-26 08:00:00' === $weekly_events[2]['start'], 'Recurring series follows the DST transition from CEST to CET.' );
+cemb_smoke_assert(
+	0 === count( array_filter( $expanded_events, static fn( $event ) => ( $event['uid'] ?? '' ) === 'cancelled-ci' ) ),
+	'Cancelled events do not block availability.'
+);
+$all_day_events = array_values( array_filter( $expanded_events, static fn( $event ) => ( $event['uid'] ?? '' ) === 'allday-ci' ) );
+cemb_smoke_assert( 1 === count( $all_day_events ) && ! empty( $all_day_events[0]['all_day'] ), 'All-day events retain all-day semantics.' );
+cemb_smoke_assert( '2026-10-09 22:00:00' === $all_day_events[0]['start'], 'All-day local date is normalized to the correct UTC boundary.' );
+
 global $wpdb;
 $migration_booking_id = 0;
 $wpdb->insert(
