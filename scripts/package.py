@@ -24,11 +24,16 @@ EXCLUDED_TOP = {
     "node_modules",
     "dist",
     "_bootstrap",
+    "scripts",
 }
 EXCLUDED_FILES = {
     ".DS_Store",
     ".env",
     ".env.local",
+    "package.json",
+    "package-lock.json",
+    "composer.json",
+    "composer.lock",
 }
 EXCLUDED_SUFFIXES = {".log", ".pyc"}
 
@@ -111,7 +116,7 @@ def build(output: pathlib.Path) -> tuple[str, int]:
         if not names or not all(name.startswith(PLUGIN_DIR + "/") for name in names):
             raise SystemExit("ZIP does not have one canonical plugin root directory.")
         forbidden = [name for name in names if any(
-            f"/{part}/" in name for part in (".git", ".github", "tests", "node_modules")
+            f"/{part}/" in name for part in (".git", ".github", "tests", "node_modules", "scripts")
         )]
         if forbidden:
             raise SystemExit("Development-only files leaked into ZIP: " + ", ".join(forbidden[:5]))
