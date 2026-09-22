@@ -504,9 +504,27 @@ cemb_smoke_assert(
 	'Delivery idempotency table exists.'
 );
 
+$queue_booking_repo = new Cemb\Booking\BookingRepository();
+$queue_booking_id = $queue_booking_repo->create(
+	[
+		'booking_uuid' => wp_generate_uuid4(),
+		'booking_type_id' => $type_id,
+		'slot_start' => '2033-01-15 08:00:00',
+		'slot_end' => '2033-01-15 08:30:00',
+		'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+		'full_name' => 'Queue Fixture',
+		'email' => 'queue-fixture@example.com',
+		'source' => 'ci',
+		'lang' => 'en',
+		'created_at' => $legacy_now,
+		'updated_at' => $legacy_now,
+	],
+	[]
+);
+
 $delivery_repo = new Cemb\Reliability\DeliveryRepository();
 $delivery_key = 'ci:delivery:' . wp_generate_uuid4();
-$delivery = $delivery_repo->begin( $type_id, $delivery_key, 'email', 'ci' );
+$delivery = $delivery_repo->begin( $queue_booking_id, $delivery_key, 'email', 'ci' );
 cemb_smoke_assert( ! empty( $delivery['should_run'] ) && (int) $delivery['id'] > 0, 'First delivery claim may run.' );
 cemb_smoke_assert( $delivery_repo->markSending( (int) $delivery['id'] ), 'Delivery enters sending state atomically.' );
 $delivery_retry = $delivery_repo->begin( $type_id, $delivery_key, 'email', 'ci' );
@@ -516,11 +534,6 @@ $delivery_done = $delivery_repo->begin( $type_id, $delivery_key, 'email', 'ci' )
 cemb_smoke_assert( empty( $delivery_done['should_run'] ) && 'sent' === $delivery_done['status'], 'Completed email delivery is idempotent.' );
 
 $jobs = new Cemb\Sync\JobRepository();
-$queue_booking_id = $private_booking_id ?? 0;
-if ( ! $queue_booking_id ) {
-	$queue_booking_id = $wpdb->get_var( "SELECT id FROM {$wpdb->prefix}cemb_bookings ORDER BY id ASC LIMIT 1" );
-}
-$queue_booking_id = (int) $queue_booking_id;
 $queue_key = 'ci:queue:' . wp_generate_uuid4();
 $queue_job_id = $jobs->enqueue( 'update', $queue_booking_id, [ 'ci' => true ], $queue_key );
 cemb_smoke_assert( $queue_job_id > 0, 'Idempotent queue job is created.' );
@@ -585,6 +598,9 @@ $wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $queue_job_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $terminal_job_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $queue_job_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $terminal_job_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $queue_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $queue_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $queue_booking_id ] );
 
 $machine = new Cemb\Booking\BookingStateMachine();
 cemb_smoke_assert(
