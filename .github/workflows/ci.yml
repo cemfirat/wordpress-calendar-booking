@@ -254,7 +254,6 @@ jobs:
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
           wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
-          wp eval 'do_action("plugins_loaded");' --path="$WP_ROOT"
           wp eval-file "$GITHUB_WORKSPACE/tests/legacy-upgrade-assert.php" --path="$WP_ROOT"
 
   release:
@@ -344,8 +343,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/synthetic"
           unzip -q dist/wordpress-calendar-booking.zip -d "$RUNNER_TEMP/synthetic"
           python3 - <<'PY'
-          import pathlib
-          p = pathlib.Path("$RUNNER_TEMP/synthetic/wordpress-calendar-booking/cemb-calendar-booking.php")
+          import os, pathlib
+          p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/cemb-calendar-booking.php"
           text = p.read_text()
           text = text.replace(" * Version: 2.0.0", " * Version: 1.9.9")
           text = text.replace("define('CEMB_VERSION', '2.0.0');", "define('CEMB_VERSION', '1.9.9');")
