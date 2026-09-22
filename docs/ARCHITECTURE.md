@@ -33,8 +33,8 @@ Initial adapters:
 3. Normalize instants to UTC for storage/comparison.
 4. Merge busy intervals from internal reservations/confirmed bookings and all blocking provider connections.
 5. Apply buffers, notice and horizon rules.
-6. Return signed, short-lived slot tokens rather than trusting a client-supplied timestamp.
-7. On submit: verify token, acquire resource/day lock, regenerate/revalidate the slot, insert reservation inside the same critical section, release lock.
+6. Return HMAC-signed, short-lived slot tokens rather than trusting a client-supplied timestamp. Tokens bind booking type, canonical start/end and expiry and contain no personal data. They may be replayed during their short TTL, so the signature is never treated as a reservation.
+7. On submit: verify token, regenerate/revalidate the slot, then (with #2) acquire the resource/day lock, re-check and insert the reservation inside the same critical section.
 
 ## Booking state machine
 
