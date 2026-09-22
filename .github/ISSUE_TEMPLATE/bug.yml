@@ -1,0 +1,23 @@
+name: Bug report
+description: Report a reproducible defect
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: textarea
+    attributes:
+      label: What happened?
+      description: Describe the observed behavior without including credentials, tokens or private customer/calendar data.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: input
+    attributes:
+      label: WordPress / PHP / plugin version
+  - type: textarea
+    attributes:
+      label: Reproduction
+      description: For security-sensitive issues, follow SECURITY.md instead of posting exploit details publicly.
