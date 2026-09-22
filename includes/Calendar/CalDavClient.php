@@ -180,17 +180,14 @@ final class CalDavClient {
         if (!$xml) {
             return new \WP_Error('cemb_caldav_xml', 'CalDAV discovery returned unreadable XML.');
         }
-        $xml->registerXPathNamespace('d', 'DAV:');
-        $xml->registerXPathNamespace('c', 'urn:ietf:params:xml:ns:caldav');
-
         $out = [];
-        foreach ($xml->xpath('//d:response') ?: [] as $node) {
-            $hrefNodes = $node->xpath('./d:href') ?: [];
-            $calendarNodes = $node->xpath('.//c:calendar') ?: [];
+        foreach ($xml->xpath('//*[local-name()="response"]') ?: [] as $node) {
+            $hrefNodes = $node->xpath('./*[local-name()="href"]') ?: [];
+            $calendarNodes = $node->xpath('.//*[local-name()="calendar"]') ?: [];
             if (!$hrefNodes || !$calendarNodes) {
                 continue;
             }
-            $displayNodes = $node->xpath('.//d:displayname') ?: [];
+            $displayNodes = $node->xpath('.//*[local-name()="displayname"]') ?: [];
             $url = $this->absoluteUrl((string)$hrefNodes[0]);
             $out[] = [
                 'url' => rtrim($url, '/') . '/',
@@ -205,14 +202,11 @@ final class CalDavClient {
         if (!$xml) {
             return [];
         }
-        $xml->registerXPathNamespace('d', 'DAV:');
-        $xml->registerXPathNamespace('c', 'urn:ietf:params:xml:ns:caldav');
-
         $out = [];
-        foreach ($xml->xpath('//d:response') ?: [] as $node) {
-            $hrefNodes = $node->xpath('./d:href') ?: [];
-            $etagNodes = $node->xpath('.//d:getetag') ?: [];
-            $dataNodes = $node->xpath('.//c:calendar-data') ?: [];
+        foreach ($xml->xpath('//*[local-name()="response"]') ?: [] as $node) {
+            $hrefNodes = $node->xpath('./*[local-name()="href"]') ?: [];
+            $etagNodes = $node->xpath('.//*[local-name()="getetag"]') ?: [];
+            $dataNodes = $node->xpath('.//*[local-name()="calendar-data"]') ?: [];
             if (!$hrefNodes || !$dataNodes) {
                 continue;
             }
