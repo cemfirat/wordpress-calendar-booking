@@ -4,7 +4,7 @@ on:
   push:
     branches: [main]
     paths:
-      - '_bootstrap/cemb-remaining.tar.gz'
+      - '_bootstrap/part-*'
       - '.github/workflows/bootstrap-import.yml'
 
 permissions:
@@ -21,9 +21,10 @@ jobs:
       - name: Expand remaining audited prototype files
         run: |
           set -euo pipefail
+          cat _bootstrap/part-* > _bootstrap/cemb-remaining.tar.gz
+          gzip -t _bootstrap/cemb-remaining.tar.gz
           tar -xzf _bootstrap/cemb-remaining.tar.gz
-          rm -f _bootstrap/cemb-remaining.tar.gz
-          rmdir _bootstrap 2>/dev/null || true
+          rm -rf _bootstrap
           rm -f .github/workflows/bootstrap-import.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
