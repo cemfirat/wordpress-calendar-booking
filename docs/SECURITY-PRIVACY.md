@@ -6,7 +6,7 @@ The default frontend reveals availability only. External calendar summaries, loc
 
 ## Booking requests
 
-The browser never supplies authoritative availability. The server issues short-lived signed slot tokens and revalidates the canonical slot at submit/reschedule time.
+The browser never supplies authoritative availability. The server issues short-lived HMAC-signed slot tokens that bind booking type, canonical start/end and expiry and contain no personal data. A token may be replayed during its short lifetime, but every booking/reschedule revalidates availability; atomic reservation is handled separately by the concurrency invariant.
 
 ## Concurrency
 
