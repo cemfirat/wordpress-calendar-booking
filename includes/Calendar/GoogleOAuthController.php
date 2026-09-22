@@ -191,7 +191,7 @@ final class GoogleOAuthController {
             'state' => $state,
         ], 'https://accounts.google.com/o/oauth2/v2/auth');
 
-        wp_safe_redirect($url);
+        wp_redirect(esc_url_raw($url), 302, 'WordPress Calendar Booking');
         exit;
     }
 
