@@ -11,6 +11,8 @@ final class CalendarConnection {
     public bool $active;
     public string $healthStatus;
     public ?string $lastSuccessAt;
+    public ?string $lastReadAt;
+    public ?string $lastWriteAt;
     public ?string $lastErrorAt;
     public string $lastErrorMessage;
     public string $createdAt;
@@ -27,6 +29,8 @@ final class CalendarConnection {
         $connection->active = (bool)$row->is_active;
         $connection->healthStatus = (string)($row->health_status ?? 'unknown');
         $connection->lastSuccessAt = !empty($row->last_success_at) ? (string)$row->last_success_at : null;
+        $connection->lastReadAt = !empty($row->last_read_at) ? (string)$row->last_read_at : null;
+        $connection->lastWriteAt = !empty($row->last_write_at) ? (string)$row->last_write_at : null;
         $connection->lastErrorAt = !empty($row->last_error_at) ? (string)$row->last_error_at : null;
         $connection->lastErrorMessage = (string)($row->last_error_message ?? '');
         $connection->createdAt = (string)$row->created_at;
