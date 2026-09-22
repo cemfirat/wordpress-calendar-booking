@@ -1531,6 +1531,7 @@ cemb_smoke_assert( wp_style_is( 'cemb-frontend', 'enqueued' ), 'Plugin-specific 
 cemb_smoke_assert( wp_script_is( 'cemb-frontend', 'enqueued' ), 'Plugin booking behavior remains available with YOOtheme.' );
 
 /* Stable GitHub updater integration. */
+require_once ABSPATH . 'wp-admin/includes/plugin.php';
 $release_fixture = [
 	'tag_name' => 'v2.0.1',
 	'draft' => false,
