@@ -100,15 +100,17 @@ final class BookingTransitionService {
     }
 
     /**
-     * Record a non-state lifecycle event such as rescheduling.
+     * Atomically move a booking while keeping its lifecycle state.
      *
      * @return array|\WP_Error
      */
-    public function recordEvent(int $bookingId, string $event, string $actor = 'system', string $note = '') {
-        if ($event !== self::RESCHEDULED) {
-            return new \WP_Error('cemb_event_unknown', 'Unknown booking lifecycle event.');
-        }
-
+    public function reschedule(
+        int $bookingId,
+        string $newStart,
+        string $newEnd,
+        string $actor = 'user',
+        string $note = 'Booking rescheduled'
+    ) {
         $booking = $this->bookings->find($bookingId);
         if (!$booking) {
             return new \WP_Error('cemb_booking_missing', 'Booking not found.');
@@ -116,12 +118,32 @@ final class BookingTransitionService {
 
         $status = (string)$booking->status;
         if (!in_array($status, [BookingStatus::PENDING_APPROVAL, BookingStatus::CONFIRMED], true)) {
-            return new \WP_Error('cemb_event_illegal', 'This lifecycle event is not allowed for the booking state.');
+            return new \WP_Error('cemb_event_illegal', 'This booking cannot be rescheduled in its current state.');
         }
 
-        $this->bookings->logEvent($bookingId, $status, $event, $actor, $note);
-        $result = $this->result($bookingId, $event, $status, $status, $actor, true);
-        do_action('cemb_booking_event_recorded', $result, $booking);
+        $start = Time::parseUtc($newStart);
+        $end = Time::parseUtc($newEnd);
+        if (!$start || !$end || $end <= $start) {
+            return new \WP_Error('cemb_slot_invalid', 'The replacement slot is invalid.');
+        }
+
+        $updated = $this->bookings->updateWhenStatus(
+            $bookingId,
+            $status,
+            [
+                'slot_start' => $newStart,
+                'slot_end' => $newEnd,
+                'updated_at_user' => Time::formatUtc(Time::nowUtc()),
+            ]
+        );
+        if (!$updated) {
+            return new \WP_Error('cemb_event_race', 'The booking changed while it was being rescheduled.');
+        }
+
+        $this->bookings->logEvent($bookingId, $status, self::RESCHEDULED, $actor, $note);
+        $fresh = $this->bookings->find($bookingId);
+        $result = $this->result($bookingId, self::RESCHEDULED, $status, $status, $actor, true);
+        do_action('cemb_booking_event_recorded', $result, $fresh);
         return $result;
     }
 
