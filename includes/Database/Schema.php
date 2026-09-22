@@ -175,16 +175,22 @@ class Schema {
             idempotency_key varchar(190) NOT NULL,
             channel varchar(30) NOT NULL,
             effect_type varchar(80) NOT NULL,
+            recipient_class varchar(30) NOT NULL DEFAULT 'customer',
+            provider_code varchar(80) NOT NULL DEFAULT 'wp_mail',
             status varchar(20) NOT NULL DEFAULT 'pending',
             attempts int NOT NULL DEFAULT 0,
+            last_error_code varchar(80) DEFAULT NULL,
             last_error text DEFAULT NULL,
+            last_attempt_at datetime DEFAULT NULL,
             completed_at datetime DEFAULT NULL,
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY (id),
             UNIQUE KEY idempotency_key (idempotency_key),
             KEY booking_id (booking_id),
-            KEY channel_status (channel, status)
+            KEY channel_status (channel, status),
+            KEY effect_type (effect_type),
+            KEY updated_at (updated_at)
         ) {$charset};";
 
 
