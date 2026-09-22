@@ -6,8 +6,10 @@ use Cemb\Forms\FieldRepository;
 use Cemb\Booking\BookingRepository;
 use Cemb\Booking\BookingStatus;
 use Cemb\Tokens\TokenService;
+use Cemb\Tokens\SlotTokenService;
 use Cemb\Mail\Mailer;
 use Cemb\Availability\SlotService;
+use Cemb\Availability\SlotSelectionService;
 use Cemb\Admin\Settings;
 use Cemb\Booking\BookingTypeRepository;
 use Cemb\Sync\QueueService;
@@ -46,11 +48,11 @@ class Actions {
             wp_send_json_error(['message' => 'Terminart fehlt.'], 400);
         }
         $slots = (new SlotService())->getSlots($typeId, 21);
-        $data = array_map(static function ($slot) {
+        $tokens = new SlotTokenService();
+        $data = array_map(static function ($slot) use ($typeId, $tokens) {
             return [
-                'value' => $slot['start'],
+                'value' => $tokens->issue($typeId, $slot['start'], $slot['end']),
                 'label' => $slot['label'],
-                'end' => $slot['end'],
             ];
         }, $slots);
         wp_send_json_success(['slots' => $data]);
@@ -60,15 +62,18 @@ class Actions {
         [$ok, $message] = (new Guard())->checkSubmission($_POST);
         if (!$ok) wp_die(esc_html($message));
 
-        $typeId = isset($_POST['booking_type_id']) ? absint($_POST['booking_type_id']) : 0;
-        $start = isset($_POST['slot_start']) ? sanitize_text_field(wp_unslash($_POST['slot_start'])) : '';
-        if (!$typeId || !$start) wp_die('Ungültiger Termin.');
+        $submittedTypeId = isset($_POST['booking_type_id']) ? absint($_POST['booking_type_id']) : 0;
+        $slotToken = isset($_POST['slot_token']) ? sanitize_text_field(wp_unslash($_POST['slot_token'])) : '';
+        if (!$submittedTypeId || !$slotToken) wp_die('Ungültiger Termin.');
 
+        $selection = (new SlotSelectionService())->resolve($slotToken, $submittedTypeId);
+        if (!$selection) wp_die('Der gewählte Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
+
+        $typeId = (int)$selection['type_id'];
+        $start = (string)$selection['start'];
+        $end = (string)$selection['end'];
         $type = (new BookingTypeRepository())->find($typeId);
         if (!$type) wp_die('Terminart nicht gefunden.');
-        $duration = max(1, (int)$type->duration_minutes);
-        $end = date('Y-m-d H:i:s', strtotime($start . ' +' . $duration . ' minutes'));
-        if (!(new SlotService())->slotAvailable($typeId, $start, $end)) wp_die('Der gewählte Slot ist leider nicht mehr verfügbar.');
 
         $fields = (new FieldRepository())->active();
         $meta = [];
@@ -193,11 +198,15 @@ class Actions {
             if (strtotime($booking->slot_start) < strtotime('+' . (int)$settings['change_min_hours'] . ' hours', current_time('timestamp'))) wp_die('Änderung ist für diesen Termin nicht mehr möglich.');
             if (!empty($_POST['cemb_update_slot'])) {
                 check_admin_referer('cemb_update_booking');
-                $newStart = sanitize_text_field(wp_unslash($_POST['new_slot'] ?? ''));
-                $type = (new BookingTypeRepository())->find((int)$booking->booking_type_id);
-                $duration = max(1, (int)($type->duration_minutes ?? 30));
-                $newEnd = date('Y-m-d H:i:s', strtotime($newStart . ' +' . $duration . ' minutes'));
-                if (!(new SlotService())->slotAvailable((int)$booking->booking_type_id, $newStart, $newEnd, (int)$booking->id)) wp_die('Der neue Slot ist nicht mehr verfügbar.');
+                $newSlotToken = sanitize_text_field(wp_unslash($_POST['new_slot_token'] ?? ''));
+                $selection = (new SlotSelectionService())->resolve(
+                    $newSlotToken,
+                    (int)$booking->booking_type_id,
+                    (int)$booking->id
+                );
+                if (!$selection) wp_die('Der neue Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
+                $newStart = (string)$selection['start'];
+                $newEnd = (string)$selection['end'];
                 $repo->update((int)$booking->id, ['slot_start' => $newStart, 'slot_end' => $newEnd, 'updated_at_user' => current_time('mysql')]);
                 $repo->updateStatus((int)$booking->id, BookingStatus::UPDATED, 'update', 'user', 'Termin geändert');
                 $meta = $repo->getMeta((int)$booking->id);
@@ -209,11 +218,15 @@ class Actions {
                 $mailer->sendInternal((array)$repo->find((int)$booking->id), $meta);
                 wp_die('Termin erfolgreich geändert.');
             }
-            $slots = (new SlotService())->getSlots((int)$booking->booking_type_id, 14);
+            $slots = (new SlotService())->getSlots((int)$booking->booking_type_id, 14, (int)$booking->id);
+            $slotTokens = new SlotTokenService();
             echo '<div style="max-width:700px;margin:40px auto;font-family:sans-serif"><h1>Termin ändern</h1><form method="post">';
             wp_nonce_field('cemb_update_booking');
-            echo '<select name="new_slot" required>';
-            foreach ($slots as $slot) echo '<option value="' . esc_attr($slot['start']) . '">' . esc_html($slot['label']) . '</option>';
+            echo '<select name="new_slot_token" required>';
+            foreach ($slots as $slot) {
+                $optionToken = $slotTokens->issue((int)$booking->booking_type_id, $slot['start'], $slot['end']);
+                echo '<option value="' . esc_attr($optionToken) . '">' . esc_html($slot['label']) . '</option>';
+            }
             echo '</select><p><button type="submit" name="cemb_update_slot" value="1">Termin ändern</button></p></form></div>';
             exit;
         }
