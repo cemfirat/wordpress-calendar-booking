@@ -28,7 +28,18 @@ Legacy pre-selector tokens cannot be converted because their raw secrets were ne
 
 ## Calendar secrets
 
-Provider credentials and refresh tokens require authenticated encryption (sodium secretbox or AES-GCM). If secure crypto is unavailable, refuse to save secrets.
+Provider passwords, OAuth refresh tokens and future provider secrets use the shared versioned `Cemb\\Security\\SecretBox` envelope.
+
+- preferred backend: libsodium `secretbox`
+- fallback backend: OpenSSL AES-256-GCM
+- key material is derived from the WordPress auth salt with HKDF
+- ciphertext includes a version/backend prefix for future key rotation
+- authentication failure returns no plaintext
+- no base64/plaintext fallback exists
+- if neither authenticated backend is available, saving the secret is rejected
+- secret values and ciphertext are never rendered back into settings HTML
+
+The imported 1.x prototype used unauthenticated AES-CBC and could fall back to base64. Those legacy values are not silently trusted and re-encrypted: the 2.0 migration disables calendar write-back, clears the legacy credential and asks the administrator to enter it again.
 
 ## Personal data
 

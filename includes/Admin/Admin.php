@@ -42,7 +42,7 @@ class Admin {
         $action = sanitize_text_field(wp_unslash($_POST['cemb_admin_action']));
         switch ($action) {
             case 'save_settings':
-                Settings::update([
+                $settings_result = Settings::update([
                     'mode' => in_array($_POST['mode'] ?? 'automatic', ['automatic', 'approval'], true) ? sanitize_text_field(wp_unslash($_POST['mode'])) : 'automatic',
                     'sender_name' => sanitize_text_field(wp_unslash($_POST['sender_name'] ?? '')),
                     'sender_email' => sanitize_email(wp_unslash($_POST['sender_email'] ?? '')),
@@ -73,6 +73,18 @@ class Admin {
                     'icloud_sync_updates' => empty($_POST['icloud_sync_updates']) ? 0 : 1,
                     'icloud_sync_cancellations' => empty($_POST['icloud_sync_cancellations']) ? 0 : 1,
                 ]);
+                if (is_wp_error($settings_result)) {
+                    wp_safe_redirect(
+                        add_query_arg(
+                            [
+                                'page' => 'cemb_settings',
+                                'cemb_error' => $settings_result->get_error_message(),
+                            ],
+                            admin_url('admin.php')
+                        )
+                    );
+                    exit;
+                }
                 break;
             case 'clear_calendar_cache':
                 (new IcloudProvider())->clearCache();
@@ -214,6 +226,10 @@ class Admin {
         if (!empty($_GET['updated'])) {
             echo '<div class="notice notice-success"><p>Gespeichert.</p></div>';
         }
+        if (!empty($_GET['cemb_error'])) {
+            $error = sanitize_text_field(wp_unslash($_GET['cemb_error']));
+            echo '<div class="notice notice-error"><p>' . esc_html($error) . '</p></div>';
+        }
     }
     private function formEnd(): void { echo '</div>'; }
 
@@ -232,6 +248,7 @@ class Admin {
 
     public function settings(): void {
         $s = Settings::get();
+        $secret_status = Settings::secretStatus();
         $this->formStart();
         echo '<h1>Grundeinstellungen</h1><form method="post">';
         wp_nonce_field('cemb_admin_action');
@@ -256,7 +273,17 @@ class Admin {
         echo '</table><hr><h2>iCloud Schreibsync</h2><table class="form-table">';
         $this->row('Sync aktivieren', '<label><input type="checkbox" name="icloud_sync_enabled" value="1" ' . checked($s['icloud_sync_enabled'], 1, false) . '> neue bestätigte Buchungen nach iCloud schreiben</label>');
         $this->row('Apple-ID', '<input type="email" name="icloud_sync_apple_id" value="' . esc_attr($s['icloud_sync_apple_id']) . '" class="regular-text">');
-        $this->row('App-spezifisches Passwort', '<input type="password" name="icloud_sync_password" value="" class="regular-text" autocomplete="new-password"><p class="description">Leer lassen, um das gespeicherte Passwort beizubehalten.</p>');
+        $secret_description = 'Noch kein Passwort gespeichert.';
+        if ($secret_status['state'] === 'stored') {
+            $secret_description = 'Authentifiziert verschlüsselt gespeichert (' . esc_html($secret_status['format']) . '). Das Passwort wird nie im HTML ausgegeben.';
+        } elseif ($secret_status['state'] === 'reentry') {
+            $secret_description = 'Das frühere Legacy-Credential wurde aus Sicherheitsgründen widerrufen. Bitte neu eingeben.';
+        } elseif ($secret_status['state'] === 'invalid') {
+            $secret_description = 'Das gespeicherte Credential kann nicht authentifiziert werden. Bitte neu eingeben.';
+        } elseif ($secret_status['state'] === 'unavailable') {
+            $secret_description = 'Sichere Speicherung ist auf diesem Server nicht verfügbar. Benötigt libsodium oder AES-256-GCM.';
+        }
+        $this->row('App-spezifisches Passwort', '<input type="password" name="icloud_sync_password" value="" class="regular-text" autocomplete="new-password"><p class="description">' . $secret_description . ' Leer lassen, um ein gültiges gespeichertes Passwort beizubehalten.</p>');
         $this->row('Zielkalender-URL', '<input type="url" name="icloud_sync_target_calendar_url" value="' . esc_attr($s['icloud_sync_target_calendar_url']) . '" class="large-text"><p class="description">Optional. Wenn leer, wird über den Kalendernamen gesucht.</p>');
         $this->row('Zielkalender-Name', '<input type="text" name="icloud_sync_target_calendar_name" value="' . esc_attr($s['icloud_sync_target_calendar_name']) . '" class="regular-text">');
         $this->row('Änderungen zurückschreiben', '<label><input type="checkbox" name="icloud_sync_updates" value="1" ' . checked($s['icloud_sync_updates'], 1, false) . '> aktiv</label>');
