@@ -10,6 +10,7 @@ use Cemb\Sync\QueueService;
 use Cemb\Sync\JobRepository;
 use Cemb\Calendar\IcloudProvider;
 use Cemb\Support\Time;
+use Cemb\Privacy\PrivacyService;
 
 class Admin {
     public function boot(): void {
@@ -63,6 +64,8 @@ class Admin {
                     'reservation_ttl_minutes' => absint($_POST['reservation_ttl_minutes'] ?? 30),
                     'cancel_min_hours' => absint($_POST['cancel_min_hours'] ?? 2),
                     'change_min_hours' => absint($_POST['change_min_hours'] ?? 2),
+                    'retention_enabled' => empty($_POST['retention_enabled']) ? 0 : 1,
+                    'retention_days' => max(1, absint($_POST['retention_days'] ?? 365)),
                     'visit_address' => sanitize_textarea_field(wp_unslash($_POST['visit_address'] ?? '')),
                     'own_phone' => sanitize_text_field(wp_unslash($_POST['own_phone'] ?? '')),
                     'icloud_sync_enabled' => empty($_POST['icloud_sync_enabled']) ? 0 : 1,
@@ -203,6 +206,13 @@ class Admin {
                 }
                 update_option('cemb_email_templates', $data);
                 break;
+            case 'booking_retention':
+                $id = absint($_POST['id'] ?? 0);
+                if ($id < 1) {
+                    wp_die('Ungültige Buchung.');
+                }
+                (new PrivacyService())->setRetention($id, !empty($_POST['retain']));
+                break;
             case 'booking_status':
                 $id = absint($_POST['id'] ?? 0);
                 $event = sanitize_key(wp_unslash($_POST['event'] ?? ''));
@@ -267,6 +277,7 @@ class Admin {
         $this->row('Reservierungsdauer (Min.)', '<input type="number" name="reservation_ttl_minutes" value="' . esc_attr($s['reservation_ttl_minutes']) . '">');
         $this->row('Storno bis X Stunden vorher', '<input type="number" name="cancel_min_hours" value="' . esc_attr($s['cancel_min_hours']) . '">');
         $this->row('Änderung bis X Stunden vorher', '<input type="number" name="change_min_hours" value="' . esc_attr($s['change_min_hours']) . '">');
+        $this->row('Datenschutz-Aufbewahrung', '<label><input type="checkbox" name="retention_enabled" value="1" ' . checked($s['retention_enabled'], 1, false) . '> automatische Anonymisierung aktivieren</label><br><input type="number" min="1" name="retention_days" value="' . esc_attr($s['retention_days']) . '"> Tage nach Terminende<p class="description">Standardmäßig deaktiviert. Persönliche Buchungsdaten werden anonymisiert, nicht der Termin-/Statusdatensatz gelöscht. Buchungen mit Aufbewahrungs-Markierung werden übersprungen.</p>');
         $this->row('Honeypot', '<label><input type="checkbox" name="honeypot_enabled" value="1" ' . checked($s['honeypot_enabled'], 1, false) . '> aktiv</label>');
         $this->row('Timing-Schutz', '<label><input type="checkbox" name="timing_enabled" value="1" ' . checked($s['timing_enabled'], 1, false) . '> aktiv</label><br><input type="number" name="min_form_seconds" value="' . esc_attr($s['min_form_seconds']) . '"> Sekunden Minimum');
         $this->row('Rate Limit', '<label><input type="checkbox" name="rate_limit_enabled" value="1" ' . checked($s['rate_limit_enabled'], 1, false) . '> aktiv</label><br><input type="number" name="rate_limit_requests" value="' . esc_attr($s['rate_limit_requests']) . '"> Anfragen in <input type="number" name="rate_limit_window_minutes" value="' . esc_attr($s['rate_limit_window_minutes']) . '"> Minuten');
@@ -321,11 +332,18 @@ class Admin {
         $repo = new BookingRepository();
         $machine = new BookingStateMachine();
         $items = $repo->all();
-        echo '<table class="widefat striped"><thead><tr><th>ID</th><th>Name</th><th>E-Mail</th><th>Termin</th><th>Status</th><th>Sync</th><th>Aktion</th></tr></thead><tbody>';
+        $privacy = new PrivacyService();
+        echo '<table class="widefat striped"><thead><tr><th>ID</th><th>Name</th><th>E-Mail</th><th>Termin</th><th>Status</th><th>Aufbewahrung</th><th>Sync</th><th>Aktion</th></tr></thead><tbody>';
         foreach ($items as $item) {
             $meta = $repo->getMeta((int)$item->id);
             $events = $machine->adminEventsFor((string)$item->status);
-            echo '<tr><td>' . (int)$item->id . '</td><td>' . esc_html($item->full_name) . '</td><td>' . esc_html($item->email) . '</td><td>' . esc_html($item->slot_start) . '</td><td>' . esc_html($item->status) . '</td><td>' . esc_html((string)($meta['sync_status'] ?? '')) . (!empty($meta['sync_error']) ? '<br><small>' . esc_html((string)$meta['sync_error']) . '</small>' : '') . '</td><td>';
+            $retained = $privacy->isRetained((int)$item->id);
+            echo '<tr><td>' . (int)$item->id . '</td><td>' . esc_html($item->full_name) . '</td><td>' . esc_html($item->email) . '</td><td>' . esc_html($item->slot_start) . '</td><td>' . esc_html($item->status) . '</td><td>';
+            echo '<form method="post">';
+            wp_nonce_field('cemb_admin_action');
+            echo '<input type="hidden" name="cemb_admin_action" value="booking_retention"><input type="hidden" name="id" value="' . (int)$item->id . '">';
+            echo '<label><input type="checkbox" name="retain" value="1" ' . checked($retained, true, false) . '> behalten</label> <button class="button button-small">Speichern</button></form>';
+            echo '</td><td>' . esc_html((string)($meta['sync_status'] ?? '')) . (!empty($meta['sync_error']) ? '<br><small>' . esc_html((string)$meta['sync_error']) . '</small>' : '') . '</td><td>';
             if ($events) {
                 echo '<form method="post">';
                 wp_nonce_field('cemb_admin_action');
