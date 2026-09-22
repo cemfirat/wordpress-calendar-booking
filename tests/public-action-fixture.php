@@ -135,6 +135,20 @@ if ($action === 'create_expired') {
     return;
 }
 
+if ($action === 'cleanup') {
+    $bookingId = (int)getenv('CEMB_PUBLIC_BOOKING_ID');
+    if ($bookingId > 0) {
+        $wpdb->delete($wpdb->prefix . 'cemb_tokens', ['booking_id' => $bookingId]);
+        $wpdb->delete($wpdb->prefix . 'cemb_booking_meta', ['booking_id' => $bookingId]);
+        $wpdb->delete($wpdb->prefix . 'cemb_booking_status_log', ['booking_id' => $bookingId]);
+        $wpdb->delete($wpdb->prefix . 'cemb_sync_jobs', ['booking_id' => $bookingId]);
+        $wpdb->delete($wpdb->prefix . 'cemb_sync_log', ['booking_id' => $bookingId]);
+        $wpdb->delete($wpdb->prefix . 'cemb_bookings', ['id' => $bookingId]);
+    }
+    echo wp_json_encode(['cleaned' => $bookingId]);
+    return;
+}
+
 if ($action === 'state') {
     $bookingId = (int)getenv('CEMB_PUBLIC_BOOKING_ID');
     $booking = (new BookingRepository())->find($bookingId);
