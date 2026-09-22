@@ -83,6 +83,8 @@ jobs:
           wp plugin activate wordpress-calendar-booking --path="$WP_ROOT"
       - name: Run WordPress smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run booking export smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-export-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run scheduler health smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/scheduler-health-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run Microsoft Graph provider smoke test
