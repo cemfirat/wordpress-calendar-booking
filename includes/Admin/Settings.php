@@ -76,7 +76,7 @@ class Settings {
 
     public static function normalizeTimezone(string $timezone): string {
         $timezone = trim($timezone);
-        $valid = DateTimeZone::listIdentifiers();
+        $valid = \DateTimeZone::listIdentifiers();
         if ($timezone === 'UTC' || in_array($timezone, $valid, true)) {
             return $timezone;
         }
