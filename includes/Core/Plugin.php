@@ -17,6 +17,7 @@ use Cemb\Calendar\GoogleOAuthController;
 use Cemb\Calendar\MicrosoftOAuthController;
 use Cemb\Calendar\CalDavController;
 use Cemb\Calendar\ProviderDiagnosticsController;
+use Cemb\Blocks\Integration as BlocksIntegration;
 
 class Plugin {
     public function boot(): void {
@@ -33,6 +34,7 @@ class Plugin {
         (new CalDavController())->boot();
         (new ProviderDiagnosticsController())->boot();
         (new Integration())->boot();
+        (new BlocksIntegration())->boot();
         (new Shortcodes())->boot();
         (new Actions())->boot();
         (new QueueService())->boot();
