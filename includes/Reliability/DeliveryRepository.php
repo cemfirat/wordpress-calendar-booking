@@ -127,11 +127,11 @@ final class DeliveryRepository {
         }
         if (!empty($filters['effect_type'])) {
             $sql .= ' AND effect_type = %s';
-            $params[] = sanitize_key((string)$filters['effect_type']);
+            $params[] = $this->sanitizeLabel((string)$filters['effect_type'], 'notification');
         }
         if (!empty($filters['recipient_class'])) {
             $sql .= ' AND recipient_class = %s';
-            $params[] = sanitize_key((string)$filters['recipient_class']);
+            $params[] = $this->sanitizeLabel((string)$filters['recipient_class'], 'customer');
         }
         $sql .= ' ORDER BY id DESC LIMIT %d';
         $params[] = max(1, min(500, $limit));
