@@ -12,6 +12,7 @@ use Cemb\Calendar\IcloudProvider;
 use Cemb\Support\Time;
 use Cemb\Privacy\PrivacyService;
 use Cemb\Reliability\SchedulerHealth;
+use Cemb\Reliability\DeliveryRepository;
 
 class Admin {
     public function boot(): void {
@@ -33,6 +34,7 @@ class Admin {
         add_submenu_page('cemb_dashboard', 'Verfügbarkeit', 'Verfügbarkeit', 'manage_options', 'cemb_availability', [$this, 'availability']);
         add_submenu_page('cemb_dashboard', 'Buchungen', 'Buchungen', 'manage_options', 'cemb_bookings', [$this, 'bookings']);
         add_submenu_page('cemb_dashboard', 'E-Mail-Vorlagen', 'E-Mail-Vorlagen', 'manage_options', 'cemb_emails', [$this, 'emails']);
+        add_submenu_page('cemb_dashboard', 'Versandprotokoll', 'Versandprotokoll', 'manage_options', 'cemb_delivery_log', [$this, 'deliveryLog']);
         add_submenu_page('cemb_dashboard', 'Systemstatus', 'Systemstatus', 'manage_options', 'cemb_system_health', [$this, 'schedulerHealth']);
         add_submenu_page('cemb_dashboard', 'Sync-Protokoll', 'Sync-Protokoll', 'manage_options', 'cemb_sync_log', [$this, 'syncLog']);
     }
@@ -57,6 +59,7 @@ class Admin {
                     'notification_emails' => sanitize_text_field(wp_unslash($_POST['notification_emails'] ?? '')),
                     'reminders_enabled' => empty($_POST['reminders_enabled']) ? 0 : 1,
                     'reminder_hours' => absint($_POST['reminder_hours'] ?? 24),
+                    'delivery_log_retention_days' => max(1, absint($_POST['delivery_log_retention_days'] ?? 90)),
                     'honeypot_enabled' => empty($_POST['honeypot_enabled']) ? 0 : 1,
                     'timing_enabled' => empty($_POST['timing_enabled']) ? 0 : 1,
                     'min_form_seconds' => absint($_POST['min_form_seconds'] ?? 3),
@@ -279,6 +282,7 @@ class Admin {
         $this->row('Kalender-Cache (Min.)', '<input type="number" name="calendar_cache_minutes" value="' . esc_attr($s['calendar_cache_minutes']) . '">');
         $this->row('Interne Benachrichtigungen', '<label><input type="checkbox" name="notifications_enabled" value="1" ' . checked($s['notifications_enabled'], 1, false) . '> aktiv</label><br><input type="text" name="notification_emails" value="' . esc_attr($s['notification_emails']) . '" class="regular-text">');
         $this->row('Erinnerungen', '<label><input type="checkbox" name="reminders_enabled" value="1" ' . checked($s['reminders_enabled'], 1, false) . '> aktiv</label><br><input type="number" name="reminder_hours" value="' . esc_attr($s['reminder_hours']) . '"> Stunden vorher');
+        $this->row('Versandprotokoll-Aufbewahrung', '<input type="number" min="1" name="delivery_log_retention_days" value="' . esc_attr($s['delivery_log_retention_days']) . '"> Tage<p class="description">Gesendete und fehlgeschlagene Versanddatensätze werden danach automatisch entfernt. Nachrichtentexte werden nicht im Versandprotokoll gespeichert.</p>');
         $this->row('Token-Gültigkeit (Min.)', '<input type="number" name="token_ttl_minutes" value="' . esc_attr($s['token_ttl_minutes']) . '">');
         $this->row('Reservierungsdauer (Min.)', '<input type="number" name="reservation_ttl_minutes" value="' . esc_attr($s['reservation_ttl_minutes']) . '">');
         $this->row('Storno bis X Stunden vorher', '<input type="number" name="cancel_min_hours" value="' . esc_attr($s['cancel_min_hours']) . '">');
@@ -464,6 +468,46 @@ class Admin {
             $filters['to'] = Time::localToUtc($to . ' 23:59:59');
         }
         return $filters;
+    }
+
+    public function deliveryLog(): void {
+        $this->formStart();
+        echo '<h1>Versandprotokoll</h1>';
+        $repo = new DeliveryRepository();
+        $filters = [
+            'booking_id' => absint($_GET['booking_id'] ?? 0),
+            'status' => sanitize_key(wp_unslash($_GET['delivery_status'] ?? '')),
+            'effect_type' => sanitize_text_field(wp_unslash($_GET['delivery_type'] ?? '')),
+            'recipient_class' => sanitize_key(wp_unslash($_GET['recipient_class'] ?? '')),
+        ];
+        $items = $repo->search($filters, 200);
+        $types = $repo->effectTypes();
+
+        echo '<form method="get" style="margin:12px 0;padding:12px;background:#fff;border:1px solid #ccd0d4">';
+        echo '<input type="hidden" name="page" value="cemb_delivery_log">';
+        echo '<label>Buchung <input type="number" min="1" name="booking_id" value="' . esc_attr($filters['booking_id'] ?: '') . '"></label> ';
+        echo '<label>Status <select name="delivery_status"><option value="">alle</option>';
+        foreach (['pending','sending','sent','failed'] as $status) {
+            echo '<option value="' . esc_attr($status) . '" ' . selected($filters['status'], $status, false) . '>' . esc_html($status) . '</option>';
+        }
+        echo '</select></label> <label>Typ <select name="delivery_type"><option value="">alle</option>';
+        foreach ($types as $type) {
+            echo '<option value="' . esc_attr($type) . '" ' . selected($filters['effect_type'], $type, false) . '>' . esc_html($type) . '</option>';
+        }
+        echo '</select></label> <label>Empfänger <select name="recipient_class"><option value="">alle</option>';
+        foreach (['customer' => 'Kunde', 'admin' => 'Admin'] as $value => $label) {
+            echo '<option value="' . esc_attr($value) . '" ' . selected($filters['recipient_class'], $value, false) . '>' . esc_html($label) . '</option>';
+        }
+        echo '</select></label> <button class="button">Filtern</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=cemb_delivery_log')) . '">Zurücksetzen</a></form>';
+
+        echo '<p class="description">Das Protokoll enthält keine Nachrichtentexte, OAuth-Tokens oder Kalender-Zugangsdaten.</p>';
+        echo '<table class="widefat striped"><thead><tr><th>Versuch (UTC)</th><th>Buchung</th><th>Empfänger</th><th>Typ</th><th>Status</th><th>Provider</th><th>Fehlercode</th><th>Idempotency-Key</th></tr></thead><tbody>';
+        foreach ($items as $item) {
+            $attemptAt = (string)($item->last_attempt_at ?: $item->created_at);
+            echo '<tr><td>' . esc_html($attemptAt) . '</td><td>' . (int)$item->booking_id . '</td><td>' . esc_html((string)$item->recipient_class) . '</td><td>' . esc_html((string)$item->effect_type) . '</td><td>' . esc_html((string)$item->status) . '</td><td>' . esc_html((string)$item->provider_code) . '</td><td>' . esc_html((string)$item->last_error_code) . '</td><td><code>' . esc_html((string)$item->idempotency_key) . '</code></td></tr>';
+        }
+        echo '</tbody></table>';
+        $this->formEnd();
     }
 
     public function emails(): void {
