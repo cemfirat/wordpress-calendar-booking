@@ -15,12 +15,14 @@ use Cemb\Privacy\PrivacyService;
 use Cemb\Yootheme\Integration;
 use Cemb\Calendar\GoogleOAuthController;
 use Cemb\Calendar\CalDavController;
+use Cemb\Calendar\LegacyIcloudConnectionMigration;
 
 class Plugin {
     public function boot(): void {
         SchemaMigration::maybeRun();
         TokenMigration::maybeRun();
         SecretMigration::maybeRun();
+        LegacyIcloudConnectionMigration::maybeRun();
         TimeMigration::maybeRun();
         BookingStatusMigration::maybeRun();
         load_plugin_textdomain('cemb', false, dirname(CEMB_BASENAME) . '/languages');
