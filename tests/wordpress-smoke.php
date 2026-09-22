@@ -988,6 +988,28 @@ cemb_smoke_assert(
 	'Expired lease on the final attempt is terminalized instead of remaining stuck in running.'
 );
 
+$queue_connection_repo = new Cemb\Calendar\CalendarConnectionRepository();
+$queue_connection_id = $queue_connection_repo->create(
+	[
+		'provider' => 'ci-queue-provider',
+		'name' => 'Queue destination fixture',
+		'remote_calendar_id' => 'queue-calendar',
+		'blocks_availability' => 0,
+		'receives_bookings' => 1,
+	],
+	[]
+);
+$queue_connection_repo->setForBookingType(
+	$type_id,
+	[
+		[
+			'connection_id' => $queue_connection_id,
+			'blocks_availability' => 0,
+			'receives_bookings' => 1,
+		],
+	]
+);
+
 $calendar_queue = new Cemb\Sync\QueueService();
 $calendar_job_a = $calendar_queue->enqueueUpdate( $queue_booking_id );
 $calendar_job_b = $calendar_queue->enqueueUpdate( $queue_booking_id );
@@ -1015,6 +1037,8 @@ if ( $calendar_job_c !== $calendar_job_a ) {
 	$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $calendar_job_c ] );
 	$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $calendar_job_c ] );
 }
+$queue_connection_repo->setForBookingType( $type_id, [] );
+$queue_connection_repo->delete( $queue_connection_id );
 $wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $queue_booking_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $queue_booking_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $queue_booking_id ] );
