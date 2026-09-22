@@ -11,7 +11,7 @@
 .cemb-day-number{display:inline-flex;align-items:center;justify-content:center;width:1.9rem;height:1.9rem;border-radius:999px;font-size:.95rem;font-weight:600}
 .cemb-day-body{padding:0 .35rem .35rem .35rem;display:grid;gap:.22rem;align-content:start}
 .cemb-event-pill{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:.18rem .45rem;border-radius:6px;font-size:.76rem;line-height:1.35;color:#fff}
-.cemb-event-external{background:#8e8e93}
+.cemb-event-external,.cemb-event-busy{background:#8e8e93}
 .cemb-type-color-1{background:#0a84ff}.cemb-type-color-2{background:#30d158}.cemb-type-color-3{background:#ff9f0a}.cemb-type-color-4{background:#bf5af2}.cemb-type-color-5{background:#ff375f}.cemb-type-color-6{background:#64d2ff;color:#0b1320}
 .cemb-booking-modal[hidden]{display:none}
 .cemb-booking-modal{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9999;padding:4vh 1rem;overflow:auto}

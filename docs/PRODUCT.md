@@ -57,7 +57,7 @@ Google Calendar and Microsoft Graph are designed into the provider contract but 
 - Generic fallback adapter: locally bundled pinned UIkit assets
 - Shortcodes retained for compatibility
 - Gutenberg block(s) for new installations
-- Busy-only public calendar by default
+- Busy-only public calendar: external event and internal customer details are excluded from the public view model
 - Accessible keyboard/focus behavior and screen-reader labels
 - Visitor time-zone selection/detection with clear site-time-zone fallback
 

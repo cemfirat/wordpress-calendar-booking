@@ -2,7 +2,7 @@
 
 ## Public output
 
-The default frontend reveals availability only. External calendar summaries, locations, attendees, customer names, email addresses, phone numbers and free-text messages are private unless an administrator explicitly enables a safe display field.
+The public frontend reveals availability only. External calendar summaries, locations, attendees, descriptions and internal customer names, email addresses, phone numbers, subjects and free-text messages never enter the public calendar view model. Public intervals use a generic busy label. Themes may change only that generic label through `cemb_public_busy_label`; the filter receives no private calendar/customer payload.
 
 ## Booking requests
 

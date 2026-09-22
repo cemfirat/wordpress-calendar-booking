@@ -8,7 +8,7 @@ Privacy-conscious appointment booking for WordPress with configurable availabili
 
 - Booking rules live in WordPress; external calendars only contribute busy intervals and optional write-back.
 - The server generates and validates bookable slots. Browser-provided timestamps are never trusted as availability proof.
-- Public calendar output is busy-only by default.
+- Public calendar output is busy-only: external event details and customer booking details are excluded from the public view model.
 - Calendar connections are opt-in and request the minimum useful permissions.
 - YOOtheme Pro uses its existing UIkit/theme system. Without YOOtheme, the plugin uses a locally bundled UIkit fallback only where booking components are rendered.
 - Core booking works without Google, Microsoft, Apple or any other third-party account.
