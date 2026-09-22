@@ -118,7 +118,7 @@ jobs:
           booking_count="$(wp eval 'global $wpdb; echo (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}cemb_bookings");' --path="$RUNNER_TEMP/wordpress")"
           test "$booking_count" -eq 2
 
-          token_check="$(wp eval '$token = getenv("CEMB_SLOT_TOKEN"); echo (new Cemb\Tokens\SlotTokenService())->verify($token) ? "TOKEN_OK" : "TOKEN_BAD";' --path="$RUNNER_TEMP/wordpress")"
+          token_check="$(wp eval-file "$GITHUB_WORKSPACE/tests/verify-slot-token.php" --path="$RUNNER_TEMP/wordpress")"
           echo "$token_check"
           test "$token_check" = "TOKEN_OK"
 
