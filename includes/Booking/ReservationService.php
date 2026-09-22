@@ -49,7 +49,7 @@ class ReservationService {
                 'booking_type_id' => (int)$slot['type_id'],
                 'slot_start' => (string)$slot['start'],
                 'slot_end' => (string)$slot['end'],
-                'status' => BookingStatus::EMAIL_UNCONFIRMED,
+                'status' => BookingStatus::RESERVED_UNCONFIRMED,
                 'full_name' => (string)($customer['full_name'] ?? ''),
                 'email' => (string)($customer['email'] ?? ''),
                 'phone' => (string)($customer['phone'] ?? ''),
