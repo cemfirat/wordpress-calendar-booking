@@ -730,6 +730,32 @@ $google_booking = (array) $google_booking_repo->find( $google_booking_id );
 $google_meta = $google_booking_repo->getMeta( $google_booking_id );
 $google_create = $google_provider->createEvent( $google_booking, $google_meta, $google_connection );
 cemb_smoke_assert( is_array( $google_create ) && 'google-event-ci' === ( $google_create['event_id'] ?? '' ), 'Confirmed booking creates a Google Calendar event.' );
+
+$google_queue = new Cemb\Sync\QueueService();
+$google_queue_job_id = $google_queue->enqueueCreate( $google_booking_id );
+cemb_smoke_assert( $google_queue_job_id > 0, 'Confirmed booking enqueues provider write-back for its selected Google destination.' );
+$google_queue->runNow();
+$google_queue_meta = $google_booking_repo->getMeta( $google_booking_id );
+cemb_smoke_assert(
+	'google-event-ci' === ( $google_queue_meta[ 'provider_event_google_' . $google_connection_id ] ?? '' ),
+	'Provider queue persists a remote Google event identifier per booking and connection.'
+);
+$google_queue_row = $wpdb->get_row(
+	$wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cemb_sync_jobs WHERE id = %d", $google_queue_job_id )
+);
+cemb_smoke_assert( $google_queue_row && 'done' === $google_queue_row->status, 'Google provider write-back completes through the leased sync queue.' );
+$google_sync_log = (string) $wpdb->get_var(
+	$wpdb->prepare(
+		"SELECT GROUP_CONCAT(message SEPARATOR ' ') FROM {$wpdb->prefix}cemb_sync_log WHERE booking_id = %d",
+		$google_booking_id
+	)
+);
+cemb_smoke_assert(
+	false === strpos( $google_sync_log, 'google-ci@example.com' )
+	&& false === strpos( $google_sync_log, 'Google CI Subject' )
+	&& false === strpos( $google_sync_log, 'CI-GOOGLE-REFRESH' ),
+	'Provider sync log does not copy customer content or OAuth secrets.'
+);
 $google_update = $google_provider->updateEvent( $google_booking, $google_meta, $google_connection, 'google-event-ci' );
 cemb_smoke_assert( is_array( $google_update ) && ! empty( $google_update['ok'] ), 'Booking update uses the Google Calendar Events API.' );
 $google_cancel = $google_provider->cancelEvent( $google_connection, 'google-event-ci' );
@@ -756,6 +782,8 @@ cemb_smoke_assert(
 remove_filter( 'pre_http_request', $google_http_filter, 10 );
 $google_connection_repo->setForBookingType( $type_id, [] );
 $google_connection_repo->delete( $google_connection_id );
+$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'booking_id' => $google_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'booking_id' => $google_booking_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $google_booking_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $google_booking_id ] );
 $wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $google_booking_id ] );
