@@ -48,6 +48,9 @@ class Settings {
 
     public static function update(array $data): void {
         $settings = self::get();
+        if (array_key_exists('timezone', $data)) {
+            $data['timezone'] = self::normalizeTimezone((string)$data['timezone']);
+        }
         if (array_key_exists('calendar_url', $data)) {
             $data['calendar_url'] = self::normalizeCalendarUrl((string) $data['calendar_url']);
         }
@@ -69,6 +72,21 @@ class Settings {
             }
         }
         update_option('cemb_settings', array_merge($settings, $data));
+    }
+
+    public static function normalizeTimezone(string $timezone): string {
+        $timezone = trim($timezone);
+        $valid = DateTimeZone::listIdentifiers();
+        if ($timezone === 'UTC' || in_array($timezone, $valid, true)) {
+            return $timezone;
+        }
+
+        $site = wp_timezone_string();
+        if ($site === 'UTC' || in_array($site, $valid, true)) {
+            return $site;
+        }
+
+        return 'UTC';
     }
 
     public static function publicCalendarUrls(): array {
