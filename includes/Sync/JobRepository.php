@@ -73,6 +73,27 @@ class JobRepository {
         }
 
         $now = Time::formatUtc(Time::nowUtc());
+
+        // A worker that disappears on its final allowed attempt must not leave
+        // an immortal running row behind.
+        $wpdb->query(
+            $wpdb->prepare(
+                "UPDATE {$this->jobsTable}
+                 SET status = 'failed',
+                     last_error = 'Worker lease expired after the maximum retry count.',
+                     lease_owner = NULL,
+                     lease_expires_at = NULL,
+                     updated_at = %s
+                 WHERE status = 'running'
+                   AND attempts >= %d
+                   AND lease_expires_at IS NOT NULL
+                   AND lease_expires_at < %s",
+                $now,
+                self::MAX_ATTEMPTS,
+                $now
+            )
+        );
+
         $leaseUntil = Time::formatUtc(Time::nowUtc()->modify('+' . max(30, $leaseSeconds) . ' seconds'));
         $limit = max(1, min(100, $limit));
 
