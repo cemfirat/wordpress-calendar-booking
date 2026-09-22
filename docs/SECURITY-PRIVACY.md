@@ -43,7 +43,15 @@ The imported 1.x prototype used unauthenticated AES-CBC and could fall back to b
 
 ## Personal data
 
-Integrate with WordPress privacy exporter and eraser tools. Provide privacy-policy text and configurable retention/anonymization. Document external service transfers.
+The plugin registers a WordPress personal-data exporter and eraser keyed by guest email address.
+
+Exports include booking identity/contact fields and dynamic form responses. They intentionally exclude provider credentials, encrypted provider secrets, provider identifiers and internal sync diagnostics.
+
+Erasure anonymizes direct booking identity/contact fields, removes personal form metadata and revokes guest action tokens while preserving the minimum operational booking record needed for conflict/history integrity. Provider/sync metadata is not exposed through the exporter.
+
+A suggested privacy-policy paragraph is registered with WordPress and documents stored booking data plus optional transfers to configured calendar providers.
+
+Automatic retention is opt-in and disabled by default. Administrators configure a number of days after appointment end; eligible old confirmed/terminal bookings are anonymized rather than silently deleted. An administrator can mark an individual booking with an explicit retention hold. Held bookings are skipped by automatic retention and reported as retained by the WordPress eraser.
 
 ## Logs
 
