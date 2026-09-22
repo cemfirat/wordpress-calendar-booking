@@ -14,7 +14,9 @@ Conflict checking and reservation creation occur in one serialized critical sect
 
 ## State changes
 
-GET requests may display a confirmation page but do not cancel, approve, reject, reschedule or confirm a booking. State changes require POST plus a one-time token.
+Email/security scanners may prefetch links, so GET is strictly read-only. Valid GET links render a confirmation form; used/expired links render status only. A booking mutation requires POST, an action-bound WordPress nonce and a valid one-time token.
+
+One-time token processing is serialized with a short advisory lock. The token is consumed only after the lifecycle action succeeds, which prevents concurrent reuse without burning a token on a failed domain validation. Rescheduling additionally requires a fresh canonical server-issued slot token.
 
 ## Tokens
 
