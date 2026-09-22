@@ -47,7 +47,7 @@ class QueueService {
 
     public function processPending(int $limit = 10): void {
         $worker = $this->workerId();
-        $items = $this->jobs->claim($worker, $limit, 120);
+        $items = $this->jobs->claim($worker, $limit, 600);
         foreach ($items as $job) {
             try {
                 $result = $this->runJob($job);
