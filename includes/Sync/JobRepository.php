@@ -236,6 +236,34 @@ class JobRepository {
         );
     }
 
+    public function statusCounts(): array {
+        global $wpdb;
+        $counts = ['pending' => 0, 'running' => 0, 'failed' => 0];
+        $rows = $wpdb->get_results(
+            "SELECT status, COUNT(*) AS total FROM {$this->jobsTable} WHERE status IN ('pending','running','failed') GROUP BY status"
+        );
+        foreach ($rows as $row) {
+            if (array_key_exists((string)$row->status, $counts)) {
+                $counts[(string)$row->status] = (int)$row->total;
+            }
+        }
+        return $counts;
+    }
+
+    public function staleLeaseCount(): int {
+        global $wpdb;
+        $now = Time::formatUtc(Time::nowUtc());
+        return (int)$wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$this->jobsTable}
+                 WHERE status = 'running'
+                   AND lease_expires_at IS NOT NULL
+                   AND lease_expires_at < %s",
+                $now
+            )
+        );
+    }
+
     public function recentLogs(int $limit = 50): array {
         global $wpdb;
         $sql = $wpdb->prepare(

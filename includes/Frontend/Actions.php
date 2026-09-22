@@ -448,6 +448,7 @@ class Actions {
     }
 
     public function sendReminders(): void {
+        update_option('cemb_hourly_reminders_last_run', Time::formatUtc(Time::nowUtc()), false);
         $settings = Settings::get();
         if (empty($settings['reminders_enabled'])) return;
         $repo = new BookingRepository();
