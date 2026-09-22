@@ -37,6 +37,7 @@ class Actions {
         add_action('cemb_hourly_reminders', [$this, 'expireReservations'], 5);
         add_action('cemb_hourly_reminders', [$this, 'sendReminders'], 10);
         add_action('cemb_hourly_reminders', [$this, 'cleanupTokens'], 20);
+        add_action('cemb_hourly_reminders', [$this, 'cleanupDeliveryLog'], 30);
         if (!wp_next_scheduled('cemb_hourly_reminders')) {
             wp_schedule_event(time() + 300, 'hourly', 'cemb_hourly_reminders');
         }
@@ -445,6 +446,13 @@ class Actions {
 
     public function cleanupTokens(): void {
         (new TokenService())->cleanup();
+    }
+
+    public function cleanupDeliveryLog(): void {
+        $settings = Settings::get();
+        (new \Cemb\Reliability\DeliveryRepository())->cleanup(
+            max(1, (int)($settings['delivery_log_retention_days'] ?? 90))
+        );
     }
 
     public function sendReminders(): void {
