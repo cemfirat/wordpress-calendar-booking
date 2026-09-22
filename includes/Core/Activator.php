@@ -33,6 +33,7 @@ class Activator {
             'notification_emails' => get_option('admin_email'),
             'reminders_enabled' => 0,
             'reminder_hours' => 24,
+            'delivery_log_retention_days' => 90,
             'calendar_url' => '',
             'calendar_urls' => '',
             'calendar_cache_minutes' => 30,

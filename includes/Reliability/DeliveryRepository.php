@@ -14,7 +14,7 @@ final class DeliveryRepository {
         $this->table = $wpdb->prefix . 'cemb_deliveries';
     }
 
-    public function begin(int $bookingId, string $key, string $channel, string $effectType): array {
+    public function begin(int $bookingId, string $key, string $channel, string $effectType, string $recipientClass = 'customer', string $providerCode = 'wp_mail'): array {
         global $wpdb;
         $now = Time::formatUtc(Time::nowUtc());
 
@@ -33,7 +33,9 @@ final class DeliveryRepository {
                 'booking_id' => $bookingId,
                 'idempotency_key' => $key,
                 'channel' => $channel,
-                'effect_type' => $effectType,
+                'effect_type' => $this->sanitizeLabel($effectType, 'notification'),
+                'recipient_class' => $this->sanitizeLabel($recipientClass, 'customer'),
+                'provider_code' => $this->sanitizeLabel($providerCode, 'wp_mail'),
                 'status' => 'pending',
                 'attempts' => 0,
                 'created_at' => $now,
@@ -61,8 +63,9 @@ final class DeliveryRepository {
         $updated = $wpdb->query(
             $wpdb->prepare(
                 "UPDATE {$this->table}
-                 SET status = 'sending', attempts = attempts + 1, updated_at = %s
+                 SET status = 'sending', attempts = attempts + 1, last_attempt_at = %s, updated_at = %s
                  WHERE id = %d AND status IN ('pending','failed')",
+                Time::formatUtc(Time::nowUtc()),
                 Time::formatUtc(Time::nowUtc()),
                 $id
             )
@@ -77,6 +80,7 @@ final class DeliveryRepository {
             $this->table,
             [
                 'status' => 'sent',
+                'last_error_code' => null,
                 'last_error' => '',
                 'completed_at' => $now,
                 'updated_at' => $now,
@@ -85,12 +89,13 @@ final class DeliveryRepository {
         );
     }
 
-    public function markFailed(int $id, string $message): void {
+    public function markFailed(int $id, string $message, string $errorCode = 'send_failed'): void {
         global $wpdb;
         $wpdb->update(
             $this->table,
             [
                 'status' => 'failed',
+                'last_error_code' => $this->sanitizeCode($errorCode),
                 'last_error' => $this->sanitizeError($message),
                 'updated_at' => Time::formatUtc(Time::nowUtc()),
             ],
@@ -108,9 +113,66 @@ final class DeliveryRepository {
         ) ?: null;
     }
 
+    public function search(array $filters = [], int $limit = 100): array {
+        global $wpdb;
+        $sql = "SELECT * FROM {$this->table} WHERE 1=1";
+        $params = [];
+        if (!empty($filters['booking_id'])) {
+            $sql .= ' AND booking_id = %d';
+            $params[] = (int)$filters['booking_id'];
+        }
+        if (!empty($filters['status'])) {
+            $sql .= ' AND status = %s';
+            $params[] = sanitize_key((string)$filters['status']);
+        }
+        if (!empty($filters['effect_type'])) {
+            $sql .= ' AND effect_type = %s';
+            $params[] = $this->sanitizeLabel((string)$filters['effect_type'], 'notification');
+        }
+        if (!empty($filters['recipient_class'])) {
+            $sql .= ' AND recipient_class = %s';
+            $params[] = $this->sanitizeLabel((string)$filters['recipient_class'], 'customer');
+        }
+        $sql .= ' ORDER BY id DESC LIMIT %d';
+        $params[] = max(1, min(500, $limit));
+        return $wpdb->get_results($wpdb->prepare($sql, ...$params));
+    }
+
+    public function effectTypes(): array {
+        global $wpdb;
+        return array_values(array_filter(array_map(
+            'strval',
+            $wpdb->get_col("SELECT DISTINCT effect_type FROM {$this->table} ORDER BY effect_type ASC")
+        )));
+    }
+
+    public function cleanup(int $retentionDays): int {
+        global $wpdb;
+        $cutoff = Time::formatUtc(Time::nowUtc()->modify('-' . max(1, $retentionDays) . ' days'));
+        return (int)$wpdb->query(
+            $wpdb->prepare(
+                "DELETE FROM {$this->table}
+                 WHERE status IN ('sent','failed')
+                   AND updated_at < %s",
+                $cutoff
+            )
+        );
+    }
+
+    private function sanitizeCode(string $code): string {
+        return $this->sanitizeLabel($code, 'send_failed');
+    }
+
+    private function sanitizeLabel(string $value, string $fallback): string {
+        $value = strtolower((string)preg_replace('/[^A-Za-z0-9:_-]+/', '', $value));
+        return mb_substr($value !== '' ? $value : $fallback, 0, 80);
+    }
+
     private function sanitizeError(string $message): string {
         $message = wp_strip_all_tags($message);
         $message = preg_replace('/Authorization:\s*[^\s]+/i', 'Authorization: [redacted]', $message);
+        $message = preg_replace('/Bearer\s+[A-Za-z0-9._~-]+/i', 'Bearer [redacted]', $message);
+        $message = preg_replace('/\b(token|password|secret)\s*[:=]\s*[^\s,;]+/i', '$1=[redacted]', $message);
         return mb_substr((string)$message, 0, 1000);
     }
 }

@@ -30,7 +30,7 @@ class Mailer {
         }
 
         $deliveries = new DeliveryRepository();
-        $delivery = $deliveries->begin($bookingId, $idempotencyKey, 'email', 'template:' . $key);
+        $delivery = $deliveries->begin($bookingId, $idempotencyKey, 'email', 'template:' . $key, 'customer', 'wp_mail');
         if (empty($delivery['should_run'])) {
             return in_array((string)($delivery['status'] ?? ''), ['sending', 'sent'], true);
         }
@@ -44,10 +44,10 @@ class Mailer {
                 $deliveries->markSent((int)$delivery['id']);
                 return true;
             }
-            $deliveries->markFailed((int)$delivery['id'], 'wp_mail returned false before accepting the message.');
+            $deliveries->markFailed((int)$delivery['id'], 'wp_mail returned false before accepting the message.', 'wp_mail_false');
             return false;
         } catch (\Throwable $error) {
-            $deliveries->markFailed((int)$delivery['id'], $error->getMessage());
+            $deliveries->markFailed((int)$delivery['id'], $error->getMessage(), 'mail_exception');
             return false;
         }
     }
@@ -63,7 +63,7 @@ class Mailer {
         }
 
         $deliveries = new DeliveryRepository();
-        $delivery = $deliveries->begin($bookingId, $idempotencyKey, 'email', 'internal');
+        $delivery = $deliveries->begin($bookingId, $idempotencyKey, 'email', 'internal', 'admin', 'wp_mail');
         if (empty($delivery['should_run'])) {
             return in_array((string)($delivery['status'] ?? ''), ['sending', 'sent'], true);
         }
@@ -77,10 +77,10 @@ class Mailer {
                 $deliveries->markSent((int)$delivery['id']);
                 return true;
             }
-            $deliveries->markFailed((int)$delivery['id'], 'wp_mail returned false before accepting the internal message.');
+            $deliveries->markFailed((int)$delivery['id'], 'wp_mail returned false before accepting the internal message.', 'wp_mail_false');
             return false;
         } catch (\Throwable $error) {
-            $deliveries->markFailed((int)$delivery['id'], $error->getMessage());
+            $deliveries->markFailed((int)$delivery['id'], $error->getMessage(), 'mail_exception');
             return false;
         }
     }
