@@ -89,6 +89,7 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
             ];
         }
 
+        $this->connections->setHealthSuccess($connection->id, 'read');
         return $out;
     }
 
@@ -110,9 +111,11 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
         }
 
         $eventId = sanitize_text_field((string)($response['id'] ?? ''));
-        return $eventId !== ''
-            ? ['ok' => true, 'event_id' => $eventId]
-            : new \WP_Error('cemb_google_event_id', 'Google Calendar did not return an event identifier.');
+        if ($eventId === '') {
+            return new \WP_Error('cemb_google_event_id', 'Google Calendar did not return an event identifier.');
+        }
+        $this->connections->setHealthSuccess($connection->id, 'write');
+        return ['ok' => true, 'event_id' => $eventId];
     }
 
     public function updateEvent(array $booking, array $meta, CalendarConnection $connection, string $eventId) {
@@ -132,7 +135,11 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
             self::API_BASE . '/calendars/' . $calendarId . '/events/' . rawurlencode($eventId),
             $payload
         );
-        return is_wp_error($response) ? $response : ['ok' => true, 'event_id' => $eventId];
+        if (is_wp_error($response)) {
+            return $response;
+        }
+        $this->connections->setHealthSuccess($connection->id, 'write');
+        return ['ok' => true, 'event_id' => $eventId];
     }
 
     public function cancelEvent(CalendarConnection $connection, string $eventId) {
@@ -152,7 +159,24 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
             return $result;
         }
 
+        $this->connections->setHealthSuccess($connection->id, 'write');
         return ['ok' => true, 'event_id' => $eventId];
+    }
+
+    public function revoke(CalendarConnection $connection): void {
+        $credentials = $this->connections->credentials($connection->id);
+        if (!is_array($credentials)) {
+            return;
+        }
+        $token = (string)($credentials['refresh_token'] ?? $credentials['access_token'] ?? '');
+        if ($token === '') {
+            return;
+        }
+        wp_remote_post('https://oauth2.googleapis.com/revoke', [
+            'timeout' => 10,
+            'redirection' => 0,
+            'body' => ['token' => $token],
+        ]);
     }
 
     private function eventPayload(array $booking, array $meta) {
