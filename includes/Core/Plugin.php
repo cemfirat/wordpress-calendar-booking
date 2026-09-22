@@ -12,6 +12,7 @@ use Cemb\Booking\BookingTransitionEffects;
 use Cemb\Tokens\TokenMigration;
 use Cemb\Security\SecretMigration;
 use Cemb\Privacy\PrivacyService;
+use Cemb\Yootheme\Integration;
 
 class Plugin {
     public function boot(): void {
@@ -23,6 +24,7 @@ class Plugin {
         load_plugin_textdomain('cemb', false, dirname(CEMB_BASENAME) . '/languages');
         (new BookingTransitionEffects())->boot();
         (new Admin())->boot();
+        (new Integration())->boot();
         (new Shortcodes())->boot();
         (new Actions())->boot();
         (new QueueService())->boot();

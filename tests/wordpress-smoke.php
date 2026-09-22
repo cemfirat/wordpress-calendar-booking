@@ -1065,4 +1065,68 @@ foreach ( [ $privacy_booking_id, $hold_booking_id, $retention_booking_id ] as $c
 	$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $cleanup_booking_id ] );
 }
 
+
+/* UIkit fallback / YOOtheme adapter integration. */
+$asset_manager = new Cemb\Frontend\AssetManager();
+$asset_manager->register();
+cemb_smoke_assert( $asset_manager->fallbackAssetsPresent(), 'Pinned local UIkit fallback files are present in the installed plugin.' );
+cemb_smoke_assert( !$asset_manager->usesYoothemeUikit(), 'Non-YOOtheme WordPress install selects the local UIkit fallback.' );
+$asset_manager->enqueue( true );
+cemb_smoke_assert( wp_style_is( 'cemb-uikit', 'enqueued' ), 'Local UIkit CSS is enqueued for booking components without YOOtheme.' );
+cemb_smoke_assert( wp_script_is( 'cemb-uikit', 'enqueued' ), 'Local UIkit JavaScript is enqueued for interactive booking components without YOOtheme.' );
+cemb_smoke_assert( wp_script_is( 'cemb-uikit-icons', 'enqueued' ), 'Local UIkit icons are enqueued with the fallback runtime.' );
+
+$renderer = new Cemb\Frontend\ComponentRenderer( $asset_manager );
+$form_html = $renderer->bookingForm();
+$calendar_component_html = $renderer->bookingCalendar();
+cemb_smoke_assert( false !== strpos( $form_html, 'data-cemb-booking-form' ), 'Shared renderer produces booking-form semantics.' );
+cemb_smoke_assert( false !== strpos( $calendar_component_html, 'role="dialog"' ), 'Booking calendar renders an accessible dialog role.' );
+cemb_smoke_assert( false !== strpos( $calendar_component_html, 'aria-modal="true"' ), 'Booking calendar marks the dialog as modal.' );
+cemb_smoke_assert( false !== strpos( $calendar_component_html, 'data-cemb-modal-panel' ), 'Booking dialog exposes a focus target for keyboard behavior.' );
+
+$button_filter = static function ( $classes ) {
+	$classes[] = 'integration-button-class';
+	return $classes;
+};
+add_filter( 'cemb_booking_button_classes', $button_filter );
+$filtered_form = $renderer->bookingForm();
+remove_filter( 'cemb_booking_button_classes', $button_filter );
+cemb_smoke_assert( false !== strpos( $filtered_form, 'integration-button-class' ), 'Theme integrations can filter booking button classes.' );
+
+$shortcode_renderer = new Cemb\Frontend\Shortcodes( $renderer, $asset_manager );
+$shortcode_form = $shortcode_renderer->bookingForm();
+cemb_smoke_assert(
+	substr_count( $shortcode_form, 'data-cemb-booking-form' ) === substr_count( $form_html, 'data-cemb-booking-form' ),
+	'Shortcode and shared component renderer expose equivalent booking-form semantics.'
+);
+
+cemb_smoke_assert(
+	is_file( CEMB_DIR . 'includes/Yootheme/module/elements/booking_form/element.php' )
+	&& is_file( CEMB_DIR . 'includes/Yootheme/module/elements/booking_calendar/element.php' ),
+	'Native YOOtheme Builder element definitions ship with the plugin.'
+);
+$form_element = include CEMB_DIR . 'includes/Yootheme/module/elements/booking_form/element.php';
+$calendar_element = include CEMB_DIR . 'includes/Yootheme/module/elements/booking_calendar/element.php';
+cemb_smoke_assert( 'cemb_booking_form' === ( $form_element['name'] ?? '' ), 'YOOtheme booking-form element uses the shared component identity.' );
+cemb_smoke_assert( 'cemb_booking_calendar' === ( $calendar_element['name'] ?? '' ), 'YOOtheme availability element uses the shared component identity.' );
+
+wp_dequeue_style( 'cemb-uikit' );
+wp_deregister_style( 'cemb-uikit' );
+wp_dequeue_script( 'cemb-uikit-icons' );
+wp_deregister_script( 'cemb-uikit-icons' );
+wp_dequeue_script( 'cemb-uikit' );
+wp_deregister_script( 'cemb-uikit' );
+
+if ( ! class_exists( 'YOOtheme\\Application', false ) ) {
+	eval( 'namespace YOOtheme; class Application {}' );
+}
+$yootheme_assets = new Cemb\Frontend\AssetManager();
+$yootheme_assets->register();
+cemb_smoke_assert( $yootheme_assets->usesYoothemeUikit(), 'YOOtheme Pro runtime is detected through its Application class.' );
+$yootheme_assets->enqueue( true );
+cemb_smoke_assert( ! wp_style_is( 'cemb-uikit', 'enqueued' ), 'YOOtheme mode does not enqueue duplicate UIkit CSS.' );
+cemb_smoke_assert( ! wp_script_is( 'cemb-uikit', 'enqueued' ), 'YOOtheme mode does not enqueue duplicate UIkit JavaScript.' );
+cemb_smoke_assert( wp_style_is( 'cemb-frontend', 'enqueued' ), 'Plugin-specific component CSS remains available with YOOtheme.' );
+cemb_smoke_assert( wp_script_is( 'cemb-frontend', 'enqueued' ), 'Plugin booking behavior remains available with YOOtheme.' );
+
 WP_CLI::success( 'WordPress Calendar Booking smoke test passed on WordPress ' . get_bloginfo( 'version' ) . ' / PHP ' . PHP_VERSION . '.' );

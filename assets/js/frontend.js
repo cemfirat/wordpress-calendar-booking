@@ -48,24 +48,35 @@
     }
   }
 
-  function showModal(modal){
+  function focusDialog(modal){
+    var target = q('[data-cemb-modal-panel]', modal) || q('[data-cemb-close-modal]', modal);
+    if(target && target.focus) target.focus();
+  }
+
+  function showModal(modal, trigger){
+    if(trigger) modal.__cembTrigger = trigger;
     if(window.UIkit && UIkit.modal){
       modal.removeAttribute('hidden');
-      UIkit.modal(modal).show();
+      var inst = UIkit.modal(modal);
+      inst.show();
+      window.setTimeout(function(){ focusDialog(modal); }, 0);
       return;
     }
     modal.hidden = false;
     document.documentElement.classList.add('cemb-modal-open');
+    focusDialog(modal);
   }
 
   function hideModal(modal){
+    var trigger = modal.__cembTrigger;
     if(window.UIkit && UIkit.modal){
       var inst = UIkit.modal(modal);
       inst.hide();
-      return;
+    } else {
+      modal.hidden = true;
+      document.documentElement.classList.remove('cemb-modal-open');
     }
-    modal.hidden = true;
-    document.documentElement.classList.remove('cemb-modal-open');
+    if(trigger && trigger.focus) window.setTimeout(function(){ trigger.focus(); }, 0);
   }
 
   function fillSlots(form, typeId, preselect){
@@ -119,7 +130,7 @@
       var wrap = closest(open, '[data-cemb-booking-calendar]') || document;
       var modal = q('[data-cemb-modal]', wrap);
       if(!modal) return;
-      showModal(modal);
+      showModal(modal, open);
       return;
     }
     var close = closest(e.target, '[data-cemb-close-modal]');
@@ -127,6 +138,15 @@
       e.preventDefault();
       var modal2 = closest(close, '[data-cemb-modal]');
       if(modal2) hideModal(modal2);
+    }
+  });
+
+  document.addEventListener('keydown', function(e){
+    if(e.key !== 'Escape') return;
+    var modal = q('[data-cemb-modal]:not([hidden])');
+    if(modal){
+      e.preventDefault();
+      hideModal(modal);
     }
   });
 

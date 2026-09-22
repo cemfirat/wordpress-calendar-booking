@@ -38,8 +38,10 @@ One semantic component/render layer serves:
 
 - YOOtheme Pro native Builder elements when YOOtheme is installed
 - Shortcodes for compatibility
-- WordPress blocks for new installations
+- WordPress blocks are tracked as a dedicated follow-up
 - UIkit fallback assets when no compatible UIkit/YOOtheme runtime is present
+
+YOOtheme Pro is detected through its runtime application class. When present, Calendar Booking reuses YOOtheme's existing UIkit/theme runtime and never enqueues a second UIkit copy. Without YOOtheme, the plugin uses a locally bundled **UIkit 3.25.23** fallback; there is no CDN dependency.
 
 The plugin does **not** scrape arbitrary themes and copy their CSS classes. Themes can integrate through filters, render hooks, wrapper/button/form class filters and CSS variables.
 
@@ -69,9 +71,11 @@ Install PHP dependencies before running or testing a source checkout:
 
 ```sh
 composer install
+npm install
+npm run build:assets
 ```
 
-Stable release ZIPs will bundle runtime dependencies; end users will not need Composer.
+The asset build copies the pinned UIkit fallback from npm into `assets/vendor/uikit/`. Stable release ZIPs will bundle Composer runtime dependencies and built UIkit assets; end users will need neither Composer nor npm.
 
 - Product definition: [docs/PRODUCT.md](docs/PRODUCT.md)
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
