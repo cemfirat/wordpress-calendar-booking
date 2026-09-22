@@ -9,7 +9,8 @@ final class CalDavClient {
     private string $password;
 
     public function __construct(string $endpoint, string $username, string $password) {
-        $this->endpoint = rtrim($this->normalizeUrl($endpoint), '/') . '/';
+        $normalized = $this->normalizeUrl($endpoint);
+        $this->endpoint = $normalized !== '' ? rtrim($normalized, '/') . '/' : '';
         $this->username = trim($username);
         $this->password = $password;
     }
