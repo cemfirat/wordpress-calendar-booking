@@ -82,6 +82,15 @@ cemb_diag_assert(!empty($write['ok']), 'Manual provider write test succeeds.');
 cemb_diag_assert($GLOBALS['cemb_diag_created'] === 1 && $GLOBALS['cemb_diag_cancelled'] === 1, 'Write diagnostic creates and immediately removes one temporary event.');
 
 $controller = new Cemb\Calendar\ProviderDiagnosticsController($service);
+wp_set_current_user(0);
+ob_start();
+$controller->page();
+$unauthorized_html = (string)ob_get_clean();
+cemb_diag_assert($unauthorized_html === '', 'Diagnostics admin page does not render without manage_options.');
+
+$admin = get_user_by('login', 'admin');
+cemb_diag_assert($admin instanceof WP_User, 'Diagnostics smoke test resolves the WordPress administrator.');
+wp_set_current_user((int)$admin->ID);
 ob_start();
 $controller->page();
 $html = (string)ob_get_clean();
