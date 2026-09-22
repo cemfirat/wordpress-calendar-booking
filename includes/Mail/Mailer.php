@@ -6,12 +6,83 @@ use Cemb\ICS\IcsGenerator;
 use Cemb\Support\BookingFormatter;
 use Cemb\Booking\BookingTypeRepository;
 use Cemb\Support\Time;
+use Cemb\Reliability\DeliveryRepository;
 
 class Mailer {
     private BookingFormatter $formatter;
 
     public function __construct() {
         $this->formatter = new BookingFormatter();
+    }
+
+
+    public function sendTemplateOnce(
+        string $idempotencyKey,
+        string $key,
+        array $booking,
+        array $meta,
+        array $links = [],
+        bool $attachIcs = false
+    ): bool {
+        $bookingId = (int)($booking['id'] ?? 0);
+        if ($bookingId < 1 || $idempotencyKey === '') {
+            return false;
+        }
+
+        $deliveries = new DeliveryRepository();
+        $delivery = $deliveries->begin($bookingId, $idempotencyKey, 'email', 'template:' . $key);
+        if (empty($delivery['should_run'])) {
+            return in_array((string)($delivery['status'] ?? ''), ['sending', 'sent'], true);
+        }
+        if (!$deliveries->markSending((int)$delivery['id'])) {
+            return true;
+        }
+
+        try {
+            $sent = $this->sendTemplate($key, $booking, $meta, $links, $attachIcs);
+            if ($sent) {
+                $deliveries->markSent((int)$delivery['id']);
+                return true;
+            }
+            $deliveries->markFailed((int)$delivery['id'], 'wp_mail returned false before accepting the message.');
+            return false;
+        } catch (\Throwable $error) {
+            $deliveries->markFailed((int)$delivery['id'], $error->getMessage());
+            return false;
+        }
+    }
+
+    public function sendInternalOnce(string $idempotencyKey, array $booking, array $meta): bool {
+        $bookingId = (int)($booking['id'] ?? 0);
+        $settings = Settings::get();
+        if (empty($settings['notifications_enabled']) || empty($settings['notification_emails'])) {
+            return true;
+        }
+        if ($bookingId < 1 || $idempotencyKey === '') {
+            return false;
+        }
+
+        $deliveries = new DeliveryRepository();
+        $delivery = $deliveries->begin($bookingId, $idempotencyKey, 'email', 'internal');
+        if (empty($delivery['should_run'])) {
+            return in_array((string)($delivery['status'] ?? ''), ['sending', 'sent'], true);
+        }
+        if (!$deliveries->markSending((int)$delivery['id'])) {
+            return true;
+        }
+
+        try {
+            $sent = $this->sendInternal($booking, $meta);
+            if ($sent) {
+                $deliveries->markSent((int)$delivery['id']);
+                return true;
+            }
+            $deliveries->markFailed((int)$delivery['id'], 'wp_mail returned false before accepting the internal message.');
+            return false;
+        } catch (\Throwable $error) {
+            $deliveries->markFailed((int)$delivery['id'], $error->getMessage());
+            return false;
+        }
     }
 
     public function sendTemplate(string $key, array $booking, array $meta, array $links = [], bool $attachIcs = false): bool {
@@ -61,9 +132,9 @@ class Mailer {
         return $sent;
     }
 
-    public function sendInternal(array $booking, array $meta): void {
+    public function sendInternal(array $booking, array $meta): bool {
         $settings = Settings::get();
-        if (empty($settings['notifications_enabled']) || empty($settings['notification_emails'])) return;
+        if (empty($settings['notifications_enabled']) || empty($settings['notification_emails'])) return true;
         $templates = get_option('cemb_email_templates', []);
         $typeRepo = new BookingTypeRepository();
         $type = $typeRepo->find((int)$booking['booking_type_id']);
@@ -79,6 +150,6 @@ class Mailer {
         ];
         $subject = strtr($templates['internal_subject'] ?? 'Neue Termin-Aktion', $map);
         $body = nl2br(esc_html(strtr($templates['internal_body'] ?? '', $map)));
-        wp_mail(array_map('trim', explode(',', $settings['notification_emails'])), $subject, $body, ['Content-Type: text/html; charset=UTF-8']);
+        return wp_mail(array_map('trim', explode(',', $settings['notification_emails'])), $subject, $body, ['Content-Type: text/html; charset=UTF-8']);
     }
 }
