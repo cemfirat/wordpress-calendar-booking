@@ -739,9 +739,13 @@ cemb_smoke_assert(
 	in_array( 'POST', $google_methods, true ) && in_array( 'PUT', $google_methods, true ) && in_array( 'DELETE', $google_methods, true ),
 	'Mocked Google integration exercises create, update and cancel HTTP methods.'
 );
-$google_request_dump = wp_json_encode( $google_requests );
+$google_calendar_requests = array_values( array_filter(
+	$google_requests,
+	static fn( $request ) => 0 === strpos( (string) $request['url'], 'https://www.googleapis.com/calendar/v3/' )
+) );
+$google_calendar_request_dump = wp_json_encode( $google_calendar_requests );
 cemb_smoke_assert(
-	false === strpos( $google_request_dump, 'CI-GOOGLE-REFRESH' ),
+	false === strpos( $google_calendar_request_dump, 'CI-GOOGLE-REFRESH' ),
 	'Google refresh token is never sent to Calendar API requests.'
 );
 
