@@ -30,15 +30,41 @@ class BookingRepository {
         return $id;
     }
 
-    public function updateStatus(int $bookingId, string $newStatus, string $context = 'system', string $changedBy = 'system', string $note = ''): void {
+    /**
+     * Atomically transition a booking only when its current state still matches.
+     */
+    public function transitionStatus(
+        int $bookingId,
+        string $expectedStatus,
+        string $newStatus,
+        array $fields,
+        string $event,
+        string $actor,
+        string $note = ''
+    ): bool {
         global $wpdb;
-        $booking = $this->find($bookingId);
-        if (!$booking) return;
-        $wpdb->update($this->table, [
-            'status' => $newStatus,
-            'updated_at' => Time::formatUtc(Time::nowUtc()),
-        ], ['id' => $bookingId]);
-        $this->log($bookingId, (string)$booking->status, $newStatus, $context, $changedBy, $note);
+        $fields['status'] = $newStatus;
+        $fields['updated_at'] = Time::formatUtc(Time::nowUtc());
+
+        $updated = $wpdb->update(
+            $this->table,
+            $fields,
+            ['id' => $bookingId, 'status' => $expectedStatus]
+        );
+
+        if ($updated !== 1) {
+            return false;
+        }
+
+        $this->log($bookingId, $expectedStatus, $newStatus, $event, $actor, $note);
+        return true;
+    }
+
+    /**
+     * Record a lifecycle event that intentionally leaves the state unchanged.
+     */
+    public function logEvent(int $bookingId, string $status, string $event, string $actor, string $note = ''): void {
+        $this->log($bookingId, $status, $status, $event, $actor, $note);
     }
 
     public function update(int $bookingId, array $data): void {
