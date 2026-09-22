@@ -155,7 +155,7 @@ class BookingRepository {
             AND (status != %s OR reserved_until IS NULL OR reserved_until >= %s)
             AND slot_start < %s
             AND slot_end > %s";
-        $params = array_merge($statuses, [BookingStatus::EMAIL_UNCONFIRMED, Time::formatUtc(Time::nowUtc()), $end, $start]);
+        $params = array_merge($statuses, [BookingStatus::RESERVED_UNCONFIRMED, Time::formatUtc(Time::nowUtc()), $end, $start]);
         if ($ignoreId) {
             $sql .= ' AND id != %d';
             $params[] = $ignoreId;
