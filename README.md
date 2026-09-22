@@ -13,13 +13,17 @@ Privacy-conscious appointment booking for WordPress with configurable availabili
 - YOOtheme Pro uses its existing UIkit/theme system. Without YOOtheme, the plugin uses a locally bundled UIkit fallback only where booking components are rendered.
 - Core booking works without Google, Microsoft, Apple or any other third-party account.
 
-## Planned calendar providers
+## Calendar providers
 
 - Public ICS / webcal feed — read-only busy blocking
 - Generic CalDAV — busy blocking and optional write-back
 - iCloud — Apple-focused CalDAV connection preset
 - Google Calendar — OAuth + FreeBusy + Events API
-- Microsoft 365 / Outlook — Microsoft Graph with account-type-aware availability strategy
+- Microsoft 365 / Outlook — Microsoft Graph OAuth, account-type-aware availability and event write-back
+
+### Microsoft Graph behavior
+
+For delegated Microsoft accounts the plugin requests `Calendars.ReadBasic` when a connection only blocks availability and `Calendars.ReadWrite` when write-back is enabled. Work/school default calendars use Graph `getSchedule` when available. Personal Microsoft accounts and specific calendar IDs use the supported `calendarView` path instead. OAuth credentials are encrypted at rest through the shared connection repository.
 
 ## Booking flow
 
