@@ -6,8 +6,8 @@ if (!defined('ABSPATH')) {
     exit(1);
 }
 
-$token = (string)getenv('CEMB_SLOT_TOKEN');
-$typeId = (int)getenv('CEMB_TYPE_ID');
+$token = (string)getenv('CEMB_TEST_SLOT_TOKEN');
+$typeId = (int)getenv('CEMB_TEST_TYPE_ID');
 $payload = (new Cemb\Tokens\SlotTokenService())->verify($token);
 
 if (!$payload || (int)$payload['type_id'] !== $typeId) {
