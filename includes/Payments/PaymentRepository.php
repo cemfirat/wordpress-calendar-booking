@@ -19,7 +19,12 @@ final class PaymentRepository {
             return 0;
         }
         $existing = $this->forBooking($bookingId);
-        if ($existing) {
+        if ($existing && in_array((string)$existing->status, [
+            PaymentStatus::PENDING,
+            PaymentStatus::PAID,
+            PaymentStatus::REFUND_PENDING,
+            PaymentStatus::REFUNDED,
+        ], true)) {
             return (int)$existing->id;
         }
         $now = Time::formatUtc(Time::nowUtc());
