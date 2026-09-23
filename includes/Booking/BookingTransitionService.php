@@ -32,10 +32,23 @@ final class BookingTransitionService {
     /**
      * @return array|\WP_Error
      */
-    public function apply(int $bookingId, string $event, string $actor = 'system', string $note = '') {
+    public function apply(int $bookingId, string $event, string $actor = 'system', string $note = '', bool $allowPaidSeriesCancellation = false) {
         $booking = $this->bookings->find($bookingId);
         if (!$booking) {
             return new \WP_Error('wpcb_booking_missing', 'Booking not found.');
+        }
+
+        if (in_array($event, [
+            BookingStateMachine::USER_CANCELLED,
+            BookingStateMachine::ADMIN_CANCELLED,
+        ], true)) {
+            $cancellation = (new PaymentService())->validateSeriesCancellation(
+                $bookingId,
+                $allowPaidSeriesCancellation
+            );
+            if (is_wp_error($cancellation)) {
+                return $cancellation;
+            }
         }
 
         $current = (string)$booking->status;
