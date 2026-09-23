@@ -113,6 +113,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/waiting-list-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run video meeting smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/video-meeting-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run recurring booking series smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/recurring-series-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Verify GET-safe and POST-only public booking actions
         if: matrix.wordpress == 'latest'
         run: python3 "$GITHUB_WORKSPACE/tests/public-action-flow.py"
@@ -492,11 +494,11 @@ jobs:
           import os, pathlib
           p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/wordpress-calendar-booking.php"
           text = p.read_text()
-          text = text.replace(" * Version: 3.6.0", " * Version: 3.5.0")
-          text = text.replace("define('WPCB_VERSION', '3.6.0');", "define('WPCB_VERSION', '3.5.0');")
+          text = text.replace(" * Version: 3.7.0", " * Version: 3.6.0")
+          text = text.replace("define('WPCB_VERSION', '3.7.0');", "define('WPCB_VERSION', '3.6.0');")
           p.write_text(text)
           PY
-          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-3.5.0.zip" wordpress-calendar-booking)
+          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-3.6.0.zip" wordpress-calendar-booking)
       - name: Install synthetic old version
         run: |
           set -euo pipefail
@@ -504,9 +506,9 @@ jobs:
           wp core download --path="$WP_ROOT" --version=latest
           wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
           wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBUpdater --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
-          wp plugin install "$RUNNER_TEMP/calendar-booking-3.5.0.zip" --activate --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.5.0"
-      - name: Discover real public v3.6.0 release
+          wp plugin install "$RUNNER_TEMP/calendar-booking-3.6.0.zip" --activate --path="$WP_ROOT"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.6.0"
+      - name: Discover real public v3.7.0 release
         run: |
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
@@ -523,7 +525,7 @@ jobs:
                   echo $updates->response[$basename]->new_version;
               }
             ' --path="$WP_ROOT")"
-            if [ "$version" = "3.6.0" ]; then
+            if [ "$version" = "3.7.0" ]; then
               found=1
               break
             fi
@@ -535,6 +537,6 @@ jobs:
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
           wp plugin update wordpress-calendar-booking --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.6.0"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.7.0"
           wp plugin is-active wordpress-calendar-booking --path="$WP_ROOT"
-          echo "PASS: synthetic 3.5.0 updated through the public GitHub release to 3.6.0."
+          echo "PASS: synthetic 3.6.0 updated through the public GitHub release to 3.7.0."
