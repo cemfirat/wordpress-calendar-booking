@@ -128,6 +128,30 @@ wpcb_video_mail_assert(
     'Admin video retry resolves the join URL only during execution.'
 );
 
+// A changed meeting version suppresses the obsolete queued join-link notification.
+$staleJoinUrl = 'https://meet.example.test/join/version-two';
+$meetings->upsert($bookingId, $connectionId, 'zoom', 'remote-video-mail', $staleJoinUrl, 'active');
+$GLOBALS['wpcb_video_mail_mode'] = 'fail';
+$mailer->sendVideoReady($bookingId, $connectionId, 'customer');
+$staleJob = wpcb_video_mail_job($bookingId, 'customer');
+wpcb_video_mail_assert($staleJob && $staleJob->status === 'pending', 'Changed-version video notification is queued.');
+$stalePayload = json_decode((string)$staleJob->payload_json, true);
+$meetings->upsert(
+    $bookingId,
+    $connectionId,
+    'zoom',
+    'remote-video-mail',
+    'https://meet.example.test/join/version-three',
+    'active'
+);
+$callCount = count($GLOBALS['wpcb_video_mail_calls']);
+$GLOBALS['wpcb_video_mail_mode'] = 'success';
+wpcb_video_mail_due($staleJob);
+(new Wpcb\Sync\QueueService())->runNow(100);
+wpcb_video_mail_assert(count($GLOBALS['wpcb_video_mail_calls']) === $callCount, 'Changed meeting version suppresses stale video-ready mail.');
+$staleDelivery = (new Wpcb\Reliability\DeliveryRepository())->findByKey((string)$stalePayload['delivery_key']);
+wpcb_video_mail_assert(($staleDelivery->last_error_code ?? '') === 'notification_obsolete', 'Stale video notification is recorded as obsolete.');
+
 update_option('wpcb_settings', $originalSettings);
 remove_filter('pre_wp_mail', 'wpcb_video_mail_transport', 10);
 
