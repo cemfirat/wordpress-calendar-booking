@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.8.1
+
+- Ship the internationalization hardening merged after the immutable 3.8.0 release was published.
+- Make administrator, public booking, customer portal, waiting-list, payment, webhook and video-meeting UI strings translatable with the canonical `wordpress-calendar-booking` text domain.
+- Localize frontend JavaScript messages through WordPress.
+- Generate the POT catalog reproducibly in CI and gate stable releases on translation coverage.
+- Keep machine identifiers, hook names, statuses and audit context keys stable and untranslated.
+
 ## 3.8.0
 
 - Preserve durable booking, customer, payment, calendar and configuration data on uninstall by default.
