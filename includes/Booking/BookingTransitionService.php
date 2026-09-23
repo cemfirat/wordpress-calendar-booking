@@ -41,6 +41,7 @@ final class BookingTransitionService {
         if (in_array($event, [
             BookingStateMachine::USER_CANCELLED,
             BookingStateMachine::ADMIN_CANCELLED,
+            BookingStateMachine::ADMIN_REJECTED,
         ], true)) {
             $cancellation = (new PaymentService())->validateSeriesCancellation(
                 $bookingId,
