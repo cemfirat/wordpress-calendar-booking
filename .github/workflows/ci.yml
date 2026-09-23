@@ -637,8 +637,8 @@ jobs:
           import os, pathlib
           p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/wordpress-calendar-booking.php"
           text = p.read_text()
-          text = text.replace(" * Version: 3.12.0", " * Version: 3.10.0")
-          text = text.replace("define('WPCB_VERSION', '3.12.0');", "define('WPCB_VERSION', '3.10.0');")
+          text = text.replace(" * Version: 3.12.0", " * Version: 3.11.0")
+          text = text.replace("define('WPCB_VERSION', '3.12.0');", "define('WPCB_VERSION', '3.11.0');")
           p.write_text(text)
           PY
           (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-3.11.0.zip" wordpress-calendar-booking)
@@ -650,7 +650,7 @@ jobs:
           wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
           wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBUpdater --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
           wp plugin install "$RUNNER_TEMP/calendar-booking-3.11.0.zip" --activate --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.12.0"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.11.0"
       - name: Discover real public v3.12.0 release
         run: |
           set -euo pipefail
@@ -682,4 +682,4 @@ jobs:
           wp plugin update wordpress-calendar-booking --path="$WP_ROOT"
           test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.12.0"
           wp plugin is-active wordpress-calendar-booking --path="$WP_ROOT"
-          echo "PASS: synthetic 3.10.0 updated through the public GitHub release to 3.12.0."
+          echo "PASS: synthetic 3.11.0 updated through the public GitHub release to 3.12.0."
