@@ -1,5 +1,5 @@
 <?php
-namespace Cemb\Booking;
+namespace Wpcb\Booking;
 
 /**
  * Pure booking lifecycle rules.
@@ -71,9 +71,9 @@ final class BookingStateMachine {
     public function adminEventsFor(string $status): array {
         $events = [];
         foreach ([
-            self::ADMIN_APPROVED => __('Approve', 'cemb'),
-            self::ADMIN_REJECTED => __('Reject', 'cemb'),
-            self::ADMIN_CANCELLED => __('Cancel', 'cemb'),
+            self::ADMIN_APPROVED => __('Approve', 'wordpress-calendar-booking'),
+            self::ADMIN_REJECTED => __('Reject', 'wordpress-calendar-booking'),
+            self::ADMIN_CANCELLED => __('Cancel', 'wordpress-calendar-booking'),
         ] as $event => $label) {
             if ($this->canApply($status, $event) && !$this->isIdempotent($status, $event)) {
                 $events[$event] = $label;

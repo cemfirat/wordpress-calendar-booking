@@ -1,11 +1,11 @@
 <?php
-namespace Cemb\Sync;
+namespace Wpcb\Sync;
 
-use Cemb\Admin\Settings;
-use Cemb\Booking\BookingRepository;
-use Cemb\Support\BookingFormatter;
-use Cemb\ICS\IcsGenerator;
-use Cemb\Support\Time;
+use Wpcb\Admin\Settings;
+use Wpcb\Booking\BookingRepository;
+use Wpcb\Support\BookingFormatter;
+use Wpcb\ICS\IcsGenerator;
+use Wpcb\Support\Time;
 
 class IcloudSyncService {
     private BookingRepository $bookings;
@@ -44,7 +44,7 @@ class IcloudSyncService {
             return ['ok' => false, 'message' => 'Zielkalender konnte nicht ermittelt werden.'];
         }
 
-        $uid = (string)($meta['icloud_uid'] ?? ('cemb-' . ($booking['booking_uuid'] ?? wp_generate_uuid4()) . '@' . wp_parse_url(home_url(), PHP_URL_HOST)));
+        $uid = (string)($meta['icloud_uid'] ?? ('wpcb-' . ($booking['booking_uuid'] ?? wp_generate_uuid4()) . '@' . wp_parse_url(home_url(), PHP_URL_HOST)));
         $eventFile = (string)($meta['icloud_event_file'] ?? ($uid . '.ics'));
         $summary = $this->formatter->summary($booking, $meta);
         $location = $this->formatter->location($booking, $meta, $settings);

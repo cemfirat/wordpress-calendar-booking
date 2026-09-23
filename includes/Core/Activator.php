@@ -1,11 +1,11 @@
 <?php
-namespace Cemb\Core;
+namespace Wpcb\Core;
 
-use Cemb\Database\SchemaMigration;
-use Cemb\Support\Time;
-use Cemb\Support\TimeMigration;
-use Cemb\Tokens\TokenMigration;
-use Cemb\Security\SecretMigration;
+use Wpcb\Database\SchemaMigration;
+use Wpcb\Support\Time;
+use Wpcb\Support\TimeMigration;
+use Wpcb\Tokens\TokenMigration;
+use Wpcb\Security\SecretMigration;
 
 class Activator {
     public static function activate(): void {
@@ -59,10 +59,10 @@ class Activator {
             'icloud_sync_cancellations' => 1,
             'icloud_sync_last_test' => '',
         ];
-        add_option('cemb_settings', $defaults);
+        add_option('wpcb_settings', $defaults);
 
         global $wpdb;
-        $table = $wpdb->prefix . 'cemb_booking_types';
+        $table = $wpdb->prefix . 'wpcb_booking_types';
         $count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$table}");
         if ($count === 0) {
             $types = [
@@ -79,7 +79,7 @@ class Activator {
             }
         }
 
-        $fields = $wpdb->prefix . 'cemb_form_fields';
+        $fields = $wpdb->prefix . 'wpcb_form_fields';
         $field_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$fields}");
         if ($field_count === 0) {
             $seedFields = [
@@ -105,7 +105,7 @@ class Activator {
             }
         }
 
-        $rules = $wpdb->prefix . 'cemb_availability_rules';
+        $rules = $wpdb->prefix . 'wpcb_availability_rules';
         $rule_count = (int) $wpdb->get_var("SELECT COUNT(*) FROM {$rules}");
         if ($rule_count === 0) {
             for ($weekday = 1; $weekday <= 5; $weekday++) {
@@ -117,7 +117,7 @@ class Activator {
             }
         }
 
-        add_option('cemb_email_templates', [
+        add_option('wpcb_email_templates', [
             'doi_subject' => 'Bitte Terminbuchung bestätigen',
             'doi_body' => "Hallo {name},\n\nbitte bestätige deine Terminbuchung über diesen Link:\n{bestaetigungslink}\n\nTerminart: {terminart}\nTermin: {datum} {uhrzeit}",
             'confirmed_subject' => 'Termin bestätigt',

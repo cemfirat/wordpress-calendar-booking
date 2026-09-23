@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 2.0.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.0.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -55,7 +55,7 @@ For delegated Microsoft accounts the plugin requests `Calendars.ReadBasic` when 
 One semantic component/render layer serves:
 
 - YOOtheme Pro native Builder elements when YOOtheme is installed
-- Shortcodes for compatibility
+- Shortcodes (`[wpcb_booking_form]`, `[wpcb_calendar]`, `[wpcb_booking_calendar]`)
 - Native dynamic Gutenberg blocks for the Booking Form and Availability Calendar
 - UIkit fallback assets when no compatible UIkit/YOOtheme runtime is present
 
@@ -67,7 +67,7 @@ The plugin does **not** scrape arbitrary themes and copy their CSS classes. Them
 
 ## Privacy and security
 
-Version 2.0 provides:
+The current release provides:
 
 - signed short-lived canonical slot tokens
 - atomic conflict prevention

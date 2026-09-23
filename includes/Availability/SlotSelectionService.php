@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Availability;
+namespace Wpcb\Availability;
 
-use Cemb\Tokens\SlotTokenService;
+use Wpcb\Tokens\SlotTokenService;
 
 /**
  * Resolves a browser-submitted slot token into a currently bookable slot.

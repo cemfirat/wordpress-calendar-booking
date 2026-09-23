@@ -1,5 +1,5 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
 final class ProviderDiagnosticsController {
     private ProviderDiagnosticsService $diagnostics;
@@ -10,17 +10,17 @@ final class ProviderDiagnosticsController {
 
     public function boot(): void {
         add_action('admin_menu', [$this, 'menu']);
-        add_action('admin_post_cemb_provider_test_read', [$this, 'testRead']);
-        add_action('admin_post_cemb_provider_test_write', [$this, 'testWrite']);
+        add_action('admin_post_wpcb_provider_test_read', [$this, 'testRead']);
+        add_action('admin_post_wpcb_provider_test_write', [$this, 'testWrite']);
     }
 
     public function menu(): void {
         add_submenu_page(
-            'cemb_dashboard',
+            'wpcb_dashboard',
             'Calendar Diagnostics',
             'Calendar Diagnostics',
             'manage_options',
-            'cemb_provider_diagnostics',
+            'wpcb_provider_diagnostics',
             [$this, 'page']
         );
     }
@@ -35,11 +35,11 @@ final class ProviderDiagnosticsController {
             <h1>Calendar Diagnostics</h1>
             <p>Connection health only. OAuth tokens, passwords and encrypted credential payloads are never displayed here.</p>
 
-            <?php if (isset($_GET['cemb_diag_notice'])): ?>
-                <div class="notice notice-success"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['cemb_diag_notice']))); ?></p></div>
+            <?php if (isset($_GET['wpcb_diag_notice'])): ?>
+                <div class="notice notice-success"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['wpcb_diag_notice']))); ?></p></div>
             <?php endif; ?>
-            <?php if (isset($_GET['cemb_diag_error'])): ?>
-                <div class="notice notice-error"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['cemb_diag_error']))); ?></p></div>
+            <?php if (isset($_GET['wpcb_diag_error'])): ?>
+                <div class="notice notice-error"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['wpcb_diag_error']))); ?></p></div>
             <?php endif; ?>
 
             <?php if (!$rows): ?>
@@ -79,12 +79,12 @@ final class ProviderDiagnosticsController {
                             </td>
                             <td>
                                 <?php if (in_array(ProviderCapabilities::BUSY_READ, (array)$row['capabilities'], true)): ?>
-                                    <?php $this->testForm('cemb_provider_test_read', (int)$row['id'], 'Test read'); ?>
+                                    <?php $this->testForm('wpcb_provider_test_read', (int)$row['id'], 'Test read'); ?>
                                 <?php endif; ?>
                                 <?php if (!empty($row['receives_bookings'])
                                     && in_array(ProviderCapabilities::EVENT_CREATE, (array)$row['capabilities'], true)
                                     && in_array(ProviderCapabilities::EVENT_CANCEL, (array)$row['capabilities'], true)): ?>
-                                    <?php $this->testForm('cemb_provider_test_write', (int)$row['id'], 'Test write'); ?>
+                                    <?php $this->testForm('wpcb_provider_test_write', (int)$row['id'], 'Test write'); ?>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -100,7 +100,7 @@ final class ProviderDiagnosticsController {
     public function testRead(): void {
         $this->requireAdmin();
         $connectionId = absint($_POST['connection_id'] ?? 0);
-        check_admin_referer('cemb_provider_test_read_' . $connectionId);
+        check_admin_referer('wpcb_provider_test_read_' . $connectionId);
         $result = $this->diagnostics->testRead($connectionId);
         $suffix = !empty($result['ok']) && isset($result['count'])
             ? ' Busy intervals returned: ' . (int)$result['count'] . '.'
@@ -111,7 +111,7 @@ final class ProviderDiagnosticsController {
     public function testWrite(): void {
         $this->requireAdmin();
         $connectionId = absint($_POST['connection_id'] ?? 0);
-        check_admin_referer('cemb_provider_test_write_' . $connectionId);
+        check_admin_referer('wpcb_provider_test_write_' . $connectionId);
         $result = $this->diagnostics->testWrite($connectionId);
         $this->redirect($result);
     }
@@ -146,10 +146,10 @@ final class ProviderDiagnosticsController {
 
     private function redirect(array $result, string $suffix = ''): void {
         $ok = !empty($result['ok']);
-        $key = $ok ? 'cemb_diag_notice' : 'cemb_diag_error';
+        $key = $ok ? 'wpcb_diag_notice' : 'wpcb_diag_error';
         $message = sanitize_text_field((string)($result['message'] ?? ($ok ? 'Test succeeded.' : 'Test failed.'))) . $suffix;
         wp_safe_redirect(add_query_arg([
-            'page' => 'cemb_provider_diagnostics',
+            'page' => 'wpcb_provider_diagnostics',
             $key => $message,
         ], admin_url('admin.php')));
         exit;

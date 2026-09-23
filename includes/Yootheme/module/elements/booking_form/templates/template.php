@@ -1,8 +1,8 @@
 <?php
 $el = $this->el('div', [
-    'class' => ['cemb-yootheme-element', 'cemb-yootheme-booking-form'],
+    'class' => ['wpcb-yootheme-element', 'wpcb-yootheme-booking-form'],
 ]);
 ?>
 <?= $el($props, $attrs) ?>
-    <?= (new \Cemb\Frontend\ComponentRenderer())->bookingForm() ?>
+    <?= (new \Wpcb\Frontend\ComponentRenderer())->bookingForm() ?>
 <?= $el->end() ?>

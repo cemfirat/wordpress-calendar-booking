@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Support;
+namespace Wpcb\Support;
 
-use Cemb\Admin\Settings;
+use Wpcb\Admin\Settings;
 
 /**
  * Canonical time handling for the booking domain.

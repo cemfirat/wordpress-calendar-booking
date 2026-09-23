@@ -1,11 +1,11 @@
 <?php
-namespace Cemb\Database;
+namespace Wpcb\Database;
 
 /**
  * Runs idempotent dbDelta schema upgrades when plugin code changes.
  */
 final class SchemaMigration {
-    private const OPTION = 'cemb_schema_version';
+    private const OPTION = 'wpcb_schema_version';
     private const VERSION = 6;
 
     public static function maybeRun(): void {

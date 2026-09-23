@@ -1,5 +1,5 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
 interface CalendarProviderInterface {
     public function id(): string;

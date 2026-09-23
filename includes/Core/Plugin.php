@@ -1,24 +1,24 @@
 <?php
-namespace Cemb\Core;
+namespace Wpcb\Core;
 
-use Cemb\Admin\Admin;
-use Cemb\Admin\BookingAuditPage;
-use Cemb\Database\SchemaMigration;
-use Cemb\Frontend\Shortcodes;
-use Cemb\Frontend\Actions;
-use Cemb\Sync\QueueService;
-use Cemb\Support\TimeMigration;
-use Cemb\Booking\BookingStatusMigration;
-use Cemb\Booking\BookingTransitionEffects;
-use Cemb\Tokens\TokenMigration;
-use Cemb\Security\SecretMigration;
-use Cemb\Privacy\PrivacyService;
-use Cemb\Yootheme\Integration;
-use Cemb\Calendar\GoogleOAuthController;
-use Cemb\Calendar\MicrosoftOAuthController;
-use Cemb\Calendar\CalDavController;
-use Cemb\Calendar\ProviderDiagnosticsController;
-use Cemb\Blocks\Integration as BlocksIntegration;
+use Wpcb\Admin\Admin;
+use Wpcb\Admin\BookingAuditPage;
+use Wpcb\Database\SchemaMigration;
+use Wpcb\Frontend\Shortcodes;
+use Wpcb\Frontend\Actions;
+use Wpcb\Sync\QueueService;
+use Wpcb\Support\TimeMigration;
+use Wpcb\Booking\BookingStatusMigration;
+use Wpcb\Booking\BookingTransitionEffects;
+use Wpcb\Tokens\TokenMigration;
+use Wpcb\Security\SecretMigration;
+use Wpcb\Privacy\PrivacyService;
+use Wpcb\Yootheme\Integration;
+use Wpcb\Calendar\GoogleOAuthController;
+use Wpcb\Calendar\MicrosoftOAuthController;
+use Wpcb\Calendar\CalDavController;
+use Wpcb\Calendar\ProviderDiagnosticsController;
+use Wpcb\Blocks\Integration as BlocksIntegration;
 
 class Plugin {
     public function boot(): void {
@@ -27,7 +27,7 @@ class Plugin {
         SecretMigration::maybeRun();
         TimeMigration::maybeRun();
         BookingStatusMigration::maybeRun();
-        load_plugin_textdomain('cemb', false, dirname(CEMB_BASENAME) . '/languages');
+        load_plugin_textdomain('wordpress-calendar-booking', false, dirname(WPCB_BASENAME) . '/languages');
         (new BookingTransitionEffects())->boot();
         (new Admin())->boot();
         (new BookingAuditPage())->boot();

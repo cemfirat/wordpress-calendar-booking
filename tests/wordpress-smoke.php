@@ -7,35 +7,35 @@ if ( ! defined( 'ABSPATH' ) ) {
 	exit( 1 );
 }
 
-function cemb_smoke_assert( $condition, string $message ): void {
+function wpcb_smoke_assert( $condition, string $message ): void {
 	if ( ! $condition ) {
 		throw new RuntimeException( $message );
 	}
 	WP_CLI::log( 'PASS: ' . $message );
 }
 
-cemb_smoke_assert( defined( 'CEMB_VERSION' ), 'Plugin constants are loaded.' );
-cemb_smoke_assert( class_exists( 'Cemb\\Core\\Plugin' ), 'Plugin autoloader resolves core classes.' );
-cemb_smoke_assert( shortcode_exists( 'cemb_booking_form' ), 'Booking form shortcode is registered.' );
-cemb_smoke_assert( shortcode_exists( 'cemb_calendar' ), 'Calendar shortcode is registered.' );
-cemb_smoke_assert( shortcode_exists( 'cemb_booking_calendar' ), 'Booking calendar shortcode is registered.' );
-cemb_smoke_assert( false !== has_action( 'admin_post_nopriv_cemb_submit_booking' ), 'Public booking submission action is registered.' );
-cemb_smoke_assert( false !== has_action( 'wp_ajax_nopriv_cemb_get_slots' ), 'Public slot AJAX action is registered.' );
+wpcb_smoke_assert( defined( 'WPCB_VERSION' ), 'Plugin constants are loaded.' );
+wpcb_smoke_assert( class_exists( 'Wpcb\\Core\\Plugin' ), 'Plugin autoloader resolves core classes.' );
+wpcb_smoke_assert( shortcode_exists( 'wpcb_booking_form' ), 'Booking form shortcode is registered.' );
+wpcb_smoke_assert( shortcode_exists( 'wpcb_calendar' ), 'Calendar shortcode is registered.' );
+wpcb_smoke_assert( shortcode_exists( 'wpcb_booking_calendar' ), 'Booking calendar shortcode is registered.' );
+wpcb_smoke_assert( false !== has_action( 'admin_post_nopriv_wpcb_submit_booking' ), 'Public booking submission action is registered.' );
+wpcb_smoke_assert( false !== has_action( 'wp_ajax_nopriv_wpcb_get_slots' ), 'Public slot AJAX action is registered.' );
 
-$settings_before_time_test = get_option( 'cemb_settings', [] );
-$time_settings = Cemb\Admin\Settings::get();
+$settings_before_time_test = get_option( 'wpcb_settings', [] );
+$time_settings = Wpcb\Admin\Settings::get();
 $time_settings['timezone'] = 'Europe/Vienna';
-update_option( 'cemb_settings', $time_settings );
+update_option( 'wpcb_settings', $time_settings );
 
-cemb_smoke_assert( 'Europe/Vienna' === Cemb\Support\Time::bookingTimezoneName(), 'Booking domain uses the configured IANA timezone.' );
-cemb_smoke_assert( '2026-01-15 08:00:00' === Cemb\Support\Time::localToUtc( '2026-01-15 09:00:00' ), 'Winter wall time converts to UTC with CET offset.' );
-cemb_smoke_assert( '2026-07-15 07:00:00' === Cemb\Support\Time::localToUtc( '2026-07-15 09:00:00' ), 'Summer wall time converts to UTC with CEST offset.' );
-cemb_smoke_assert( null === Cemb\Support\Time::parseLocal( '2026-03-29 02:30:00' ), 'Non-existent spring-forward wall time is rejected.' );
-cemb_smoke_assert( null === Cemb\Support\Time::parseLocal( '2026-10-25 02:30:00' ), 'Ambiguous fall-back wall time is rejected.' );
-cemb_smoke_assert( '2026-07-15 09:00:00' === Cemb\Support\Time::utcToLocal( '2026-07-15 07:00:00' ), 'UTC storage converts back to booking wall time.' );
-cemb_smoke_assert( 'UTC' === Cemb\Admin\Settings::normalizeTimezone( 'GMT+2' ), 'Fixed/invalid timezone strings are rejected in favor of a canonical IANA fallback.' );
+wpcb_smoke_assert( 'Europe/Vienna' === Wpcb\Support\Time::bookingTimezoneName(), 'Booking domain uses the configured IANA timezone.' );
+wpcb_smoke_assert( '2026-01-15 08:00:00' === Wpcb\Support\Time::localToUtc( '2026-01-15 09:00:00' ), 'Winter wall time converts to UTC with CET offset.' );
+wpcb_smoke_assert( '2026-07-15 07:00:00' === Wpcb\Support\Time::localToUtc( '2026-07-15 09:00:00' ), 'Summer wall time converts to UTC with CEST offset.' );
+wpcb_smoke_assert( null === Wpcb\Support\Time::parseLocal( '2026-03-29 02:30:00' ), 'Non-existent spring-forward wall time is rejected.' );
+wpcb_smoke_assert( null === Wpcb\Support\Time::parseLocal( '2026-10-25 02:30:00' ), 'Ambiguous fall-back wall time is rejected.' );
+wpcb_smoke_assert( '2026-07-15 09:00:00' === Wpcb\Support\Time::utcToLocal( '2026-07-15 07:00:00' ), 'UTC storage converts back to booking wall time.' );
+wpcb_smoke_assert( 'UTC' === Wpcb\Admin\Settings::normalizeTimezone( 'GMT+2' ), 'Fixed/invalid timezone strings are rejected in favor of a canonical IANA fallback.' );
 
-$recurring_ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//CEMB CI//EN\r\n"
+$recurring_ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//WPCB CI//EN\r\n"
 	. "BEGIN:VTIMEZONE\r\nTZID:Europe/Vienna\r\n"
 	. "BEGIN:STANDARD\r\nDTSTART:19701025T030000\r\nRRULE:FREQ=YEARLY;BYMONTH=10;BYDAY=-1SU\r\nTZOFFSETFROM:+0200\r\nTZOFFSETTO:+0100\r\nTZNAME:CET\r\nEND:STANDARD\r\n"
 	. "BEGIN:DAYLIGHT\r\nDTSTART:19700329T020000\r\nRRULE:FREQ=YEARLY;BYMONTH=3;BYDAY=-1SU\r\nTZOFFSETFROM:+0100\r\nTZOFFSETTO:+0200\r\nTZNAME:CEST\r\nEND:DAYLIGHT\r\nEND:VTIMEZONE\r\n"
@@ -44,31 +44,31 @@ $recurring_ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//CEMB CI//EN\r\n"
 	. "BEGIN:VEVENT\r\nUID:cancelled-ci\r\nDTSTAMP:20260101T000000Z\r\nDTSTART:20261008T090000Z\r\nDTEND:20261008T100000Z\r\nSTATUS:CANCELLED\r\nEND:VEVENT\r\n"
 	. "BEGIN:VEVENT\r\nUID:allday-ci\r\nDTSTAMP:20260101T000000Z\r\nDTSTART;VALUE=DATE:20261010\r\nDTEND;VALUE=DATE:20261011\r\nSUMMARY:PRIVATE ALL DAY\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
 
-$calendar_parser = new Cemb\Calendar\Parser();
+$calendar_parser = new Wpcb\Calendar\Parser();
 $expanded_events = $calendar_parser->parse( $recurring_ics, '2026-10-01 00:00:00', '2026-11-05 00:00:00' );
 $weekly_events = array_values( array_filter( $expanded_events, static fn( $event ) => ( $event['uid'] ?? '' ) === 'weekly-ci' ) );
-cemb_smoke_assert( 3 === count( $weekly_events ), 'RRULE expands occurrences while EXDATE removes the excluded instance.' );
-cemb_smoke_assert( '2026-10-05 07:00:00' === $weekly_events[0]['start'], 'Recurring CEST occurrence is normalized to UTC.' );
-cemb_smoke_assert( '2026-10-12 09:00:00' === $weekly_events[1]['start'], 'RECURRENCE-ID override replaces and moves one occurrence.' );
-cemb_smoke_assert( '2026-10-26 08:00:00' === $weekly_events[2]['start'], 'Recurring series follows the DST transition from CEST to CET.' );
-cemb_smoke_assert(
+wpcb_smoke_assert( 3 === count( $weekly_events ), 'RRULE expands occurrences while EXDATE removes the excluded instance.' );
+wpcb_smoke_assert( '2026-10-05 07:00:00' === $weekly_events[0]['start'], 'Recurring CEST occurrence is normalized to UTC.' );
+wpcb_smoke_assert( '2026-10-12 09:00:00' === $weekly_events[1]['start'], 'RECURRENCE-ID override replaces and moves one occurrence.' );
+wpcb_smoke_assert( '2026-10-26 08:00:00' === $weekly_events[2]['start'], 'Recurring series follows the DST transition from CEST to CET.' );
+wpcb_smoke_assert(
 	0 === count( array_filter( $expanded_events, static fn( $event ) => ( $event['uid'] ?? '' ) === 'cancelled-ci' ) ),
 	'Cancelled events do not block availability.'
 );
 $all_day_events = array_values( array_filter( $expanded_events, static fn( $event ) => ( $event['uid'] ?? '' ) === 'allday-ci' ) );
-cemb_smoke_assert( 1 === count( $all_day_events ) && ! empty( $all_day_events[0]['all_day'] ), 'All-day events retain all-day semantics.' );
-cemb_smoke_assert( '2026-10-09 22:00:00' === $all_day_events[0]['start'], 'All-day local date is normalized to the correct UTC boundary.' );
+wpcb_smoke_assert( 1 === count( $all_day_events ) && ! empty( $all_day_events[0]['all_day'] ), 'All-day events retain all-day semantics.' );
+wpcb_smoke_assert( '2026-10-09 22:00:00' === $all_day_events[0]['start'], 'All-day local date is normalized to the correct UTC boundary.' );
 
 global $wpdb;
 $migration_booking_id = 0;
 $wpdb->insert(
-	$wpdb->prefix . 'cemb_bookings',
+	$wpdb->prefix . 'wpcb_bookings',
 	[
 		'booking_uuid' => wp_generate_uuid4(),
 		'booking_type_id' => 1,
 		'slot_start' => '2026-01-15 09:00:00',
 		'slot_end' => '2026-01-15 10:00:00',
-		'status' => Cemb\Booking\BookingStatus::CANCELLED,
+		'status' => Wpcb\Booking\BookingStatus::CANCELLED,
 		'full_name' => 'Time Migration Test',
 		'email' => 'time-migration@example.com',
 		'source' => 'ci',
@@ -78,18 +78,18 @@ $wpdb->insert(
 	]
 );
 $migration_booking_id = (int) $wpdb->insert_id;
-update_option( 'cemb_time_storage_version', 0, false );
-Cemb\Support\TimeMigration::maybeRun();
-$migrated_booking = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cemb_bookings WHERE id = %d", $migration_booking_id ) );
-cemb_smoke_assert( '2026-01-15 08:00:00' === $migrated_booking->slot_start, 'Legacy local booking start is migrated to the same UTC instant.' );
-cemb_smoke_assert( '2026-01-15 09:00:00' === $migrated_booking->slot_end, 'Legacy local booking end is migrated to the same UTC instant.' );
+update_option( 'wpcb_time_storage_version', 0, false );
+Wpcb\Support\TimeMigration::maybeRun();
+$migrated_booking = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}wpcb_bookings WHERE id = %d", $migration_booking_id ) );
+wpcb_smoke_assert( '2026-01-15 08:00:00' === $migrated_booking->slot_start, 'Legacy local booking start is migrated to the same UTC instant.' );
+wpcb_smoke_assert( '2026-01-15 09:00:00' === $migrated_booking->slot_end, 'Legacy local booking end is migrated to the same UTC instant.' );
 $migrated_start_once = $migrated_booking->slot_start;
-Cemb\Support\TimeMigration::maybeRun();
-$migrated_booking_again = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cemb_bookings WHERE id = %d", $migration_booking_id ) );
-cemb_smoke_assert( $migrated_start_once === $migrated_booking_again->slot_start, 'UTC storage migration is idempotent.' );
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $migration_booking_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $migration_booking_id ] );
-update_option( 'cemb_settings', $settings_before_time_test );
+Wpcb\Support\TimeMigration::maybeRun();
+$migrated_booking_again = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}wpcb_bookings WHERE id = %d", $migration_booking_id ) );
+wpcb_smoke_assert( $migrated_start_once === $migrated_booking_again->slot_start, 'UTC storage migration is idempotent.' );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_status_log', [ 'booking_id' => $migration_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_bookings', [ 'id' => $migration_booking_id ] );
+update_option( 'wpcb_settings', $settings_before_time_test );
 
 global $wpdb;
 $tables = array(
@@ -108,23 +108,23 @@ $tables = array(
 	'sync_log',
 );
 foreach ( $tables as $suffix ) {
-	$table = $wpdb->prefix . 'cemb_' . $suffix;
+	$table = $wpdb->prefix . 'wpcb_' . $suffix;
 	$found = $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $table ) );
-	cemb_smoke_assert( $table === $found, 'Database table exists: ' . $table );
+	wpcb_smoke_assert( $table === $found, 'Database table exists: ' . $table );
 }
 
 /* Authenticated calendar/provider secret storage. */
-$secret_settings_backup = get_option( 'cemb_settings', [] );
-$secret_version_backup = get_option( 'cemb_secret_storage_version', null );
-$secret_reentry_backup = get_option( 'cemb_secret_reentry_required', null );
+$secret_settings_backup = get_option( 'wpcb_settings', [] );
+$secret_version_backup = get_option( 'wpcb_secret_storage_version', null );
+$secret_reentry_backup = get_option( 'wpcb_secret_reentry_required', null );
 $secret_plaintext = 'PRIVATE-CALENDAR-PASSWORD-ci-42';
 
-$secret_box = new Cemb\Security\SecretBox();
-cemb_smoke_assert( $secret_box->available(), 'At least one authenticated secret-storage backend is available in WordPress CI.' );
+$secret_box = new Wpcb\Security\SecretBox();
+wpcb_smoke_assert( $secret_box->available(), 'At least one authenticated secret-storage backend is available in WordPress CI.' );
 $encrypted_secret = $secret_box->encrypt( $secret_plaintext );
-cemb_smoke_assert( is_string( $encrypted_secret ) && 0 === strpos( $encrypted_secret, 'v2:' ), 'Provider secret ciphertext is explicitly versioned.' );
-cemb_smoke_assert( false === strpos( $encrypted_secret, $secret_plaintext ), 'Provider ciphertext does not contain the raw secret.' );
-cemb_smoke_assert( $secret_plaintext === $secret_box->decrypt( $encrypted_secret ), 'Authenticated provider ciphertext decrypts correctly.' );
+wpcb_smoke_assert( is_string( $encrypted_secret ) && 0 === strpos( $encrypted_secret, 'v2:' ), 'Provider secret ciphertext is explicitly versioned.' );
+wpcb_smoke_assert( false === strpos( $encrypted_secret, $secret_plaintext ), 'Provider ciphertext does not contain the raw secret.' );
+wpcb_smoke_assert( $secret_plaintext === $secret_box->decrypt( $encrypted_secret ), 'Authenticated provider ciphertext decrypts correctly.' );
 
 $encrypted_parts = explode( ':', $encrypted_secret );
 $last_part_index = count( $encrypted_parts ) - 1;
@@ -133,51 +133,51 @@ $tamper_position = min( 5, strlen( $tampered_part ) - 1 );
 $tampered_part[$tamper_position] = $tampered_part[$tamper_position] === 'A' ? 'B' : 'A';
 $encrypted_parts[$last_part_index] = $tampered_part;
 $tampered_secret = implode( ':', $encrypted_parts );
-cemb_smoke_assert( null === $secret_box->decrypt( $tampered_secret ), 'Tampered provider ciphertext fails closed.' );
+wpcb_smoke_assert( null === $secret_box->decrypt( $tampered_secret ), 'Tampered provider ciphertext fails closed.' );
 
 $force_aesgcm = static fn() => 'aesgcm';
-add_filter( 'cemb_secret_storage_backend', $force_aesgcm );
-$aes_box = new Cemb\Security\SecretBox();
+add_filter( 'wpcb_secret_storage_backend', $force_aesgcm );
+$aes_box = new Wpcb\Security\SecretBox();
 if ( $aes_box->backend() === 'aesgcm' ) {
 	$aes_ciphertext = $aes_box->encrypt( $secret_plaintext );
-	cemb_smoke_assert(
+	wpcb_smoke_assert(
 		is_string( $aes_ciphertext )
 		&& 0 === strpos( $aes_ciphertext, 'v2:aesgcm:' )
 		&& $secret_plaintext === $aes_box->decrypt( $aes_ciphertext ),
 		'AES-256-GCM authenticated fallback round-trips when available.'
 	);
 }
-remove_filter( 'cemb_secret_storage_backend', $force_aesgcm );
+remove_filter( 'wpcb_secret_storage_backend', $force_aesgcm );
 
-$secure_update = Cemb\Admin\Settings::update(
+$secure_update = Wpcb\Admin\Settings::update(
 	[
 		'icloud_sync_password' => $secret_plaintext,
 		'icloud_sync_enabled' => 1,
 	]
 );
-cemb_smoke_assert( true === $secure_update, 'Settings accept a provider secret only after authenticated encryption.' );
-$secure_settings = Cemb\Admin\Settings::get();
+wpcb_smoke_assert( true === $secure_update, 'Settings accept a provider secret only after authenticated encryption.' );
+$secure_settings = Wpcb\Admin\Settings::get();
 $stored_ciphertext = (string) $secure_settings['icloud_sync_password_enc'];
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	0 === strpos( $stored_ciphertext, 'v2:' )
 	&& false === strpos( wp_json_encode( $secure_settings ), $secret_plaintext ),
 	'WordPress options contain ciphertext but never the raw provider secret.'
 );
-cemb_smoke_assert(
-	$secret_plaintext === Cemb\Admin\Settings::getIcloudSyncPassword(),
+wpcb_smoke_assert(
+	$secret_plaintext === Wpcb\Admin\Settings::getIcloudSyncPassword(),
 	'Provider client can recover an authenticated stored credential.'
 );
-cemb_smoke_assert(
-	'stored' === Cemb\Admin\Settings::secretStatus()['state'],
+wpcb_smoke_assert(
+	'stored' === Wpcb\Admin\Settings::secretStatus()['state'],
 	'Admin secret diagnostics report valid authenticated storage without revealing the secret.'
 );
 
 ob_start();
-( new Cemb\Admin\Admin() )->settings();
+( new Wpcb\Admin\Admin() )->settings();
 $settings_html = (string) ob_get_clean();
-cemb_smoke_assert( false === strpos( $settings_html, $secret_plaintext ), 'Settings HTML never renders provider plaintext.' );
-cemb_smoke_assert( false === strpos( $settings_html, $stored_ciphertext ), 'Settings HTML never renders provider ciphertext.' );
-cemb_smoke_assert(
+wpcb_smoke_assert( false === strpos( $settings_html, $secret_plaintext ), 'Settings HTML never renders provider plaintext.' );
+wpcb_smoke_assert( false === strpos( $settings_html, $stored_ciphertext ), 'Settings HTML never renders provider ciphertext.' );
+wpcb_smoke_assert(
 	false !== strpos( $settings_html, 'name="icloud_sync_password" value=""' ),
 	'Credential input is always blank in rendered settings HTML.'
 );
@@ -186,7 +186,7 @@ $previous_user_id = get_current_user_id();
 wp_set_current_user( 1 );
 $rest_settings_response = rest_do_request( new WP_REST_Request( 'GET', '/wp/v2/settings' ) );
 $rest_settings_json = wp_json_encode( $rest_settings_response->get_data() );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	200 === $rest_settings_response->get_status()
 	&& false === strpos( $rest_settings_json, $secret_plaintext )
 	&& false === strpos( $rest_settings_json, $stored_ciphertext ),
@@ -195,22 +195,22 @@ cemb_smoke_assert(
 wp_set_current_user( $previous_user_id );
 
 $no_crypto_filter = static fn() => '';
-add_filter( 'cemb_secret_storage_backend', $no_crypto_filter );
-$settings_before_failed_secret_save = Cemb\Admin\Settings::get();
-$no_crypto_result = Cemb\Admin\Settings::update(
+add_filter( 'wpcb_secret_storage_backend', $no_crypto_filter );
+$settings_before_failed_secret_save = Wpcb\Admin\Settings::get();
+$no_crypto_result = Wpcb\Admin\Settings::update(
 	[
 		'sender_name' => 'MUST-NOT-BE-SAVED',
 		'icloud_sync_password' => 'MUST-NOT-BE-STORED',
 	]
 );
-remove_filter( 'cemb_secret_storage_backend', $no_crypto_filter );
-cemb_smoke_assert(
+remove_filter( 'wpcb_secret_storage_backend', $no_crypto_filter );
+wpcb_smoke_assert(
 	is_wp_error( $no_crypto_result )
-	&& 'cemb_secret_crypto_unavailable' === $no_crypto_result->get_error_code(),
+	&& 'wpcb_secret_crypto_unavailable' === $no_crypto_result->get_error_code(),
 	'Missing authenticated crypto support rejects secret storage with a clear error.'
 );
-$settings_after_failed_secret_save = Cemb\Admin\Settings::get();
-cemb_smoke_assert(
+$settings_after_failed_secret_save = Wpcb\Admin\Settings::get();
+wpcb_smoke_assert(
 	$settings_before_failed_secret_save['sender_name'] === $settings_after_failed_secret_save['sender_name']
 	&& $stored_ciphertext === $settings_after_failed_secret_save['icloud_sync_password_enc'],
 	'Failed secret encryption leaves all settings unchanged.'
@@ -218,84 +218,84 @@ cemb_smoke_assert(
 
 $tampered_settings = $settings_after_failed_secret_save;
 $tampered_settings['icloud_sync_password_enc'] = $tampered_secret;
-update_option( 'cemb_settings', $tampered_settings );
-cemb_smoke_assert( '' === Cemb\Admin\Settings::getIcloudSyncPassword(), 'Tampered stored credential never yields plaintext.' );
-cemb_smoke_assert( 'invalid' === Cemb\Admin\Settings::secretStatus()['state'], 'Tampered stored credential is visible only as an invalid diagnostic state.' );
+update_option( 'wpcb_settings', $tampered_settings );
+wpcb_smoke_assert( '' === Wpcb\Admin\Settings::getIcloudSyncPassword(), 'Tampered stored credential never yields plaintext.' );
+wpcb_smoke_assert( 'invalid' === Wpcb\Admin\Settings::secretStatus()['state'], 'Tampered stored credential is visible only as an invalid diagnostic state.' );
 
 $legacy_settings = $settings_after_failed_secret_save;
 $legacy_settings['icloud_sync_password_enc'] = base64_encode( 'legacy-unauthenticated-secret' );
 $legacy_settings['icloud_sync_enabled'] = 1;
-update_option( 'cemb_settings', $legacy_settings );
-delete_option( 'cemb_secret_reentry_required' );
-update_option( 'cemb_secret_storage_version', 0, false );
-Cemb\Security\SecretMigration::maybeRun();
-$migrated_secret_settings = Cemb\Admin\Settings::get();
-cemb_smoke_assert(
+update_option( 'wpcb_settings', $legacy_settings );
+delete_option( 'wpcb_secret_reentry_required' );
+update_option( 'wpcb_secret_storage_version', 0, false );
+Wpcb\Security\SecretMigration::maybeRun();
+$migrated_secret_settings = Wpcb\Admin\Settings::get();
+wpcb_smoke_assert(
 	'' === $migrated_secret_settings['icloud_sync_password_enc']
 	&& empty( $migrated_secret_settings['icloud_sync_enabled'] ),
 	'Legacy unauthenticated credential is revoked and write-back is disabled.'
 );
-cemb_smoke_assert(
-	1 === (int) get_option( 'cemb_secret_reentry_required', 0 )
-	&& 'reentry' === Cemb\Admin\Settings::secretStatus()['state'],
+wpcb_smoke_assert(
+	1 === (int) get_option( 'wpcb_secret_reentry_required', 0 )
+	&& 'reentry' === Wpcb\Admin\Settings::secretStatus()['state'],
 	'Legacy credential migration explicitly requires administrator re-entry.'
 );
-cemb_smoke_assert(
-	Cemb\Security\SecretMigration::currentVersion() === (int) get_option( 'cemb_secret_storage_version', 0 ),
+wpcb_smoke_assert(
+	Wpcb\Security\SecretMigration::currentVersion() === (int) get_option( 'wpcb_secret_storage_version', 0 ),
 	'Authenticated secret-storage migration is recorded.'
 );
 
-$reentry_result = Cemb\Admin\Settings::update(
+$reentry_result = Wpcb\Admin\Settings::update(
 	[
 		'icloud_sync_password' => $secret_plaintext,
 		'icloud_sync_enabled' => 1,
 	]
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	true === $reentry_result
-	&& false === get_option( 'cemb_secret_reentry_required', false )
-	&& $secret_plaintext === Cemb\Admin\Settings::getIcloudSyncPassword(),
+	&& false === get_option( 'wpcb_secret_reentry_required', false )
+	&& $secret_plaintext === Wpcb\Admin\Settings::getIcloudSyncPassword(),
 	'Re-entering the credential clears the legacy warning and stores it authentically.'
 );
 
-update_option( 'cemb_settings', $secret_settings_backup );
+update_option( 'wpcb_settings', $secret_settings_backup );
 if ( $secret_version_backup === null ) {
-	delete_option( 'cemb_secret_storage_version' );
+	delete_option( 'wpcb_secret_storage_version' );
 } else {
-	update_option( 'cemb_secret_storage_version', $secret_version_backup, false );
+	update_option( 'wpcb_secret_storage_version', $secret_version_backup, false );
 }
 if ( $secret_reentry_backup === null ) {
-	delete_option( 'cemb_secret_reentry_required' );
+	delete_option( 'wpcb_secret_reentry_required' );
 } else {
-	update_option( 'cemb_secret_reentry_required', $secret_reentry_backup, false );
+	update_option( 'wpcb_secret_reentry_required', $secret_reentry_backup, false );
 }
 
 /* Indexed selector/verifier one-time-token storage. */
-$token_table = $wpdb->prefix . 'cemb_tokens';
+$token_table = $wpdb->prefix . 'wpcb_tokens';
 
 /* Simulate an existing pre-selector install and prove the code upgrade repairs it. */
 $wpdb->query( "ALTER TABLE {$token_table} DROP INDEX token_selector, DROP COLUMN token_selector" );
-update_option( 'cemb_schema_version', 1, false );
-Cemb\Database\SchemaMigration::maybeRun();
+update_option( 'wpcb_schema_version', 1, false );
+Wpcb\Database\SchemaMigration::maybeRun();
 
 $selector_column = $wpdb->get_row(
 	$wpdb->prepare( "SHOW COLUMNS FROM {$token_table} LIKE %s", 'token_selector' )
 );
-cemb_smoke_assert( $selector_column && 'token_selector' === $selector_column->Field, 'Token schema includes the indexed selector column.' );
+wpcb_smoke_assert( $selector_column && 'token_selector' === $selector_column->Field, 'Token schema includes the indexed selector column.' );
 $selector_index = $wpdb->get_row( "SHOW INDEX FROM {$token_table} WHERE Key_name = 'token_selector'" );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	$selector_index && 0 === (int) $selector_index->Non_unique,
 	'Token selector uses a unique database index.'
 );
-cemb_smoke_assert(
-	Cemb\Database\SchemaMigration::currentVersion() === (int) get_option( 'cemb_schema_version', 0 ),
+wpcb_smoke_assert(
+	Wpcb\Database\SchemaMigration::currentVersion() === (int) get_option( 'wpcb_schema_version', 0 ),
 	'Current database schema migration is recorded.'
 );
 
-$one_time_tokens = new Cemb\Tokens\TokenService();
+$one_time_tokens = new Wpcb\Tokens\TokenService();
 $token_fixture_booking_id = 987654;
 $indexed_token = $one_time_tokens->create( $token_fixture_booking_id, 'ci_indexed', 60 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	1 === preg_match( '/^[A-Za-z0-9_-]{22}\.[A-Za-z0-9_-]{43}$/', $indexed_token ),
 	'One-time token uses selector.verifier format with high-entropy components.'
 );
@@ -307,13 +307,13 @@ $stored_token = $wpdb->get_row(
 		'ci_indexed'
 	)
 );
-cemb_smoke_assert( $stored_token && $selector === $stored_token->token_selector, 'Selector is stored for direct indexed lookup.' );
-cemb_smoke_assert(
+wpcb_smoke_assert( $stored_token && $selector === $stored_token->token_selector, 'Selector is stored for direct indexed lookup.' );
+wpcb_smoke_assert(
 	64 === strlen( (string) $stored_token->token_hash )
 	&& false === strpos( wp_json_encode( $stored_token ), $verifier ),
 	'Raw verifier secret is never stored; only a fixed-length HMAC is persisted.'
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	'valid' === $one_time_tokens->inspect( $indexed_token, 'ci_indexed' )['state'],
 	'Indexed selector/verifier token validates successfully.'
 );
@@ -321,29 +321,29 @@ $tamper_pos = 5;
 $tampered_verifier = substr( $verifier, 0, $tamper_pos )
 	. ( $verifier[$tamper_pos] === 'A' ? 'B' : 'A' )
 	. substr( $verifier, $tamper_pos + 1 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	'invalid' === $one_time_tokens->inspect( $selector . '.' . $tampered_verifier, 'ci_indexed' )['state'],
 	'Verifier tampering is rejected.'
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	'invalid' === $one_time_tokens->inspect( $indexed_token, 'ci_other_type' )['state'],
 	'One-time token is bound to its token type.'
 );
 
 $rotated_token = $one_time_tokens->rotate( $token_fixture_booking_id, 'ci_indexed', 60 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	'used' === $one_time_tokens->inspect( $indexed_token, 'ci_indexed' )['state'],
 	'Rotation revokes the previous token.'
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	'valid' === $one_time_tokens->inspect( $rotated_token, 'ci_indexed' )['state'],
 	'Rotation issues a fresh indexed token.'
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	1 === $one_time_tokens->revokeForBooking( $token_fixture_booking_id, 'ci_indexed' ),
 	'Explicit revocation marks an active booking token used.'
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	'used' === $one_time_tokens->inspect( $rotated_token, 'ci_indexed' )['state'],
 	'Revoked token renders as used rather than remaining valid.'
 );
@@ -352,24 +352,24 @@ $retained_expired_token = $one_time_tokens->create( $token_fixture_booking_id, '
 [ $retained_selector ] = explode( '.', $retained_expired_token, 2 );
 $wpdb->update(
 	$token_table,
-	[ 'expires_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-5 minutes' ) ) ],
+	[ 'expires_at' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc()->modify( '-5 minutes' ) ) ],
 	[ 'token_selector' => $retained_selector ]
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	'expired' === $one_time_tokens->inspect( $retained_expired_token, 'ci_expired' )['state'],
 	'Expired indexed token remains inspectable as expired.'
 );
 $one_time_tokens->cleanup( 30 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	1 === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$token_table} WHERE token_selector = %s", $retained_selector ) ),
 	'Recent expired tokens are retained for non-destructive status pages.'
 );
 $wpdb->update(
 	$token_table,
-	[ 'expires_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-31 days' ) ) ],
+	[ 'expires_at' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc()->modify( '-31 days' ) ) ],
 	[ 'token_selector' => $retained_selector ]
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	$one_time_tokens->cleanup( 30 ) >= 1
 	&& 0 === (int) $wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$token_table} WHERE token_selector = %s", $retained_selector ) ),
 	'Retention cleanup removes old expired tokens.'
@@ -383,76 +383,76 @@ $wpdb->insert(
 		'token_type' => 'legacy_ci',
 		'token_selector' => null,
 		'token_hash' => wp_hash_password( $legacy_token_secret ),
-		'expires_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '+1 hour' ) ),
+		'expires_at' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc()->modify( '+1 hour' ) ),
 		'used_at' => null,
-		'created_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc() ),
+		'created_at' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc() ),
 	]
 );
 $legacy_token_id = (int) $wpdb->insert_id;
-update_option( 'cemb_token_storage_version', 0, false );
-Cemb\Tokens\TokenMigration::maybeRun();
+update_option( 'wpcb_token_storage_version', 0, false );
+Wpcb\Tokens\TokenMigration::maybeRun();
 $legacy_token_row = $wpdb->get_row(
 	$wpdb->prepare( "SELECT * FROM {$token_table} WHERE id = %d", $legacy_token_id )
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	$legacy_token_row && ! empty( $legacy_token_row->used_at ),
 	'Legacy unindexed tokens are explicitly revoked during migration.'
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	'invalid' === $one_time_tokens->inspect( $legacy_token_secret, 'legacy_ci' )['state'],
 	'Legacy raw-token format is not kept through an O(n) compatibility scan.'
 );
-cemb_smoke_assert(
-	(int) get_option( 'cemb_legacy_tokens_revoked', 0 ) >= 1,
+wpcb_smoke_assert(
+	(int) get_option( 'wpcb_legacy_tokens_revoked', 0 ) >= 1,
 	'Legacy-token revocation count is recorded for diagnostics.'
 );
-cemb_smoke_assert(
-	Cemb\Tokens\TokenMigration::currentVersion() === (int) get_option( 'cemb_token_storage_version', 0 ),
+wpcb_smoke_assert(
+	Wpcb\Tokens\TokenMigration::currentVersion() === (int) get_option( 'wpcb_token_storage_version', 0 ),
 	'Indexed token storage migration is recorded.'
 );
 $wpdb->delete( $token_table, [ 'booking_id' => $token_fixture_booking_id ] );
 
-$type_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}cemb_booking_types" );
-cemb_smoke_assert( $type_count >= 1, 'Default booking types are seeded.' );
+$type_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_types" );
+wpcb_smoke_assert( $type_count >= 1, 'Default booking types are seeded.' );
 
-$rule_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}cemb_availability_rules" );
-cemb_smoke_assert( $rule_count >= 1, 'Default availability rules are seeded.' );
+$rule_count = (int) $wpdb->get_var( "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_availability_rules" );
+wpcb_smoke_assert( $rule_count >= 1, 'Default availability rules are seeded.' );
 
 
-$type_repo = new Cemb\Booking\BookingTypeRepository();
+$type_repo = new Wpcb\Booking\BookingTypeRepository();
 $types = $type_repo->all( true );
-cemb_smoke_assert( ! empty( $types ), 'At least one public booking type is available for slot tests.' );
+wpcb_smoke_assert( ! empty( $types ), 'At least one public booking type is available for slot tests.' );
 
 $type_id = (int) $types[0]->id;
 
 /* Provider-neutral connection model. */
 $provider_filter = static function ( $providers ) {
-	$providers[] = new class implements Cemb\Calendar\CalendarProviderInterface {
+	$providers[] = new class implements Wpcb\Calendar\CalendarProviderInterface {
 		public function id(): string { return 'ci-provider'; }
 		public function label(): string { return 'CI Provider'; }
 		public function capabilities(): array {
 			return [
-				Cemb\Calendar\ProviderCapabilities::BUSY_READ,
-				Cemb\Calendar\ProviderCapabilities::EVENT_CREATE,
+				Wpcb\Calendar\ProviderCapabilities::BUSY_READ,
+				Wpcb\Calendar\ProviderCapabilities::EVENT_CREATE,
 				'not-a-real-capability',
 			];
 		}
 	};
 	return $providers;
 };
-add_filter( 'cemb_calendar_providers', $provider_filter );
-$provider_registry = new Cemb\Calendar\ProviderRegistry();
-cemb_smoke_assert( null !== $provider_registry->get( 'ci-provider' ), 'Calendar provider registry accepts extensible provider adapters.' );
-cemb_smoke_assert(
-	$provider_registry->supports( 'ci-provider', Cemb\Calendar\ProviderCapabilities::BUSY_READ ),
+add_filter( 'wpcb_calendar_providers', $provider_filter );
+$provider_registry = new Wpcb\Calendar\ProviderRegistry();
+wpcb_smoke_assert( null !== $provider_registry->get( 'ci-provider' ), 'Calendar provider registry accepts extensible provider adapters.' );
+wpcb_smoke_assert(
+	$provider_registry->supports( 'ci-provider', Wpcb\Calendar\ProviderCapabilities::BUSY_READ ),
 	'Provider registry exposes advertised busy-read capability.'
 );
-cemb_smoke_assert(
-	! $provider_registry->supports( 'ci-provider', Cemb\Calendar\ProviderCapabilities::EVENT_CANCEL ),
+wpcb_smoke_assert(
+	! $provider_registry->supports( 'ci-provider', Wpcb\Calendar\ProviderCapabilities::EVENT_CANCEL ),
 	'Provider registry does not invent unsupported capabilities.'
 );
 
-$connection_repo = new Cemb\Calendar\CalendarConnectionRepository();
+$connection_repo = new Wpcb\Calendar\CalendarConnectionRepository();
 $connection_id = $connection_repo->create(
 	[
 		'provider' => 'ci-provider',
@@ -467,31 +467,31 @@ $connection_id = $connection_repo->create(
 		'refresh_token' => 'PRIVATE-PROVIDER-REFRESH',
 	]
 );
-cemb_smoke_assert( is_int( $connection_id ) && $connection_id > 0, 'Provider-neutral calendar connection can be stored.' );
+wpcb_smoke_assert( is_int( $connection_id ) && $connection_id > 0, 'Provider-neutral calendar connection can be stored.' );
 $connection = $connection_repo->find( $connection_id );
-cemb_smoke_assert(
-	$connection instanceof Cemb\Calendar\CalendarConnection
+wpcb_smoke_assert(
+	$connection instanceof Wpcb\Calendar\CalendarConnection
 	&& 'ci-provider' === $connection->provider
 	&& 'calendar-primary' === $connection->remoteCalendarId,
 	'Connection model retains provider and selected remote calendar identifier.'
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	! property_exists( $connection, 'credentials' ) && ! property_exists( $connection, 'credentials_enc' ),
 	'Normal connection reads do not expose credential payloads.'
 );
 $raw_connection_secret = (string) $wpdb->get_var(
 	$wpdb->prepare(
-		"SELECT credentials_enc FROM {$wpdb->prefix}cemb_calendar_connections WHERE id = %d",
+		"SELECT credentials_enc FROM {$wpdb->prefix}wpcb_calendar_connections WHERE id = %d",
 		$connection_id
 	)
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	false === strpos( $raw_connection_secret, 'PRIVATE-PROVIDER-TOKEN' )
 	&& 0 === strpos( $raw_connection_secret, 'v2:' ),
 	'Provider credentials are authenticated-encrypted at rest.'
 );
 $decrypted_connection_secret = $connection_repo->credentials( $connection_id );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	is_array( $decrypted_connection_secret )
 	&& 'PRIVATE-PROVIDER-TOKEN' === ( $decrypted_connection_secret['access_token'] ?? '' ),
 	'Provider credentials decrypt only through explicit secret access.'
@@ -507,20 +507,20 @@ $connection_repo->setForBookingType(
 	]
 );
 $selected_connections = $connection_repo->forBookingType( $type_id );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	1 === count( $selected_connections )
 	&& ! empty( $selected_connections[0]['blocks_availability'] )
 	&& empty( $selected_connections[0]['receives_bookings'] ),
 	'Booking type selects provider connections independently for blocking and write-back.'
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	1 === count( $connection_repo->blockingForBookingType( $type_id ) )
 	&& 0 === count( $connection_repo->writeDestinationsForBookingType( $type_id ) ),
 	'Booking-domain queries resolve only the requested connection role.'
 );
 $connection_repo->setHealthError( $connection_id, 'CI health error' );
 $health_error = $connection_repo->find( $connection_id );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	'error' === $health_error->healthStatus
 	&& null !== $health_error->lastErrorAt
 	&& 'CI health error' === $health_error->lastErrorMessage,
@@ -528,38 +528,38 @@ cemb_smoke_assert(
 );
 $connection_repo->setHealthSuccess( $connection_id );
 $health_ok = $connection_repo->find( $connection_id );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	'ok' === $health_ok->healthStatus
 	&& null !== $health_ok->lastSuccessAt
 	&& '' === $health_ok->lastErrorMessage,
 	'Connection health stores last successful check metadata.'
 );
 $connection_config = $connection_repo->config( $connection_id );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	'ci@example.test' === ( $connection_config['account_hint'] ?? '' )
 	&& ! isset( $connection_config['nested_secret'] ),
 	'Non-secret provider config is stored separately and restricted to scalar values.'
 );
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_type_calendar_connections', [ 'connection_id' => $connection_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_calendar_connections', [ 'id' => $connection_id ] );
-remove_filter( 'cemb_calendar_providers', $provider_filter );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_type_calendar_connections', [ 'connection_id' => $connection_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_calendar_connections', [ 'id' => $connection_id ] );
+remove_filter( 'wpcb_calendar_providers', $provider_filter );
 
 /* Google Calendar OAuth, refresh, FreeBusy and Events API. */
-$google_client_id_backup = get_option( 'cemb_google_oauth_client_id', null );
-$google_client_secret_backup = get_option( 'cemb_google_oauth_client_secret_enc', null );
-$google_config = new Cemb\Calendar\GoogleOAuthConfig();
+$google_client_id_backup = get_option( 'wpcb_google_oauth_client_id', null );
+$google_client_secret_backup = get_option( 'wpcb_google_oauth_client_secret_enc', null );
+$google_config = new Wpcb\Calendar\GoogleOAuthConfig();
 $google_saved = $google_config->save( 'ci-google-client.apps.googleusercontent.com', 'CI-GOOGLE-CLIENT-SECRET' );
-cemb_smoke_assert( true === $google_saved && $google_config->configured(), 'Google OAuth client settings are stored with an encrypted secret.' );
-cemb_smoke_assert(
+wpcb_smoke_assert( true === $google_saved && $google_config->configured(), 'Google OAuth client settings are stored with an encrypted secret.' );
+wpcb_smoke_assert(
 	[ 'https://www.googleapis.com/auth/calendar.freebusy' ] === $google_config->scopes( true, false ),
 	'FreeBusy-only Google connection requests only the freebusy scope.'
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	[ 'https://www.googleapis.com/auth/calendar.events' ] === $google_config->scopes( false, true ),
 	'Write-back-only Google connection requests only the events scope.'
 );
 
-$oauth_controller = new Cemb\Calendar\GoogleOAuthController( $google_config );
+$oauth_controller = new Wpcb\Calendar\GoogleOAuthController( $google_config );
 $oauth_original_user_id = get_current_user_id();
 wp_set_current_user( 1 );
 $oauth_state = $oauth_controller->issueState( [ 'purpose' => 'ci' ] );
@@ -567,27 +567,27 @@ $oauth_url = $oauth_controller->authorizationUrl( true, true, $oauth_state );
 $oauth_query = [];
 parse_str( (string) wp_parse_url( $oauth_url, PHP_URL_QUERY ), $oauth_query );
 $oauth_scopes = preg_split( '/\s+/', trim( (string) ( $oauth_query['scope'] ?? '' ) ) ) ?: [];
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	in_array( 'https://www.googleapis.com/auth/calendar.freebusy', $oauth_scopes, true )
 	&& in_array( 'https://www.googleapis.com/auth/calendar.events', $oauth_scopes, true )
 	&& $oauth_state === ( $oauth_query['state'] ?? '' ),
 	'Google authorization URL carries minimal requested scopes and an unpredictable state value.'
 );
 $consumed_state = $oauth_controller->consumeState( $oauth_state );
-cemb_smoke_assert( is_array( $consumed_state ) && ( $consumed_state['purpose'] ?? '' ) === 'ci', 'Google OAuth state is bound to the current administrator.' );
-cemb_smoke_assert( null === $oauth_controller->consumeState( $oauth_state ), 'Google OAuth state is one-time and cannot be replayed.' );
+wpcb_smoke_assert( is_array( $consumed_state ) && ( $consumed_state['purpose'] ?? '' ) === 'ci', 'Google OAuth state is bound to the current administrator.' );
+wpcb_smoke_assert( null === $oauth_controller->consumeState( $oauth_state ), 'Google OAuth state is one-time and cannot be replayed.' );
 
 $cross_user_state = $oauth_controller->issueState( [ 'purpose' => 'wrong-user' ] );
 wp_set_current_user( 0 );
-cemb_smoke_assert( null === $oauth_controller->consumeState( $cross_user_state ), 'Google OAuth state cannot be consumed by a different WordPress user.' );
+wpcb_smoke_assert( null === $oauth_controller->consumeState( $cross_user_state ), 'Google OAuth state cannot be consumed by a different WordPress user.' );
 wp_set_current_user( $oauth_original_user_id );
 
-$pre_google_slot_service = new Cemb\Availability\SlotService();
+$pre_google_slot_service = new Wpcb\Availability\SlotService();
 $pre_google_slots = $pre_google_slot_service->getSlots( $type_id, 21 );
-cemb_smoke_assert( ! empty( $pre_google_slots ), 'A canonical slot exists before Google FreeBusy blocking is attached.' );
+wpcb_smoke_assert( ! empty( $pre_google_slots ), 'A canonical slot exists before Google FreeBusy blocking is attached.' );
 $google_blocked_slot = $pre_google_slots[0];
 
-$google_connection_repo = new Cemb\Calendar\CalendarConnectionRepository();
+$google_connection_repo = new Wpcb\Calendar\CalendarConnectionRepository();
 $google_connection_id = $google_connection_repo->create(
 	[
 		'provider' => 'google',
@@ -604,7 +604,7 @@ $google_connection_id = $google_connection_repo->create(
 		'token_type' => 'Bearer',
 	]
 );
-cemb_smoke_assert( is_int( $google_connection_id ) && $google_connection_id > 0, 'Google OAuth tokens are stored in a provider connection.' );
+wpcb_smoke_assert( is_int( $google_connection_id ) && $google_connection_id > 0, 'Google OAuth tokens are stored in a provider connection.' );
 $google_connection_repo->setForBookingType(
 	$type_id,
 	[
@@ -635,8 +635,8 @@ $google_http_filter = static function ( $preempt, $args, $url ) use ( &$google_r
 	}
 
 	if ( $url === 'https://www.googleapis.com/calendar/v3/freeBusy' ) {
-		$start = Cemb\Support\Time::parseUtc( $google_blocked_slot['start'] );
-		$end = Cemb\Support\Time::parseUtc( $google_blocked_slot['end'] );
+		$start = Wpcb\Support\Time::parseUtc( $google_blocked_slot['start'] );
+		$end = Wpcb\Support\Time::parseUtc( $google_blocked_slot['end'] );
 		return [
 			'headers' => [],
 			'response' => [ 'code' => 200, 'message' => 'OK' ],
@@ -682,41 +682,41 @@ $google_http_filter = static function ( $preempt, $args, $url ) use ( &$google_r
 };
 add_filter( 'pre_http_request', $google_http_filter, 10, 3 );
 
-$google_provider = new Cemb\Calendar\GoogleCalendarProvider( $google_connection_repo, $google_config );
+$google_provider = new Wpcb\Calendar\GoogleCalendarProvider( $google_connection_repo, $google_config );
 $google_busy = $google_provider->busyBetween(
-	Cemb\Support\Time::addMinutes( $google_blocked_slot['start'], -60 ),
-	Cemb\Support\Time::addMinutes( $google_blocked_slot['end'], 60 ),
+	Wpcb\Support\Time::addMinutes( $google_blocked_slot['start'], -60 ),
+	Wpcb\Support\Time::addMinutes( $google_blocked_slot['end'], 60 ),
 	$google_connection
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	is_array( $google_busy ) && 1 === count( $google_busy )
 	&& $google_blocked_slot['start'] === $google_busy[0]['start'],
 	'Google FreeBusy response is normalized into canonical UTC busy intervals.'
 );
 $refreshed_google_credentials = $google_connection_repo->credentials( $google_connection_id );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	'REFRESHED-GOOGLE-ACCESS' === ( $refreshed_google_credentials['access_token'] ?? '' )
 	&& 'CI-GOOGLE-REFRESH' === ( $refreshed_google_credentials['refresh_token'] ?? '' ),
 	'Expired Google access token refreshes while preserving the encrypted refresh token.'
 );
 $google_health_after_read = $google_connection_repo->find( $google_connection_id );
-cemb_smoke_assert( null !== $google_health_after_read->lastReadAt, 'Successful Google FreeBusy updates last-read diagnostics.' );
+wpcb_smoke_assert( null !== $google_health_after_read->lastReadAt, 'Successful Google FreeBusy updates last-read diagnostics.' );
 
-$google_block_check = new Cemb\Availability\SlotService();
-cemb_smoke_assert(
+$google_block_check = new Wpcb\Availability\SlotService();
+wpcb_smoke_assert(
 	! $google_block_check->slotAvailable( $type_id, $google_blocked_slot['start'], $google_blocked_slot['end'] ),
 	'Google FreeBusy interval blocks the canonical booking slot.'
 );
 
-$google_booking_repo = new Cemb\Booking\BookingRepository();
-$google_now = Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc() );
+$google_booking_repo = new Wpcb\Booking\BookingRepository();
+$google_now = Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc() );
 $google_booking_id = $google_booking_repo->create(
 	[
 		'booking_uuid' => wp_generate_uuid4(),
 		'booking_type_id' => $type_id,
-		'slot_start' => Cemb\Support\Time::addMinutes( $google_blocked_slot['start'], 180 ),
-		'slot_end' => Cemb\Support\Time::addMinutes( $google_blocked_slot['end'], 180 ),
-		'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+		'slot_start' => Wpcb\Support\Time::addMinutes( $google_blocked_slot['start'], 180 ),
+		'slot_end' => Wpcb\Support\Time::addMinutes( $google_blocked_slot['end'], 180 ),
+		'status' => Wpcb\Booking\BookingStatus::CONFIRMED,
 		'full_name' => 'Google CI Person',
 		'email' => 'google-ci@example.com',
 		'source' => 'ci',
@@ -729,43 +729,43 @@ $google_booking_id = $google_booking_repo->create(
 $google_booking = (array) $google_booking_repo->find( $google_booking_id );
 $google_meta = $google_booking_repo->getMeta( $google_booking_id );
 $google_create = $google_provider->createEvent( $google_booking, $google_meta, $google_connection );
-cemb_smoke_assert( is_array( $google_create ) && 'google-event-ci' === ( $google_create['event_id'] ?? '' ), 'Confirmed booking creates a Google Calendar event.' );
+wpcb_smoke_assert( is_array( $google_create ) && 'google-event-ci' === ( $google_create['event_id'] ?? '' ), 'Confirmed booking creates a Google Calendar event.' );
 
-$google_queue = new Cemb\Sync\QueueService();
+$google_queue = new Wpcb\Sync\QueueService();
 $google_queue_job_id = $google_queue->enqueueCreate( $google_booking_id );
-cemb_smoke_assert( $google_queue_job_id > 0, 'Confirmed booking enqueues provider write-back for its selected Google destination.' );
+wpcb_smoke_assert( $google_queue_job_id > 0, 'Confirmed booking enqueues provider write-back for its selected Google destination.' );
 $google_queue->runNow();
 $google_queue_meta = $google_booking_repo->getMeta( $google_booking_id );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	'google-event-ci' === ( $google_queue_meta[ 'provider_event_google_' . $google_connection_id ] ?? '' ),
 	'Provider queue persists a remote Google event identifier per booking and connection.'
 );
 $google_queue_row = $wpdb->get_row(
-	$wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cemb_sync_jobs WHERE id = %d", $google_queue_job_id )
+	$wpdb->prepare( "SELECT * FROM {$wpdb->prefix}wpcb_sync_jobs WHERE id = %d", $google_queue_job_id )
 );
-cemb_smoke_assert( $google_queue_row && 'done' === $google_queue_row->status, 'Google provider write-back completes through the leased sync queue.' );
+wpcb_smoke_assert( $google_queue_row && 'done' === $google_queue_row->status, 'Google provider write-back completes through the leased sync queue.' );
 $google_sync_log = (string) $wpdb->get_var(
 	$wpdb->prepare(
-		"SELECT GROUP_CONCAT(message SEPARATOR ' ') FROM {$wpdb->prefix}cemb_sync_log WHERE booking_id = %d",
+		"SELECT GROUP_CONCAT(message SEPARATOR ' ') FROM {$wpdb->prefix}wpcb_sync_log WHERE booking_id = %d",
 		$google_booking_id
 	)
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	false === strpos( $google_sync_log, 'google-ci@example.com' )
 	&& false === strpos( $google_sync_log, 'Google CI Subject' )
 	&& false === strpos( $google_sync_log, 'CI-GOOGLE-REFRESH' ),
 	'Provider sync log does not copy customer content or OAuth secrets.'
 );
 $google_update = $google_provider->updateEvent( $google_booking, $google_meta, $google_connection, 'google-event-ci' );
-cemb_smoke_assert( is_array( $google_update ) && ! empty( $google_update['ok'] ), 'Booking update uses the Google Calendar Events API.' );
+wpcb_smoke_assert( is_array( $google_update ) && ! empty( $google_update['ok'] ), 'Booking update uses the Google Calendar Events API.' );
 $google_cancel = $google_provider->cancelEvent( $google_connection, 'google-event-ci' );
-cemb_smoke_assert( is_array( $google_cancel ) && ! empty( $google_cancel['ok'] ), 'Booking cancellation deletes the Google Calendar event.' );
+wpcb_smoke_assert( is_array( $google_cancel ) && ! empty( $google_cancel['ok'] ), 'Booking cancellation deletes the Google Calendar event.' );
 $google_health_after_write = $google_connection_repo->find( $google_connection_id );
-cemb_smoke_assert( null !== $google_health_after_write->lastWriteAt, 'Successful Google event write updates last-write diagnostics.' );
+wpcb_smoke_assert( null !== $google_health_after_write->lastWriteAt, 'Successful Google event write updates last-write diagnostics.' );
 
 $google_methods = array_column( $google_requests, 'method' );
 $google_urls = array_column( $google_requests, 'url' );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	in_array( 'POST', $google_methods, true ) && in_array( 'PUT', $google_methods, true ) && in_array( 'DELETE', $google_methods, true ),
 	'Mocked Google integration exercises create, update and cancel HTTP methods.'
 );
@@ -774,7 +774,7 @@ $google_calendar_requests = array_values( array_filter(
 	static fn( $request ) => 0 === strpos( (string) $request['url'], 'https://www.googleapis.com/calendar/v3/' )
 ) );
 $google_calendar_request_dump = wp_json_encode( $google_calendar_requests );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	false === strpos( $google_calendar_request_dump, 'CI-GOOGLE-REFRESH' ),
 	'Google refresh token is never sent to Calendar API requests.'
 );
@@ -782,53 +782,53 @@ cemb_smoke_assert(
 remove_filter( 'pre_http_request', $google_http_filter, 10 );
 $google_connection_repo->setForBookingType( $type_id, [] );
 $google_connection_repo->delete( $google_connection_id );
-$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'booking_id' => $google_booking_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'booking_id' => $google_booking_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $google_booking_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $google_booking_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $google_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_sync_log', [ 'booking_id' => $google_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_sync_jobs', [ 'booking_id' => $google_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_meta', [ 'booking_id' => $google_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_status_log', [ 'booking_id' => $google_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_bookings', [ 'id' => $google_booking_id ] );
 if ( $google_client_id_backup === null ) {
-	delete_option( 'cemb_google_oauth_client_id' );
+	delete_option( 'wpcb_google_oauth_client_id' );
 } else {
-	update_option( 'cemb_google_oauth_client_id', $google_client_id_backup, false );
+	update_option( 'wpcb_google_oauth_client_id', $google_client_id_backup, false );
 }
 if ( $google_client_secret_backup === null ) {
-	delete_option( 'cemb_google_oauth_client_secret_enc' );
+	delete_option( 'wpcb_google_oauth_client_secret_enc' );
 } else {
-	update_option( 'cemb_google_oauth_client_secret_enc', $google_client_secret_backup, false );
+	update_option( 'wpcb_google_oauth_client_secret_enc', $google_client_secret_backup, false );
 }
 
-$slot_service = new Cemb\Availability\SlotService();
+$slot_service = new Wpcb\Availability\SlotService();
 $slots = $slot_service->getSlots( $type_id, 21 );
-cemb_smoke_assert( ! empty( $slots ), 'Server generates at least one canonical slot.' );
+wpcb_smoke_assert( ! empty( $slots ), 'Server generates at least one canonical slot.' );
 
 $slot = $slots[0];
-$token_service = new Cemb\Tokens\SlotTokenService();
-$selection_service = new Cemb\Availability\SlotSelectionService();
+$token_service = new Wpcb\Tokens\SlotTokenService();
+$selection_service = new Wpcb\Availability\SlotSelectionService();
 
 $token = $token_service->issue( $type_id, $slot['start'], $slot['end'] );
 $payload = $token_service->verify( $token );
-cemb_smoke_assert( is_array( $payload ), 'A server-issued slot token verifies.' );
-cemb_smoke_assert( $type_id === $payload['type_id'], 'Slot token binds the booking type.' );
-cemb_smoke_assert( $slot['start'] === $payload['start'] && $slot['end'] === $payload['end'], 'Slot token binds the canonical start and end.' );
-cemb_smoke_assert( is_array( $selection_service->resolve( $token, $type_id ) ), 'A valid token resolves only after current availability revalidation.' );
+wpcb_smoke_assert( is_array( $payload ), 'A server-issued slot token verifies.' );
+wpcb_smoke_assert( $type_id === $payload['type_id'], 'Slot token binds the booking type.' );
+wpcb_smoke_assert( $slot['start'] === $payload['start'] && $slot['end'] === $payload['end'], 'Slot token binds the canonical start and end.' );
+wpcb_smoke_assert( is_array( $selection_service->resolve( $token, $type_id ) ), 'A valid token resolves only after current availability revalidation.' );
 
 $tampered = substr( $token, 0, -1 ) . ( substr( $token, -1 ) === 'A' ? 'B' : 'A' );
-cemb_smoke_assert( null === $token_service->verify( $tampered ), 'A tampered slot token is rejected.' );
-cemb_smoke_assert( null === $selection_service->resolve( $token, $type_id + 9999 ), 'A slot token cannot be reused for another booking type.' );
+wpcb_smoke_assert( null === $token_service->verify( $tampered ), 'A tampered slot token is rejected.' );
+wpcb_smoke_assert( null === $selection_service->resolve( $token, $type_id + 9999 ), 'A slot token cannot be reused for another booking type.' );
 
 $short_lived = $token_service->issue( $type_id, $slot['start'], $slot['end'], 60 );
-cemb_smoke_assert( null === $token_service->verify( $short_lived, time() + 61 ), 'An expired slot token is rejected.' );
+wpcb_smoke_assert( null === $token_service->verify( $short_lived, time() + 61 ), 'An expired slot token is rejected.' );
 
 $off_start = date( 'Y-m-d H:i:s', strtotime( $slot['start'] . ' +5 minutes' ) );
 $off_end = date( 'Y-m-d H:i:s', strtotime( $slot['end'] . ' +5 minutes' ) );
 $off_grid_token = $token_service->issue( $type_id, $off_start, $off_end );
-cemb_smoke_assert( null === $selection_service->resolve( $off_grid_token, $type_id ), 'A signed but non-canonical off-grid slot is rejected.' );
+wpcb_smoke_assert( null === $selection_service->resolve( $off_grid_token, $type_id ), 'A signed but non-canonical off-grid slot is rejected.' );
 
 /* Booking state machine, legacy migration and audit coverage. */
-$legacy_now = Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc() );
+$legacy_now = Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc() );
 $wpdb->insert(
-	$wpdb->prefix . 'cemb_bookings',
+	$wpdb->prefix . 'wpcb_bookings',
 	[
 		'booking_uuid' => wp_generate_uuid4(),
 		'booking_type_id' => $type_id,
@@ -844,7 +844,7 @@ $wpdb->insert(
 );
 $legacy_status_booking_id = (int) $wpdb->insert_id;
 $wpdb->insert(
-	$wpdb->prefix . 'cemb_booking_status_log',
+	$wpdb->prefix . 'wpcb_booking_status_log',
 	[
 		'booking_id' => $legacy_status_booking_id,
 		'old_status' => 'pending_admin_approval',
@@ -856,39 +856,39 @@ $wpdb->insert(
 	]
 );
 $legacy_log_id = (int) $wpdb->insert_id;
-update_option( 'cemb_booking_status_version', 0, false );
-Cemb\Booking\BookingStatusMigration::maybeRun();
+update_option( 'wpcb_booking_status_version', 0, false );
+Wpcb\Booking\BookingStatusMigration::maybeRun();
 $legacy_booking_status = (string) $wpdb->get_var(
-	$wpdb->prepare( "SELECT status FROM {$wpdb->prefix}cemb_bookings WHERE id = %d", $legacy_status_booking_id )
+	$wpdb->prepare( "SELECT status FROM {$wpdb->prefix}wpcb_bookings WHERE id = %d", $legacy_status_booking_id )
 );
 $legacy_log = $wpdb->get_row(
-	$wpdb->prepare( "SELECT old_status, new_status FROM {$wpdb->prefix}cemb_booking_status_log WHERE id = %d", $legacy_log_id )
+	$wpdb->prepare( "SELECT old_status, new_status FROM {$wpdb->prefix}wpcb_booking_status_log WHERE id = %d", $legacy_log_id )
 );
-cemb_smoke_assert( Cemb\Booking\BookingStatus::CONFIRMED === $legacy_booking_status, 'Legacy updated booking status migrates to confirmed.' );
-cemb_smoke_assert(
-	Cemb\Booking\BookingStatus::PENDING_APPROVAL === $legacy_log->old_status
-	&& Cemb\Booking\BookingStatus::CONFIRMED === $legacy_log->new_status,
+wpcb_smoke_assert( Wpcb\Booking\BookingStatus::CONFIRMED === $legacy_booking_status, 'Legacy updated booking status migrates to confirmed.' );
+wpcb_smoke_assert(
+	Wpcb\Booking\BookingStatus::PENDING_APPROVAL === $legacy_log->old_status
+	&& Wpcb\Booking\BookingStatus::CONFIRMED === $legacy_log->new_status,
 	'Legacy audit status values migrate to canonical lifecycle states.'
 );
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $legacy_status_booking_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $legacy_status_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_status_log', [ 'booking_id' => $legacy_status_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_bookings', [ 'id' => $legacy_status_booking_id ] );
 
 
 /* Queue lease and side-effect idempotency regression fixtures. */
-$delivery_table = $wpdb->prefix . 'cemb_deliveries';
-cemb_smoke_assert(
+$delivery_table = $wpdb->prefix . 'wpcb_deliveries';
+wpcb_smoke_assert(
 	$delivery_table === $wpdb->get_var( $wpdb->prepare( 'SHOW TABLES LIKE %s', $delivery_table ) ),
 	'Delivery idempotency table exists.'
 );
 
-$queue_booking_repo = new Cemb\Booking\BookingRepository();
+$queue_booking_repo = new Wpcb\Booking\BookingRepository();
 $queue_booking_id = $queue_booking_repo->create(
 	[
 		'booking_uuid' => wp_generate_uuid4(),
 		'booking_type_id' => $type_id,
 		'slot_start' => '2033-01-15 08:00:00',
 		'slot_end' => '2033-01-15 08:30:00',
-		'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+		'status' => Wpcb\Booking\BookingStatus::CONFIRMED,
 		'full_name' => 'Queue Fixture',
 		'email' => 'queue-fixture@example.com',
 		'source' => 'ci',
@@ -899,96 +899,96 @@ $queue_booking_id = $queue_booking_repo->create(
 	[]
 );
 
-$delivery_repo = new Cemb\Reliability\DeliveryRepository();
+$delivery_repo = new Wpcb\Reliability\DeliveryRepository();
 $delivery_key = 'ci:delivery:' . wp_generate_uuid4();
 $delivery = $delivery_repo->begin( $queue_booking_id, $delivery_key, 'email', 'ci' );
-cemb_smoke_assert( ! empty( $delivery['should_run'] ) && (int) $delivery['id'] > 0, 'First delivery claim may run.' );
-cemb_smoke_assert( $delivery_repo->markSending( (int) $delivery['id'] ), 'Delivery enters sending state atomically.' );
+wpcb_smoke_assert( ! empty( $delivery['should_run'] ) && (int) $delivery['id'] > 0, 'First delivery claim may run.' );
+wpcb_smoke_assert( $delivery_repo->markSending( (int) $delivery['id'] ), 'Delivery enters sending state atomically.' );
 $delivery_retry = $delivery_repo->begin( $type_id, $delivery_key, 'email', 'ci' );
-cemb_smoke_assert( empty( $delivery_retry['should_run'] ) && 'sending' === $delivery_retry['status'], 'Uncertain in-flight email is not sent twice.' );
+wpcb_smoke_assert( empty( $delivery_retry['should_run'] ) && 'sending' === $delivery_retry['status'], 'Uncertain in-flight email is not sent twice.' );
 $delivery_repo->markSent( (int) $delivery['id'] );
 $delivery_done = $delivery_repo->begin( $type_id, $delivery_key, 'email', 'ci' );
-cemb_smoke_assert( empty( $delivery_done['should_run'] ) && 'sent' === $delivery_done['status'], 'Completed email delivery is idempotent.' );
+wpcb_smoke_assert( empty( $delivery_done['should_run'] ) && 'sent' === $delivery_done['status'], 'Completed email delivery is idempotent.' );
 
-$jobs = new Cemb\Sync\JobRepository();
+$jobs = new Wpcb\Sync\JobRepository();
 $queue_key = 'ci:queue:' . wp_generate_uuid4();
 $queue_job_id = $jobs->enqueue( 'update', $queue_booking_id, [ 'ci' => true ], $queue_key );
-cemb_smoke_assert( $queue_job_id > 0, 'Idempotent queue job is created.' );
-cemb_smoke_assert(
+wpcb_smoke_assert( $queue_job_id > 0, 'Idempotent queue job is created.' );
+wpcb_smoke_assert(
 	$queue_job_id === $jobs->enqueue( 'update', $queue_booking_id, [ 'ci' => true ], $queue_key ),
 	'Repeated enqueue with the same idempotency key reuses the existing job.'
 );
 
 $claimed_a = $jobs->claim( 'ci-worker-a', 1, 60 );
-cemb_smoke_assert( 1 === count( $claimed_a ) && (int) $claimed_a[0]->id === $queue_job_id, 'First worker atomically claims the pending job.' );
-cemb_smoke_assert( [] === $jobs->claim( 'ci-worker-b', 1, 60 ), 'Second worker cannot claim a live leased job.' );
+wpcb_smoke_assert( 1 === count( $claimed_a ) && (int) $claimed_a[0]->id === $queue_job_id, 'First worker atomically claims the pending job.' );
+wpcb_smoke_assert( [] === $jobs->claim( 'ci-worker-b', 1, 60 ), 'Second worker cannot claim a live leased job.' );
 
 $wpdb->update(
-	$wpdb->prefix . 'cemb_sync_jobs',
-	[ 'lease_expires_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-1 minute' ) ) ],
+	$wpdb->prefix . 'wpcb_sync_jobs',
+	[ 'lease_expires_at' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc()->modify( '-1 minute' ) ) ],
 	[ 'id' => $queue_job_id ]
 );
 $claimed_b = $jobs->claim( 'ci-worker-b', 1, 60 );
-cemb_smoke_assert( 1 === count( $claimed_b ) && (int) $claimed_b[0]->attempts === 2, 'Stale running job is reclaimable by a new worker.' );
-cemb_smoke_assert(
+wpcb_smoke_assert( 1 === count( $claimed_b ) && (int) $claimed_b[0]->attempts === 2, 'Stale running job is reclaimable by a new worker.' );
+wpcb_smoke_assert(
 	$jobs->markFailed( $queue_job_id, $queue_booking_id, 'ci-worker-b', 'Authorization: SECRET Bearer super-secret-token' ),
 	'Leased worker can record a retryable failure.'
 );
-$failed_once = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}cemb_sync_jobs WHERE id = %d", $queue_job_id ) );
-cemb_smoke_assert( 'pending' === $failed_once->status && null === $failed_once->lease_owner, 'Retryable failure releases the lease and returns to pending.' );
-cemb_smoke_assert( false === strpos( (string) $failed_once->last_error, 'SECRET' ) && false === strpos( (string) $failed_once->last_error, 'super-secret-token' ), 'Queue errors redact obvious authorization secrets.' );
+$failed_once = $wpdb->get_row( $wpdb->prepare( "SELECT * FROM {$wpdb->prefix}wpcb_sync_jobs WHERE id = %d", $queue_job_id ) );
+wpcb_smoke_assert( 'pending' === $failed_once->status && null === $failed_once->lease_owner, 'Retryable failure releases the lease and returns to pending.' );
+wpcb_smoke_assert( false === strpos( (string) $failed_once->last_error, 'SECRET' ) && false === strpos( (string) $failed_once->last_error, 'super-secret-token' ), 'Queue errors redact obvious authorization secrets.' );
 
 $wpdb->update(
-	$wpdb->prefix . 'cemb_sync_jobs',
-	[ 'available_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-1 minute' ) ) ],
+	$wpdb->prefix . 'wpcb_sync_jobs',
+	[ 'available_at' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc()->modify( '-1 minute' ) ) ],
 	[ 'id' => $queue_job_id ]
 );
 $claimed_c = $jobs->claim( 'ci-worker-c', 1, 60 );
-cemb_smoke_assert( 1 === count( $claimed_c ), 'Backoff job becomes claimable again when available_at is reached.' );
-cemb_smoke_assert( $jobs->markDone( $queue_job_id, $queue_booking_id, 'ci-worker-c', 'CI complete' ), 'Lease owner can complete its claimed job.' );
-cemb_smoke_assert(
-	'done' === $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}cemb_sync_jobs WHERE id = %d", $queue_job_id ) ),
+wpcb_smoke_assert( 1 === count( $claimed_c ), 'Backoff job becomes claimable again when available_at is reached.' );
+wpcb_smoke_assert( $jobs->markDone( $queue_job_id, $queue_booking_id, 'ci-worker-c', 'CI complete' ), 'Lease owner can complete its claimed job.' );
+wpcb_smoke_assert(
+	'done' === $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}wpcb_sync_jobs WHERE id = %d", $queue_job_id ) ),
 	'Completed queue job persists done state.'
 );
-cemb_smoke_assert( [] === $jobs->claim( 'ci-worker-d', 1, 60 ), 'Completed idempotent job is not claimed again.' );
+wpcb_smoke_assert( [] === $jobs->claim( 'ci-worker-d', 1, 60 ), 'Completed idempotent job is not claimed again.' );
 
 $terminal_key = 'ci:queue:max:' . wp_generate_uuid4();
 $terminal_job_id = $jobs->enqueue( 'update', $queue_booking_id, [], $terminal_key );
 $wpdb->update(
-	$wpdb->prefix . 'cemb_sync_jobs',
+	$wpdb->prefix . 'wpcb_sync_jobs',
 	[
 		'attempts' => 4,
-		'available_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-1 minute' ) ),
+		'available_at' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc()->modify( '-1 minute' ) ),
 	],
 	[ 'id' => $terminal_job_id ]
 );
 $terminal_claim = $jobs->claim( 'ci-worker-terminal', 1, 60 );
-cemb_smoke_assert( 1 === count( $terminal_claim ) && 5 === (int) $terminal_claim[0]->attempts, 'Fifth queue attempt can run.' );
+wpcb_smoke_assert( 1 === count( $terminal_claim ) && 5 === (int) $terminal_claim[0]->attempts, 'Fifth queue attempt can run.' );
 $jobs->markFailed( $terminal_job_id, $queue_booking_id, 'ci-worker-terminal', 'Permanent CI failure' );
-cemb_smoke_assert(
-	'failed' === $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}cemb_sync_jobs WHERE id = %d", $terminal_job_id ) ),
+wpcb_smoke_assert(
+	'failed' === $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}wpcb_sync_jobs WHERE id = %d", $terminal_job_id ) ),
 	'Queue stops retrying after the bounded maximum attempt count.'
 );
 
 $crashed_key = 'ci:queue:crashed-final:' . wp_generate_uuid4();
 $crashed_job_id = $jobs->enqueue( 'update', $queue_booking_id, [], $crashed_key );
 $wpdb->update(
-	$wpdb->prefix . 'cemb_sync_jobs',
+	$wpdb->prefix . 'wpcb_sync_jobs',
 	[
 		'status' => 'running',
 		'attempts' => 5,
 		'lease_owner' => 'dead-worker',
-		'lease_expires_at' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-1 minute' ) ),
+		'lease_expires_at' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc()->modify( '-1 minute' ) ),
 	],
 	[ 'id' => $crashed_job_id ]
 );
 $jobs->claim( 'ci-worker-sweeper', 1, 60 );
-cemb_smoke_assert(
-	'failed' === $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}cemb_sync_jobs WHERE id = %d", $crashed_job_id ) ),
+wpcb_smoke_assert(
+	'failed' === $wpdb->get_var( $wpdb->prepare( "SELECT status FROM {$wpdb->prefix}wpcb_sync_jobs WHERE id = %d", $crashed_job_id ) ),
 	'Expired lease on the final attempt is terminalized instead of remaining stuck in running.'
 );
 
-$queue_connection_repo = new Cemb\Calendar\CalendarConnectionRepository();
+$queue_connection_repo = new Wpcb\Calendar\CalendarConnectionRepository();
 $queue_connection_id = $queue_connection_repo->create(
 	[
 		'provider' => 'ci-queue-provider',
@@ -1010,67 +1010,67 @@ $queue_connection_repo->setForBookingType(
 	]
 );
 
-$calendar_queue = new Cemb\Sync\QueueService();
+$calendar_queue = new Wpcb\Sync\QueueService();
 $calendar_job_a = $calendar_queue->enqueueUpdate( $queue_booking_id );
 $calendar_job_b = $calendar_queue->enqueueUpdate( $queue_booking_id );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	$calendar_job_a > 0 && $calendar_job_a === $calendar_job_b,
 	'Calendar sync is idempotent for one booking, destination and desired version.'
 );
 $queue_booking_repo->update( $queue_booking_id, [ 'slot_start' => '2033-01-15 09:00:00', 'slot_end' => '2033-01-15 09:30:00' ] );
 $calendar_job_c = $calendar_queue->enqueueUpdate( $queue_booking_id );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	$calendar_job_c > 0 && $calendar_job_c !== $calendar_job_a,
 	'Changing the desired calendar version creates a distinct sync job.'
 );
 
 $wpdb->delete( $delivery_table, [ 'idempotency_key' => $delivery_key ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $queue_job_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $terminal_job_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $queue_job_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $terminal_job_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $crashed_job_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $crashed_job_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $calendar_job_a ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $calendar_job_a ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_sync_log', [ 'job_id' => $queue_job_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_sync_log', [ 'job_id' => $terminal_job_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_sync_jobs', [ 'id' => $queue_job_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_sync_jobs', [ 'id' => $terminal_job_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_sync_log', [ 'job_id' => $crashed_job_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_sync_jobs', [ 'id' => $crashed_job_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_sync_log', [ 'job_id' => $calendar_job_a ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_sync_jobs', [ 'id' => $calendar_job_a ] );
 if ( $calendar_job_c !== $calendar_job_a ) {
-	$wpdb->delete( $wpdb->prefix . 'cemb_sync_log', [ 'job_id' => $calendar_job_c ] );
-	$wpdb->delete( $wpdb->prefix . 'cemb_sync_jobs', [ 'id' => $calendar_job_c ] );
+	$wpdb->delete( $wpdb->prefix . 'wpcb_sync_log', [ 'job_id' => $calendar_job_c ] );
+	$wpdb->delete( $wpdb->prefix . 'wpcb_sync_jobs', [ 'id' => $calendar_job_c ] );
 }
 $queue_connection_repo->setForBookingType( $type_id, [] );
 $queue_connection_repo->delete( $queue_connection_id );
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $queue_booking_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $queue_booking_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $queue_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_status_log', [ 'booking_id' => $queue_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_meta', [ 'booking_id' => $queue_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_bookings', [ 'id' => $queue_booking_id ] );
 
-$machine = new Cemb\Booking\BookingStateMachine();
-cemb_smoke_assert(
-	[] === $machine->adminEventsFor( Cemb\Booking\BookingStatus::RESERVED_UNCONFIRMED ),
+$machine = new Wpcb\Booking\BookingStateMachine();
+wpcb_smoke_assert(
+	[] === $machine->adminEventsFor( Wpcb\Booking\BookingStatus::RESERVED_UNCONFIRMED ),
 	'Admin cannot bypass Double Opt-In for an unconfirmed reservation.'
 );
-$pending_admin_events = $machine->adminEventsFor( Cemb\Booking\BookingStatus::PENDING_APPROVAL );
-cemb_smoke_assert(
+$pending_admin_events = $machine->adminEventsFor( Wpcb\Booking\BookingStatus::PENDING_APPROVAL );
+wpcb_smoke_assert(
 	isset(
-		$pending_admin_events[Cemb\Booking\BookingStateMachine::ADMIN_APPROVED],
-		$pending_admin_events[Cemb\Booking\BookingStateMachine::ADMIN_REJECTED],
-		$pending_admin_events[Cemb\Booking\BookingStateMachine::ADMIN_CANCELLED]
+		$pending_admin_events[Wpcb\Booking\BookingStateMachine::ADMIN_APPROVED],
+		$pending_admin_events[Wpcb\Booking\BookingStateMachine::ADMIN_REJECTED],
+		$pending_admin_events[Wpcb\Booking\BookingStateMachine::ADMIN_CANCELLED]
 	),
 	'Pending approval exposes only legal admin lifecycle actions.'
 );
-cemb_smoke_assert(
-	false !== has_action( 'cemb_booking_transitioned' ),
+wpcb_smoke_assert(
+	false !== has_action( 'wpcb_booking_transitioned' ),
 	'Mail/calendar transition effects are subscribed to lifecycle transitions.'
 );
-cemb_smoke_assert(
-	false !== has_action( 'cemb_booking_event_recorded' ),
+wpcb_smoke_assert(
+	false !== has_action( 'wpcb_booking_event_recorded' ),
 	'Reschedule effects are subscribed to lifecycle events.'
 );
 
 /* Disable outbound side effects for the state-machine integration fixture itself. */
-remove_all_actions( 'cemb_booking_transitioned' );
-remove_all_actions( 'cemb_booking_event_recorded' );
+remove_all_actions( 'wpcb_booking_transitioned' );
+remove_all_actions( 'wpcb_booking_event_recorded' );
 
-$lifecycle_booking_id = ( new Cemb\Booking\ReservationService() )->reserve(
+$lifecycle_booking_id = ( new Wpcb\Booking\ReservationService() )->reserve(
 	$token,
 	$type_id,
 	[
@@ -1083,50 +1083,50 @@ $lifecycle_booking_id = ( new Cemb\Booking\ReservationService() )->reserve(
 	],
 	[]
 );
-cemb_smoke_assert( ! is_wp_error( $lifecycle_booking_id ) && (int) $lifecycle_booking_id > 0, 'Lifecycle fixture creates a real reserved booking.' );
+wpcb_smoke_assert( ! is_wp_error( $lifecycle_booking_id ) && (int) $lifecycle_booking_id > 0, 'Lifecycle fixture creates a real reserved booking.' );
 $lifecycle_booking_id = (int) $lifecycle_booking_id;
-$lifecycle_repo = new Cemb\Booking\BookingRepository();
-$lifecycle_service = new Cemb\Booking\BookingTransitionService();
+$lifecycle_repo = new Wpcb\Booking\BookingRepository();
+$lifecycle_service = new Wpcb\Booking\BookingTransitionService();
 $lifecycle_booking = $lifecycle_repo->find( $lifecycle_booking_id );
-cemb_smoke_assert(
-	Cemb\Booking\BookingStatus::RESERVED_UNCONFIRMED === $lifecycle_booking->status,
+wpcb_smoke_assert(
+	Wpcb\Booking\BookingStatus::RESERVED_UNCONFIRMED === $lifecycle_booking->status,
 	'New bookings enter reserved_unconfirmed.'
 );
 
 $doi_transition = $lifecycle_service->apply(
 	$lifecycle_booking_id,
-	Cemb\Booking\BookingStateMachine::EMAIL_CONFIRMED_APPROVAL,
+	Wpcb\Booking\BookingStateMachine::EMAIL_CONFIRMED_APPROVAL,
 	'user',
 	'DOI fixture'
 );
-cemb_smoke_assert( is_array( $doi_transition ) && ! empty( $doi_transition['changed'] ), 'Double Opt-In moves reserved booking to pending approval.' );
-cemb_smoke_assert(
-	Cemb\Booking\BookingStatus::PENDING_APPROVAL === $lifecycle_repo->find( $lifecycle_booking_id )->status,
+wpcb_smoke_assert( is_array( $doi_transition ) && ! empty( $doi_transition['changed'] ), 'Double Opt-In moves reserved booking to pending approval.' );
+wpcb_smoke_assert(
+	Wpcb\Booking\BookingStatus::PENDING_APPROVAL === $lifecycle_repo->find( $lifecycle_booking_id )->status,
 	'Pending approval is persisted.'
 );
 $direct_status_write_blocked = false;
 try {
-	$lifecycle_repo->update( $lifecycle_booking_id, [ 'status' => Cemb\Booking\BookingStatus::CONFIRMED ] );
+	$lifecycle_repo->update( $lifecycle_booking_id, [ 'status' => Wpcb\Booking\BookingStatus::CONFIRMED ] );
 } catch ( InvalidArgumentException $error ) {
 	$direct_status_write_blocked = true;
 }
-cemb_smoke_assert( $direct_status_write_blocked, 'Generic repository updates cannot bypass the booking state machine.' );
+wpcb_smoke_assert( $direct_status_write_blocked, 'Generic repository updates cannot bypass the booking state machine.' );
 
 $doi_retry = $lifecycle_service->apply(
 	$lifecycle_booking_id,
-	Cemb\Booking\BookingStateMachine::EMAIL_CONFIRMED_APPROVAL,
+	Wpcb\Booking\BookingStateMachine::EMAIL_CONFIRMED_APPROVAL,
 	'user',
 	'DOI retry fixture'
 );
-cemb_smoke_assert( is_array( $doi_retry ) && empty( $doi_retry['changed'] ), 'Repeating an already-applied lifecycle event is idempotent.' );
+wpcb_smoke_assert( is_array( $doi_retry ) && empty( $doi_retry['changed'] ), 'Repeating an already-applied lifecycle event is idempotent.' );
 
 $illegal_transition = $lifecycle_service->apply(
 	$lifecycle_booking_id,
-	Cemb\Booking\BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC,
+	Wpcb\Booking\BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC,
 	'user',
 	'Illegal fixture'
 );
-cemb_smoke_assert( is_wp_error( $illegal_transition ), 'An illegal lifecycle transition is rejected.' );
+wpcb_smoke_assert( is_wp_error( $illegal_transition ), 'An illegal lifecycle transition is rejected.' );
 
 $lifecycle_booking = $lifecycle_repo->find( $lifecycle_booking_id );
 $conflict_id = $lifecycle_repo->create(
@@ -1135,7 +1135,7 @@ $conflict_id = $lifecycle_repo->create(
 		'booking_type_id' => $type_id,
 		'slot_start' => (string) $lifecycle_booking->slot_start,
 		'slot_end' => (string) $lifecycle_booking->slot_end,
-		'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+		'status' => Wpcb\Booking\BookingStatus::CONFIRMED,
 		'full_name' => 'Conflict Fixture',
 		'email' => 'conflict@example.com',
 		'source' => 'ci',
@@ -1147,36 +1147,36 @@ $conflict_id = $lifecycle_repo->create(
 );
 $blocked_approval = $lifecycle_service->apply(
 	$lifecycle_booking_id,
-	Cemb\Booking\BookingStateMachine::ADMIN_APPROVED,
+	Wpcb\Booking\BookingStateMachine::ADMIN_APPROVED,
 	'admin',
 	'Approval conflict fixture'
 );
-cemb_smoke_assert(
-	is_wp_error( $blocked_approval ) && 'cemb_slot_unavailable' === $blocked_approval->get_error_code(),
+wpcb_smoke_assert(
+	is_wp_error( $blocked_approval ) && 'wpcb_slot_unavailable' === $blocked_approval->get_error_code(),
 	'Admin approval revalidates availability and refuses a newly conflicting slot.'
 );
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $conflict_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $conflict_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $conflict_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_status_log', [ 'booking_id' => $conflict_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_meta', [ 'booking_id' => $conflict_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_bookings', [ 'id' => $conflict_id ] );
 
 $approval = $lifecycle_service->apply(
 	$lifecycle_booking_id,
-	Cemb\Booking\BookingStateMachine::ADMIN_APPROVED,
+	Wpcb\Booking\BookingStateMachine::ADMIN_APPROVED,
 	'admin',
 	'Approval fixture'
 );
-cemb_smoke_assert( is_array( $approval ) && ! empty( $approval['changed'] ), 'Admin approval succeeds after the conflict is removed.' );
-cemb_smoke_assert(
-	Cemb\Booking\BookingStatus::CONFIRMED === $lifecycle_repo->find( $lifecycle_booking_id )->status,
+wpcb_smoke_assert( is_array( $approval ) && ! empty( $approval['changed'] ), 'Admin approval succeeds after the conflict is removed.' );
+wpcb_smoke_assert(
+	Wpcb\Booking\BookingStatus::CONFIRMED === $lifecycle_repo->find( $lifecycle_booking_id )->status,
 	'Approved booking becomes confirmed.'
 );
 $approval_retry = $lifecycle_service->apply(
 	$lifecycle_booking_id,
-	Cemb\Booking\BookingStateMachine::ADMIN_APPROVED,
+	Wpcb\Booking\BookingStateMachine::ADMIN_APPROVED,
 	'admin',
 	'Approval retry fixture'
 );
-cemb_smoke_assert( is_array( $approval_retry ) && empty( $approval_retry['changed'] ), 'Repeated admin approval is idempotent.' );
+wpcb_smoke_assert( is_array( $approval_retry ) && empty( $approval_retry['changed'] ), 'Repeated admin approval is idempotent.' );
 
 $alternative_slots = $slot_service->getSlots( $type_id, 21, $lifecycle_booking_id );
 $current_lifecycle = $lifecycle_repo->find( $lifecycle_booking_id );
@@ -1187,7 +1187,7 @@ foreach ( $alternative_slots as $candidate ) {
 		break;
 	}
 }
-cemb_smoke_assert( is_array( $alternative_slot ), 'At least one alternate canonical slot is available for reschedule testing.' );
+wpcb_smoke_assert( is_array( $alternative_slot ), 'At least one alternate canonical slot is available for reschedule testing.' );
 $reschedule = $lifecycle_service->reschedule(
 	$lifecycle_booking_id,
 	$alternative_slot['start'],
@@ -1195,54 +1195,54 @@ $reschedule = $lifecycle_service->reschedule(
 	'user',
 	'Reschedule fixture'
 );
-cemb_smoke_assert( is_array( $reschedule ) && ! empty( $reschedule['changed'] ), 'Rescheduling is recorded as a lifecycle event.' );
+wpcb_smoke_assert( is_array( $reschedule ) && ! empty( $reschedule['changed'] ), 'Rescheduling is recorded as a lifecycle event.' );
 $rescheduled_booking = $lifecycle_repo->find( $lifecycle_booking_id );
-cemb_smoke_assert(
-	Cemb\Booking\BookingStatus::CONFIRMED === $rescheduled_booking->status,
+wpcb_smoke_assert(
+	Wpcb\Booking\BookingStatus::CONFIRMED === $rescheduled_booking->status,
 	'Rescheduling does not invent a separate updated status.'
 );
-cemb_smoke_assert(
+wpcb_smoke_assert(
 	$alternative_slot['start'] === $rescheduled_booking->slot_start,
 	'Reschedule atomically updates the canonical slot.'
 );
 
 $cancel = $lifecycle_service->apply(
 	$lifecycle_booking_id,
-	Cemb\Booking\BookingStateMachine::USER_CANCELLED,
+	Wpcb\Booking\BookingStateMachine::USER_CANCELLED,
 	'user',
 	'Cancel fixture'
 );
-cemb_smoke_assert( is_array( $cancel ) && ! empty( $cancel['changed'] ), 'A confirmed booking can transition to cancelled.' );
+wpcb_smoke_assert( is_array( $cancel ) && ! empty( $cancel['changed'] ), 'A confirmed booking can transition to cancelled.' );
 $cancel_retry = $lifecycle_service->apply(
 	$lifecycle_booking_id,
-	Cemb\Booking\BookingStateMachine::USER_CANCELLED,
+	Wpcb\Booking\BookingStateMachine::USER_CANCELLED,
 	'user',
 	'Cancel retry fixture'
 );
-cemb_smoke_assert( is_array( $cancel_retry ) && empty( $cancel_retry['changed'] ), 'Repeated cancellation is idempotent.' );
+wpcb_smoke_assert( is_array( $cancel_retry ) && empty( $cancel_retry['changed'] ), 'Repeated cancellation is idempotent.' );
 $post_cancel_approval = $lifecycle_service->apply(
 	$lifecycle_booking_id,
-	Cemb\Booking\BookingStateMachine::ADMIN_APPROVED,
+	Wpcb\Booking\BookingStateMachine::ADMIN_APPROVED,
 	'admin',
 	'Illegal post-cancel fixture'
 );
-cemb_smoke_assert( is_wp_error( $post_cancel_approval ), 'Terminal cancelled state rejects later approval.' );
+wpcb_smoke_assert( is_wp_error( $post_cancel_approval ), 'Terminal cancelled state rejects later approval.' );
 
 $lifecycle_logs = $wpdb->get_results(
 	$wpdb->prepare(
-		"SELECT old_status, new_status, context, changed_by, note FROM {$wpdb->prefix}cemb_booking_status_log WHERE booking_id = %d ORDER BY id ASC",
+		"SELECT old_status, new_status, context, changed_by, note FROM {$wpdb->prefix}wpcb_booking_status_log WHERE booking_id = %d ORDER BY id ASC",
 		$lifecycle_booking_id
 	)
 );
 $lifecycle_log_json = wp_json_encode( $lifecycle_logs );
-cemb_smoke_assert( false !== strpos( $lifecycle_log_json, Cemb\Booking\BookingStateMachine::ADMIN_APPROVED ), 'Audit history records semantic transition events.' );
-cemb_smoke_assert( false !== strpos( $lifecycle_log_json, Cemb\Booking\BookingTransitionService::RESCHEDULED ), 'Audit history records reschedule without changing state.' );
-cemb_smoke_assert( false === strpos( $lifecycle_log_json, 'lifecycle@example.com' ), 'Audit transition history does not copy customer email addresses.' );
-cemb_smoke_assert( false === strpos( $lifecycle_log_json, 'Lifecycle Fixture' ), 'Audit transition history does not copy customer names.' );
+wpcb_smoke_assert( false !== strpos( $lifecycle_log_json, Wpcb\Booking\BookingStateMachine::ADMIN_APPROVED ), 'Audit history records semantic transition events.' );
+wpcb_smoke_assert( false !== strpos( $lifecycle_log_json, Wpcb\Booking\BookingTransitionService::RESCHEDULED ), 'Audit history records reschedule without changing state.' );
+wpcb_smoke_assert( false === strpos( $lifecycle_log_json, 'lifecycle@example.com' ), 'Audit transition history does not copy customer email addresses.' );
+wpcb_smoke_assert( false === strpos( $lifecycle_log_json, 'Lifecycle Fixture' ), 'Audit transition history does not copy customer names.' );
 
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $lifecycle_booking_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $lifecycle_booking_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $lifecycle_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_meta', [ 'booking_id' => $lifecycle_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_status_log', [ 'booking_id' => $lifecycle_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_bookings', [ 'id' => $lifecycle_booking_id ] );
 
 $expired_fixture_id = $lifecycle_repo->create(
 	[
@@ -1250,29 +1250,29 @@ $expired_fixture_id = $lifecycle_repo->create(
 		'booking_type_id' => $type_id,
 		'slot_start' => '2031-02-01 09:00:00',
 		'slot_end' => '2031-02-01 09:30:00',
-		'status' => Cemb\Booking\BookingStatus::RESERVED_UNCONFIRMED,
+		'status' => Wpcb\Booking\BookingStatus::RESERVED_UNCONFIRMED,
 		'full_name' => 'Expiry Fixture',
 		'email' => 'expiry@example.com',
 		'source' => 'ci',
 		'lang' => 'en',
-		'reserved_until' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-5 minutes' ) ),
+		'reserved_until' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc()->modify( '-5 minutes' ) ),
 		'created_at' => $legacy_now,
 		'updated_at' => $legacy_now,
 	],
 	[]
 );
 $expired_count = $lifecycle_service->expireReservations();
-cemb_smoke_assert( $expired_count >= 1, 'Hourly lifecycle sweep expires stale unconfirmed reservations.' );
-cemb_smoke_assert(
-	Cemb\Booking\BookingStatus::EXPIRED === $lifecycle_repo->find( $expired_fixture_id )->status,
+wpcb_smoke_assert( $expired_count >= 1, 'Hourly lifecycle sweep expires stale unconfirmed reservations.' );
+wpcb_smoke_assert(
+	Wpcb\Booking\BookingStatus::EXPIRED === $lifecycle_repo->find( $expired_fixture_id )->status,
 	'Expired reservation persists the terminal expired state.'
 );
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $expired_fixture_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $expired_fixture_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $expired_fixture_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_status_log', [ 'booking_id' => $expired_fixture_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_meta', [ 'booking_id' => $expired_fixture_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_bookings', [ 'id' => $expired_fixture_id ] );
 
 
-$public_presenter = new Cemb\Calendar\PublicBusyPresenter();
+$public_presenter = new Wpcb\Calendar\PublicBusyPresenter();
 $private_external = [
 	'start' => current_time( 'Y-m-d' ) . ' 10:00:00',
 	'end' => current_time( 'Y-m-d' ) . ' 11:00:00',
@@ -1281,21 +1281,21 @@ $private_external = [
 	'description' => 'PRIVATE EXTERNAL DESCRIPTION',
 ];
 $public_external = $public_presenter->externalEvent( $private_external );
-cemb_smoke_assert( 'Besetzt' === $public_external['title'], 'External events become a generic public busy label.' );
-cemb_smoke_assert( false === strpos( wp_json_encode( $public_external ), 'PRIVATE EXTERNAL' ), 'Public external-event model contains no private event details.' );
+wpcb_smoke_assert( 'Besetzt' === $public_external['title'], 'External events become a generic public busy label.' );
+wpcb_smoke_assert( false === strpos( wp_json_encode( $public_external ), 'PRIVATE EXTERNAL' ), 'Public external-event model contains no private event details.' );
 
-$settings_before_privacy_test = get_option( 'cemb_settings', [] );
-$test_calendar_url = 'https://example.test/cemb-private-calendar.ics';
-$privacy_settings = Cemb\Admin\Settings::get();
+$settings_before_privacy_test = get_option( 'wpcb_settings', [] );
+$test_calendar_url = 'https://example.test/wpcb-private-calendar.ics';
+$privacy_settings = Wpcb\Admin\Settings::get();
 $privacy_settings['calendar_urls'] = $test_calendar_url;
 $privacy_settings['calendar_url'] = $test_calendar_url;
 $privacy_settings['show_calendar_limit'] = 20;
-update_option( 'cemb_settings', $privacy_settings );
-delete_transient( 'cemb_ical_' . md5( $test_calendar_url ) );
+update_option( 'wpcb_settings', $privacy_settings );
+delete_transient( 'wpcb_ical_' . md5( $test_calendar_url ) );
 
 $ics_start = gmdate( 'Ymd\\THis\\Z', time() + DAY_IN_SECONDS );
 $ics_end = gmdate( 'Ymd\\THis\\Z', time() + DAY_IN_SECONDS + HOUR_IN_SECONDS );
-$private_ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:cemb-private-test\r\nDTSTART:{$ics_start}\r\nDTEND:{$ics_end}\r\nSUMMARY:PRIVATE EXTERNAL TITLE\r\nLOCATION:PRIVATE EXTERNAL LOCATION\r\nDESCRIPTION:PRIVATE EXTERNAL DESCRIPTION\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+$private_ics = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:wpcb-private-test\r\nDTSTART:{$ics_start}\r\nDTEND:{$ics_end}\r\nSUMMARY:PRIVATE EXTERNAL TITLE\r\nLOCATION:PRIVATE EXTERNAL LOCATION\r\nDESCRIPTION:PRIVATE EXTERNAL DESCRIPTION\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
 $privacy_http_filter = static function ( $preempt, $args, $url ) use ( $test_calendar_url, $private_ics ) {
 	if ( $url === $test_calendar_url ) {
 		return [
@@ -1307,26 +1307,26 @@ $privacy_http_filter = static function ( $preempt, $args, $url ) use ( $test_cal
 	return $preempt;
 };
 add_filter( 'pre_http_request', $privacy_http_filter, 10, 3 );
-$calendar_html = ( new Cemb\Frontend\Shortcodes() )->calendarList();
+$calendar_html = ( new Wpcb\Frontend\Shortcodes() )->calendarList();
 remove_filter( 'pre_http_request', $privacy_http_filter, 10 );
-cemb_smoke_assert( false !== strpos( $calendar_html, 'Besetzt' ), 'Public calendar list shows busy status.' );
-cemb_smoke_assert( false === strpos( $calendar_html, 'PRIVATE EXTERNAL TITLE' ), 'Public calendar list does not expose external event titles.' );
-cemb_smoke_assert( false === strpos( $calendar_html, 'PRIVATE EXTERNAL LOCATION' ), 'Public calendar list does not expose external event locations.' );
-cemb_smoke_assert( false === strpos( $calendar_html, 'PRIVATE EXTERNAL DESCRIPTION' ), 'Public calendar list does not expose external event descriptions.' );
-update_option( 'cemb_settings', $settings_before_privacy_test );
-delete_transient( 'cemb_ical_' . md5( $test_calendar_url ) );
+wpcb_smoke_assert( false !== strpos( $calendar_html, 'Besetzt' ), 'Public calendar list shows busy status.' );
+wpcb_smoke_assert( false === strpos( $calendar_html, 'PRIVATE EXTERNAL TITLE' ), 'Public calendar list does not expose external event titles.' );
+wpcb_smoke_assert( false === strpos( $calendar_html, 'PRIVATE EXTERNAL LOCATION' ), 'Public calendar list does not expose external event locations.' );
+wpcb_smoke_assert( false === strpos( $calendar_html, 'PRIVATE EXTERNAL DESCRIPTION' ), 'Public calendar list does not expose external event descriptions.' );
+update_option( 'wpcb_settings', $settings_before_privacy_test );
+delete_transient( 'wpcb_ical_' . md5( $test_calendar_url ) );
 
 $private_booking_date = date( 'Y-m-d', strtotime( 'first monday of ' . current_time( 'Y-m' ) . '-01' ) );
 $private_booking_start = $private_booking_date . ' 12:00:00';
 $private_booking_end = $private_booking_date . ' 12:30:00';
-$private_booking_repo = new Cemb\Booking\BookingRepository();
+$private_booking_repo = new Wpcb\Booking\BookingRepository();
 $private_booking_id = $private_booking_repo->create(
 	[
 		'booking_uuid' => wp_generate_uuid4(),
 		'booking_type_id' => $type_id,
 		'slot_start' => $private_booking_start,
 		'slot_end' => $private_booking_end,
-		'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+		'status' => Wpcb\Booking\BookingStatus::CONFIRMED,
 		'full_name' => 'PRIVATE CUSTOMER NAME',
 		'email' => 'privacy-test@example.com',
 		'phone' => 'PRIVATE PHONE',
@@ -1343,33 +1343,33 @@ $private_booking_id = $private_booking_repo->create(
 		'location' => 'PRIVATE BOOKING LOCATION',
 	]
 );
-$private_month = ( new Cemb\Availability\SlotService() )->getMonthDisplay( current_time( 'Y-m' ) );
+$private_month = ( new Wpcb\Availability\SlotService() )->getMonthDisplay( current_time( 'Y-m' ) );
 $private_month_json = wp_json_encode( $private_month );
-cemb_smoke_assert( false !== strpos( $private_month_json, 'Besetzt' ), 'Public month model exposes busy status for internal bookings.' );
+wpcb_smoke_assert( false !== strpos( $private_month_json, 'Besetzt' ), 'Public month model exposes busy status for internal bookings.' );
 foreach ( [ 'PRIVATE CUSTOMER', 'PRIVATE PHONE', 'PRIVATE NOTES', 'PRIVATE GENDER', 'PRIVATE LAST NAME', 'PRIVATE SUBJECT', 'PRIVATE BOOKING LOCATION' ] as $private_marker ) {
-	cemb_smoke_assert( false === strpos( $private_month_json, $private_marker ), 'Public month model does not expose ' . $private_marker . '.' );
+	wpcb_smoke_assert( false === strpos( $private_month_json, $private_marker ), 'Public month model does not expose ' . $private_marker . '.' );
 }
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $private_booking_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $private_booking_id ] );
-$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $private_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_meta', [ 'booking_id' => $private_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_booking_status_log', [ 'booking_id' => $private_booking_id ] );
+$wpdb->delete( $wpdb->prefix . 'wpcb_bookings', [ 'id' => $private_booking_id ] );
 
 
 /* WordPress privacy exporter / eraser / retention integration. */
-$privacy_service = new Cemb\Privacy\PrivacyService();
-cemb_smoke_assert( false !== has_filter( 'wp_privacy_personal_data_exporters' ), 'Personal-data exporter is registered with WordPress.' );
-cemb_smoke_assert( false !== has_filter( 'wp_privacy_personal_data_erasers' ), 'Personal-data eraser is registered with WordPress.' );
-cemb_smoke_assert( false !== has_action( 'cemb_privacy_retention' ), 'Daily privacy retention maintenance is registered.' );
+$privacy_service = new Wpcb\Privacy\PrivacyService();
+wpcb_smoke_assert( false !== has_filter( 'wp_privacy_personal_data_exporters' ), 'Personal-data exporter is registered with WordPress.' );
+wpcb_smoke_assert( false !== has_filter( 'wp_privacy_personal_data_erasers' ), 'Personal-data eraser is registered with WordPress.' );
+wpcb_smoke_assert( false !== has_action( 'wpcb_privacy_retention' ), 'Daily privacy retention maintenance is registered.' );
 
 $privacy_email = 'privacy-export@example.com';
-$privacy_repo = new Cemb\Booking\BookingRepository();
-$privacy_now = Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc() );
+$privacy_repo = new Wpcb\Booking\BookingRepository();
+$privacy_now = Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc() );
 $privacy_booking_id = $privacy_repo->create(
 	[
 		'booking_uuid' => wp_generate_uuid4(),
 		'booking_type_id' => $type_id,
-		'slot_start' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '+10 days' ) ),
-		'slot_end' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '+10 days +30 minutes' ) ),
-		'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+		'slot_start' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc()->modify( '+10 days' ) ),
+		'slot_end' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc()->modify( '+10 days +30 minutes' ) ),
+		'status' => Wpcb\Booking\BookingStatus::CONFIRMED,
 		'full_name' => 'Privacy Export Person',
 		'email' => $privacy_email,
 		'phone' => '+43 123',
@@ -1387,25 +1387,25 @@ $privacy_booking_id = $privacy_repo->create(
 		'sync_error' => 'TECHNICAL-SYNC-MUST-NOT-EXPORT',
 	]
 );
-$privacy_token = ( new Cemb\Tokens\TokenService() )->create( $privacy_booking_id, 'cancel', 60 );
+$privacy_token = ( new Wpcb\Tokens\TokenService() )->create( $privacy_booking_id, 'cancel', 60 );
 $export = $privacy_service->exporter( $privacy_email, 1 );
 $export_json = wp_json_encode( $export );
-cemb_smoke_assert( false !== strpos( $export_json, 'Privacy Export Person' ), 'Privacy exporter returns guest booking identity data by email.' );
-cemb_smoke_assert( false !== strpos( $export_json, 'PERSONAL COMPANY' ), 'Privacy exporter includes personal dynamic form fields.' );
-cemb_smoke_assert( false === strpos( $export_json, 'TECHNICAL-UID-MUST-NOT-EXPORT' ), 'Privacy exporter excludes provider identifiers.' );
-cemb_smoke_assert( false === strpos( $export_json, 'TECHNICAL-SYNC-MUST-NOT-EXPORT' ), 'Privacy exporter excludes internal sync diagnostics.' );
-cemb_smoke_assert( false === strpos( $export_json, 'icloud_sync_password' ), 'Privacy exporter never contains provider credential settings.' );
+wpcb_smoke_assert( false !== strpos( $export_json, 'Privacy Export Person' ), 'Privacy exporter returns guest booking identity data by email.' );
+wpcb_smoke_assert( false !== strpos( $export_json, 'PERSONAL COMPANY' ), 'Privacy exporter includes personal dynamic form fields.' );
+wpcb_smoke_assert( false === strpos( $export_json, 'TECHNICAL-UID-MUST-NOT-EXPORT' ), 'Privacy exporter excludes provider identifiers.' );
+wpcb_smoke_assert( false === strpos( $export_json, 'TECHNICAL-SYNC-MUST-NOT-EXPORT' ), 'Privacy exporter excludes internal sync diagnostics.' );
+wpcb_smoke_assert( false === strpos( $export_json, 'icloud_sync_password' ), 'Privacy exporter never contains provider credential settings.' );
 
 $erase = $privacy_service->eraser( $privacy_email, 1 );
-cemb_smoke_assert( ! empty( $erase['items_removed'] ) && ! empty( $erase['done'] ), 'Privacy eraser anonymizes all erasable bookings for the guest email.' );
+wpcb_smoke_assert( ! empty( $erase['items_removed'] ) && ! empty( $erase['done'] ), 'Privacy eraser anonymizes all erasable bookings for the guest email.' );
 $erased_booking = $privacy_repo->find( $privacy_booking_id );
-cemb_smoke_assert( '' === (string)$erased_booking->full_name && '' === (string)$erased_booking->phone && '' === (string)$erased_booking->notes, 'Privacy eraser removes direct personal booking fields.' );
-cemb_smoke_assert( false !== strpos( (string)$erased_booking->email, '@example.invalid' ), 'Privacy eraser replaces the lookup email with a non-deliverable anonymized address.' );
+wpcb_smoke_assert( '' === (string)$erased_booking->full_name && '' === (string)$erased_booking->phone && '' === (string)$erased_booking->notes, 'Privacy eraser removes direct personal booking fields.' );
+wpcb_smoke_assert( false !== strpos( (string)$erased_booking->email, '@example.invalid' ), 'Privacy eraser replaces the lookup email with a non-deliverable anonymized address.' );
 $erased_meta = $privacy_repo->getMeta( $privacy_booking_id );
-cemb_smoke_assert( ! isset( $erased_meta['company'], $erased_meta['message'] ), 'Privacy eraser removes personal form metadata.' );
-cemb_smoke_assert( isset( $erased_meta['icloud_uid'], $erased_meta['sync_error'] ), 'Privacy eraser retains operational sync metadata without exporting it.' );
-cemb_smoke_assert(
-	0 === (int)$wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}cemb_tokens WHERE booking_id = %d", $privacy_booking_id ) ),
+wpcb_smoke_assert( ! isset( $erased_meta['company'], $erased_meta['message'] ), 'Privacy eraser removes personal form metadata.' );
+wpcb_smoke_assert( isset( $erased_meta['icloud_uid'], $erased_meta['sync_error'] ), 'Privacy eraser retains operational sync metadata without exporting it.' );
+wpcb_smoke_assert(
+	0 === (int)$wpdb->get_var( $wpdb->prepare( "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_tokens WHERE booking_id = %d", $privacy_booking_id ) ),
 	'Privacy erasure revokes guest action tokens.'
 );
 
@@ -1414,9 +1414,9 @@ $hold_booking_id = $privacy_repo->create(
 	[
 		'booking_uuid' => wp_generate_uuid4(),
 		'booking_type_id' => $type_id,
-		'slot_start' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-90 days' ) ),
-		'slot_end' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-90 days +30 minutes' ) ),
-		'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+		'slot_start' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc()->modify( '-90 days' ) ),
+		'slot_end' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc()->modify( '-90 days +30 minutes' ) ),
+		'status' => Wpcb\Booking\BookingStatus::CONFIRMED,
 		'full_name' => 'Retention Hold Person',
 		'email' => $hold_email,
 		'source' => 'ci',
@@ -1428,17 +1428,17 @@ $hold_booking_id = $privacy_repo->create(
 );
 $privacy_service->setRetention( $hold_booking_id, true );
 $hold_erase = $privacy_service->eraser( $hold_email, 1 );
-cemb_smoke_assert( ! empty( $hold_erase['items_retained'] ) && ! empty( $hold_erase['done'] ), 'Explicit retention hold blocks privacy erasure and reports retained data.' );
-cemb_smoke_assert( $hold_email === (string)$privacy_repo->find( $hold_booking_id )->email, 'Retention-held booking remains identifiable.' );
+wpcb_smoke_assert( ! empty( $hold_erase['items_retained'] ) && ! empty( $hold_erase['done'] ), 'Explicit retention hold blocks privacy erasure and reports retained data.' );
+wpcb_smoke_assert( $hold_email === (string)$privacy_repo->find( $hold_booking_id )->email, 'Retention-held booking remains identifiable.' );
 
 $retention_email = 'privacy-retention@example.com';
 $retention_booking_id = $privacy_repo->create(
 	[
 		'booking_uuid' => wp_generate_uuid4(),
 		'booking_type_id' => $type_id,
-		'slot_start' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-60 days' ) ),
-		'slot_end' => Cemb\Support\Time::formatUtc( Cemb\Support\Time::nowUtc()->modify( '-60 days +30 minutes' ) ),
-		'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+		'slot_start' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc()->modify( '-60 days' ) ),
+		'slot_end' => Wpcb\Support\Time::formatUtc( Wpcb\Support\Time::nowUtc()->modify( '-60 days +30 minutes' ) ),
+		'status' => Wpcb\Booking\BookingStatus::CONFIRMED,
 		'full_name' => 'Retention Expired Person',
 		'email' => $retention_email,
 		'source' => 'ci',
@@ -1448,134 +1448,134 @@ $retention_booking_id = $privacy_repo->create(
 	],
 	[ 'message' => 'RETENTION PERSONAL DATA' ]
 );
-$settings_before_retention = get_option( 'cemb_settings', [] );
-$retention_settings = Cemb\Admin\Settings::get();
+$settings_before_retention = get_option( 'wpcb_settings', [] );
+$retention_settings = Wpcb\Admin\Settings::get();
 $retention_settings['retention_enabled'] = 1;
 $retention_settings['retention_days'] = 30;
-update_option( 'cemb_settings', $retention_settings );
+update_option( 'wpcb_settings', $retention_settings );
 $retention_count = $privacy_service->runRetention();
-cemb_smoke_assert( $retention_count >= 1, 'Enabled retention maintenance anonymizes bookings older than the configured period.' );
-cemb_smoke_assert( false !== strpos( (string)$privacy_repo->find( $retention_booking_id )->email, '@example.invalid' ), 'Retention maintenance anonymizes old personal booking data.' );
-cemb_smoke_assert( $hold_email === (string)$privacy_repo->find( $hold_booking_id )->email, 'Retention maintenance skips bookings with an explicit retention hold.' );
-update_option( 'cemb_settings', $settings_before_retention );
+wpcb_smoke_assert( $retention_count >= 1, 'Enabled retention maintenance anonymizes bookings older than the configured period.' );
+wpcb_smoke_assert( false !== strpos( (string)$privacy_repo->find( $retention_booking_id )->email, '@example.invalid' ), 'Retention maintenance anonymizes old personal booking data.' );
+wpcb_smoke_assert( $hold_email === (string)$privacy_repo->find( $hold_booking_id )->email, 'Retention maintenance skips bookings with an explicit retention hold.' );
+update_option( 'wpcb_settings', $settings_before_retention );
 
 foreach ( [ $privacy_booking_id, $hold_booking_id, $retention_booking_id ] as $cleanup_booking_id ) {
-	$wpdb->delete( $wpdb->prefix . 'cemb_tokens', [ 'booking_id' => $cleanup_booking_id ] );
-	$wpdb->delete( $wpdb->prefix . 'cemb_booking_meta', [ 'booking_id' => $cleanup_booking_id ] );
-	$wpdb->delete( $wpdb->prefix . 'cemb_booking_status_log', [ 'booking_id' => $cleanup_booking_id ] );
-	$wpdb->delete( $wpdb->prefix . 'cemb_bookings', [ 'id' => $cleanup_booking_id ] );
+	$wpdb->delete( $wpdb->prefix . 'wpcb_tokens', [ 'booking_id' => $cleanup_booking_id ] );
+	$wpdb->delete( $wpdb->prefix . 'wpcb_booking_meta', [ 'booking_id' => $cleanup_booking_id ] );
+	$wpdb->delete( $wpdb->prefix . 'wpcb_booking_status_log', [ 'booking_id' => $cleanup_booking_id ] );
+	$wpdb->delete( $wpdb->prefix . 'wpcb_bookings', [ 'id' => $cleanup_booking_id ] );
 }
 
 
 /* UIkit fallback / YOOtheme adapter integration. */
-$asset_manager = new Cemb\Frontend\AssetManager();
+$asset_manager = new Wpcb\Frontend\AssetManager();
 $asset_manager->register();
-cemb_smoke_assert( $asset_manager->fallbackAssetsPresent(), 'Pinned local UIkit fallback files are present in the installed plugin.' );
-cemb_smoke_assert( !$asset_manager->usesYoothemeUikit(), 'Non-YOOtheme WordPress install selects the local UIkit fallback.' );
+wpcb_smoke_assert( $asset_manager->fallbackAssetsPresent(), 'Pinned local UIkit fallback files are present in the installed plugin.' );
+wpcb_smoke_assert( !$asset_manager->usesYoothemeUikit(), 'Non-YOOtheme WordPress install selects the local UIkit fallback.' );
 $asset_manager->enqueue( true );
-cemb_smoke_assert( wp_style_is( 'cemb-uikit', 'enqueued' ), 'Local UIkit CSS is enqueued for booking components without YOOtheme.' );
-cemb_smoke_assert( wp_script_is( 'cemb-uikit', 'enqueued' ), 'Local UIkit JavaScript is enqueued for interactive booking components without YOOtheme.' );
-cemb_smoke_assert( wp_script_is( 'cemb-uikit-icons', 'enqueued' ), 'Local UIkit icons are enqueued with the fallback runtime.' );
+wpcb_smoke_assert( wp_style_is( 'wpcb-uikit', 'enqueued' ), 'Local UIkit CSS is enqueued for booking components without YOOtheme.' );
+wpcb_smoke_assert( wp_script_is( 'wpcb-uikit', 'enqueued' ), 'Local UIkit JavaScript is enqueued for interactive booking components without YOOtheme.' );
+wpcb_smoke_assert( wp_script_is( 'wpcb-uikit-icons', 'enqueued' ), 'Local UIkit icons are enqueued with the fallback runtime.' );
 
-$renderer = new Cemb\Frontend\ComponentRenderer( $asset_manager );
+$renderer = new Wpcb\Frontend\ComponentRenderer( $asset_manager );
 $form_html = $renderer->bookingForm();
 $calendar_component_html = $renderer->bookingCalendar();
-cemb_smoke_assert( false !== strpos( $form_html, 'data-cemb-booking-form' ), 'Shared renderer produces booking-form semantics.' );
-cemb_smoke_assert( false !== strpos( $calendar_component_html, 'role="dialog"' ), 'Booking calendar renders an accessible dialog role.' );
-cemb_smoke_assert( false !== strpos( $calendar_component_html, 'aria-modal="true"' ), 'Booking calendar marks the dialog as modal.' );
-cemb_smoke_assert( false !== strpos( $calendar_component_html, 'data-cemb-modal-panel' ), 'Booking dialog exposes a focus target for keyboard behavior.' );
+wpcb_smoke_assert( false !== strpos( $form_html, 'data-wpcb-booking-form' ), 'Shared renderer produces booking-form semantics.' );
+wpcb_smoke_assert( false !== strpos( $calendar_component_html, 'role="dialog"' ), 'Booking calendar renders an accessible dialog role.' );
+wpcb_smoke_assert( false !== strpos( $calendar_component_html, 'aria-modal="true"' ), 'Booking calendar marks the dialog as modal.' );
+wpcb_smoke_assert( false !== strpos( $calendar_component_html, 'data-wpcb-modal-panel' ), 'Booking dialog exposes a focus target for keyboard behavior.' );
 
 $button_filter = static function ( $classes ) {
 	$classes[] = 'integration-button-class';
 	return $classes;
 };
-add_filter( 'cemb_booking_button_classes', $button_filter );
+add_filter( 'wpcb_booking_button_classes', $button_filter );
 $filtered_form = $renderer->bookingForm();
-remove_filter( 'cemb_booking_button_classes', $button_filter );
-cemb_smoke_assert( false !== strpos( $filtered_form, 'integration-button-class' ), 'Theme integrations can filter booking button classes.' );
+remove_filter( 'wpcb_booking_button_classes', $button_filter );
+wpcb_smoke_assert( false !== strpos( $filtered_form, 'integration-button-class' ), 'Theme integrations can filter booking button classes.' );
 
-$shortcode_renderer = new Cemb\Frontend\Shortcodes( $renderer, $asset_manager );
+$shortcode_renderer = new Wpcb\Frontend\Shortcodes( $renderer, $asset_manager );
 $shortcode_form = $shortcode_renderer->bookingForm();
-cemb_smoke_assert(
-	substr_count( $shortcode_form, 'data-cemb-booking-form' ) === substr_count( $form_html, 'data-cemb-booking-form' ),
+wpcb_smoke_assert(
+	substr_count( $shortcode_form, 'data-wpcb-booking-form' ) === substr_count( $form_html, 'data-wpcb-booking-form' ),
 	'Shortcode and shared component renderer expose equivalent booking-form semantics.'
 );
 
-cemb_smoke_assert(
-	is_file( CEMB_DIR . 'includes/Yootheme/module/elements/booking_form/element.php' )
-	&& is_file( CEMB_DIR . 'includes/Yootheme/module/elements/booking_calendar/element.php' ),
+wpcb_smoke_assert(
+	is_file( WPCB_DIR . 'includes/Yootheme/module/elements/booking_form/element.php' )
+	&& is_file( WPCB_DIR . 'includes/Yootheme/module/elements/booking_calendar/element.php' ),
 	'Native YOOtheme Builder element definitions ship with the plugin.'
 );
-$form_element = include CEMB_DIR . 'includes/Yootheme/module/elements/booking_form/element.php';
-$calendar_element = include CEMB_DIR . 'includes/Yootheme/module/elements/booking_calendar/element.php';
-cemb_smoke_assert( 'cemb_booking_form' === ( $form_element['name'] ?? '' ), 'YOOtheme booking-form element uses the shared component identity.' );
-cemb_smoke_assert( 'cemb_booking_calendar' === ( $calendar_element['name'] ?? '' ), 'YOOtheme availability element uses the shared component identity.' );
+$form_element = include WPCB_DIR . 'includes/Yootheme/module/elements/booking_form/element.php';
+$calendar_element = include WPCB_DIR . 'includes/Yootheme/module/elements/booking_calendar/element.php';
+wpcb_smoke_assert( 'wpcb_booking_form' === ( $form_element['name'] ?? '' ), 'YOOtheme booking-form element uses the shared component identity.' );
+wpcb_smoke_assert( 'wpcb_booking_calendar' === ( $calendar_element['name'] ?? '' ), 'YOOtheme availability element uses the shared component identity.' );
 
-wp_dequeue_style( 'cemb-uikit' );
-wp_deregister_style( 'cemb-uikit' );
-wp_dequeue_script( 'cemb-uikit-icons' );
-wp_deregister_script( 'cemb-uikit-icons' );
-wp_dequeue_script( 'cemb-uikit' );
-wp_deregister_script( 'cemb-uikit' );
+wp_dequeue_style( 'wpcb-uikit' );
+wp_deregister_style( 'wpcb-uikit' );
+wp_dequeue_script( 'wpcb-uikit-icons' );
+wp_deregister_script( 'wpcb-uikit-icons' );
+wp_dequeue_script( 'wpcb-uikit' );
+wp_deregister_script( 'wpcb-uikit' );
 
 if ( ! class_exists( 'YOOtheme\\Application', false ) ) {
 	eval( 'namespace YOOtheme; class Application {}' );
 }
-$yootheme_assets = new Cemb\Frontend\AssetManager();
+$yootheme_assets = new Wpcb\Frontend\AssetManager();
 $yootheme_assets->register();
-cemb_smoke_assert( $yootheme_assets->usesYoothemeUikit(), 'YOOtheme Pro runtime is detected through its Application class.' );
+wpcb_smoke_assert( $yootheme_assets->usesYoothemeUikit(), 'YOOtheme Pro runtime is detected through its Application class.' );
 $yootheme_assets->enqueue( true );
-cemb_smoke_assert( ! wp_style_is( 'cemb-uikit', 'enqueued' ), 'YOOtheme mode does not enqueue duplicate UIkit CSS.' );
-cemb_smoke_assert( ! wp_script_is( 'cemb-uikit', 'enqueued' ), 'YOOtheme mode does not enqueue duplicate UIkit JavaScript.' );
-cemb_smoke_assert( wp_style_is( 'cemb-frontend', 'enqueued' ), 'Plugin-specific component CSS remains available with YOOtheme.' );
-cemb_smoke_assert( wp_script_is( 'cemb-frontend', 'enqueued' ), 'Plugin booking behavior remains available with YOOtheme.' );
+wpcb_smoke_assert( ! wp_style_is( 'wpcb-uikit', 'enqueued' ), 'YOOtheme mode does not enqueue duplicate UIkit CSS.' );
+wpcb_smoke_assert( ! wp_script_is( 'wpcb-uikit', 'enqueued' ), 'YOOtheme mode does not enqueue duplicate UIkit JavaScript.' );
+wpcb_smoke_assert( wp_style_is( 'wpcb-frontend', 'enqueued' ), 'Plugin-specific component CSS remains available with YOOtheme.' );
+wpcb_smoke_assert( wp_script_is( 'wpcb-frontend', 'enqueued' ), 'Plugin booking behavior remains available with YOOtheme.' );
 
 /* Stable GitHub updater integration. */
 require_once ABSPATH . 'wp-admin/includes/plugin.php';
 $release_fixture = [
-	'tag_name' => 'v2.0.1',
+	'tag_name' => 'v3.0.1',
 	'draft' => false,
 	'prerelease' => false,
 	'body' => "Requires WordPress: 6.5\nRequires PHP: 8.0\n\nUpdater fixture.",
 	'assets' => [
 		[
-			'name' => Cemb\Updates\GitHubUpdater::ASSET,
-			'browser_download_url' => Cemb\Updates\GitHubUpdater::REPOSITORY . '/releases/download/v2.0.1/' . Cemb\Updates\GitHubUpdater::ASSET,
+			'name' => Wpcb\Updates\GitHubUpdater::ASSET,
+			'browser_download_url' => Wpcb\Updates\GitHubUpdater::REPOSITORY . '/releases/download/v3.0.1/' . Wpcb\Updates\GitHubUpdater::ASSET,
 			'state' => 'uploaded',
 			'size' => 12345,
 		],
 	],
 ];
-$parsed_release = Cemb\Updates\GitHubUpdater::parseRelease( $release_fixture );
-cemb_smoke_assert( is_array( $parsed_release ) && '2.0.1' === $parsed_release['version'], 'Stable GitHub release metadata is parsed.' );
-cemb_smoke_assert( '6.5' === $parsed_release['requires'] && '8.0' === $parsed_release['requires_php'], 'Updater parses WordPress/PHP requirements.' );
+$parsed_release = Wpcb\Updates\GitHubUpdater::parseRelease( $release_fixture );
+wpcb_smoke_assert( is_array( $parsed_release ) && '3.0.1' === $parsed_release['version'], 'Stable GitHub release metadata is parsed.' );
+wpcb_smoke_assert( '6.5' === $parsed_release['requires'] && '8.0' === $parsed_release['requires_php'], 'Updater parses WordPress/PHP requirements.' );
 $draft_fixture = $release_fixture;
 $draft_fixture['draft'] = true;
-cemb_smoke_assert( false === Cemb\Updates\GitHubUpdater::parseRelease( $draft_fixture ), 'Updater rejects draft releases.' );
+wpcb_smoke_assert( false === Wpcb\Updates\GitHubUpdater::parseRelease( $draft_fixture ), 'Updater rejects draft releases.' );
 $wrong_asset_fixture = $release_fixture;
 $wrong_asset_fixture['assets'][0]['name'] = 'wrong.zip';
-cemb_smoke_assert( false === Cemb\Updates\GitHubUpdater::parseRelease( $wrong_asset_fixture ), 'Updater requires the exact release ZIP asset.' );
+wpcb_smoke_assert( false === Wpcb\Updates\GitHubUpdater::parseRelease( $wrong_asset_fixture ), 'Updater requires the exact release ZIP asset.' );
 
-set_site_transient( Cemb\Updates\GitHubUpdater::CACHE_KEY, $parsed_release, HOUR_IN_SECONDS );
+set_site_transient( Wpcb\Updates\GitHubUpdater::CACHE_KEY, $parsed_release, HOUR_IN_SECONDS );
 $update_result = apply_filters(
 	'update_plugins_github.com',
 	false,
-	get_plugin_data( CEMB_FILE ),
-	plugin_basename( CEMB_FILE )
+	get_plugin_data( WPCB_FILE ),
+	plugin_basename( WPCB_FILE )
 );
-cemb_smoke_assert( is_array( $update_result ) && '2.0.1' === $update_result['version'], 'WordPress Update URI filter receives a newer GitHub version.' );
-cemb_smoke_assert(
-	Cemb\Updates\GitHubUpdater::REPOSITORY . '/releases/download/v2.0.1/' . Cemb\Updates\GitHubUpdater::ASSET === $update_result['package'],
+wpcb_smoke_assert( is_array( $update_result ) && '3.0.1' === $update_result['version'], 'WordPress Update URI filter receives a newer GitHub version.' );
+wpcb_smoke_assert(
+	Wpcb\Updates\GitHubUpdater::REPOSITORY . '/releases/download/v3.0.1/' . Wpcb\Updates\GitHubUpdater::ASSET === $update_result['package'],
 	'Updater advertises the exact stable release asset.'
 );
 
 wp_set_current_user( 1 );
-set_site_transient( Cemb\Updates\GitHubUpdater::CACHE_KEY, $parsed_release, HOUR_IN_SECONDS );
+set_site_transient( Wpcb\Updates\GitHubUpdater::CACHE_KEY, $parsed_release, HOUR_IN_SECONDS );
 set_site_transient( 'update_plugins', (object) [ 'last_checked' => time(), 'checked' => [] ], HOUR_IN_SECONDS );
 $_GET['force-check'] = '1';
-( new Cemb\Updates\GitHubUpdater( CEMB_FILE ) )->maybeForceCheck();
+( new Wpcb\Updates\GitHubUpdater( WPCB_FILE ) )->maybeForceCheck();
 unset( $_GET['force-check'] );
-cemb_smoke_assert( false === get_site_transient( Cemb\Updates\GitHubUpdater::CACHE_KEY ), 'Manual Check again clears GitHub release metadata.' );
-cemb_smoke_assert( false === get_site_transient( 'update_plugins' ), 'Manual Check again clears WordPress plugin-update state before its check.' );
+wpcb_smoke_assert( false === get_site_transient( Wpcb\Updates\GitHubUpdater::CACHE_KEY ), 'Manual Check again clears GitHub release metadata.' );
+wpcb_smoke_assert( false === get_site_transient( 'update_plugins' ), 'Manual Check again clears WordPress plugin-update state before its check.' );
 
 WP_CLI::success( 'WordPress Calendar Booking smoke test passed on WordPress ' . get_bloginfo( 'version' ) . ' / PHP ' . PHP_VERSION . '.' );

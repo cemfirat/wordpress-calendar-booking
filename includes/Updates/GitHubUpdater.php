@@ -1,5 +1,5 @@
 <?php
-namespace Cemb\Updates;
+namespace Wpcb\Updates;
 
 if (!defined('ABSPATH')) {
     exit;
@@ -8,7 +8,7 @@ if (!defined('ABSPATH')) {
 final class GitHubUpdater {
     public const REPOSITORY = 'https://github.com/cemfirat/wordpress-calendar-booking';
     public const API_URL = 'https://api.github.com/repos/cemfirat/wordpress-calendar-booking/releases/latest';
-    public const CACHE_KEY = 'cemb_github_release_v1';
+    public const CACHE_KEY = 'wpcb_github_release_v1';
     public const SLUG = 'wordpress-calendar-booking';
     public const ASSET = 'wordpress-calendar-booking.zip';
 
@@ -66,7 +66,7 @@ final class GitHubUpdater {
             'headers' => [
                 'Accept' => 'application/vnd.github+json',
                 'X-GitHub-Api-Version' => '2022-11-28',
-                'User-Agent' => 'WordPress-Calendar-Booking/' . CEMB_VERSION,
+                'User-Agent' => 'WordPress-Calendar-Booking/' . WPCB_VERSION,
             ],
         ]);
 
@@ -163,7 +163,7 @@ final class GitHubUpdater {
         $directory = dirname($this->basename);
         if ('.' === $directory) {
             return new \WP_Error(
-                'cemb_single_file_layout',
+                'wpcb_single_file_layout',
                 'Install the release ZIP in its own plugin directory once before using automatic updates.'
             );
         }
@@ -175,10 +175,10 @@ final class GitHubUpdater {
 
         global $wp_filesystem;
         if (!$wp_filesystem
-            || !$wp_filesystem->is_file(trailingslashit($source) . 'cemb-calendar-booking.php')
+            || !$wp_filesystem->is_file(trailingslashit($source) . 'wordpress-calendar-booking.php')
             || !$wp_filesystem->move($source, $destination)) {
             return new \WP_Error(
-                'cemb_update_move_failed',
+                'wpcb_update_move_failed',
                 'The update could not preserve the existing plugin directory. Check filesystem permissions and try again.'
             );
         }

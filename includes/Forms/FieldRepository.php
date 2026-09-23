@@ -1,11 +1,11 @@
 <?php
-namespace Cemb\Forms;
+namespace Wpcb\Forms;
 
 class FieldRepository {
     private string $table;
     public function __construct() {
         global $wpdb;
-        $this->table = $wpdb->prefix . 'cemb_form_fields';
+        $this->table = $wpdb->prefix . 'wpcb_form_fields';
     }
     public function active(): array {
         global $wpdb;

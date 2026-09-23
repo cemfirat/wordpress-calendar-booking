@@ -1,51 +1,51 @@
 <?php
-namespace Cemb\Admin;
+namespace Wpcb\Admin;
 
-use Cemb\Booking\BookingRepository;
-use Cemb\Booking\BookingTypeRepository;
-use Cemb\Booking\BookingStateMachine;
-use Cemb\Booking\BookingTransitionService;
-use Cemb\Sync\IcloudSyncService;
-use Cemb\Sync\QueueService;
-use Cemb\Sync\JobRepository;
-use Cemb\Calendar\IcloudProvider;
-use Cemb\Support\Time;
-use Cemb\Privacy\PrivacyService;
-use Cemb\Reliability\SchedulerHealth;
-use Cemb\Reliability\DeliveryRepository;
+use Wpcb\Booking\BookingRepository;
+use Wpcb\Booking\BookingTypeRepository;
+use Wpcb\Booking\BookingStateMachine;
+use Wpcb\Booking\BookingTransitionService;
+use Wpcb\Sync\IcloudSyncService;
+use Wpcb\Sync\QueueService;
+use Wpcb\Sync\JobRepository;
+use Wpcb\Calendar\IcloudProvider;
+use Wpcb\Support\Time;
+use Wpcb\Privacy\PrivacyService;
+use Wpcb\Reliability\SchedulerHealth;
+use Wpcb\Reliability\DeliveryRepository;
 
 class Admin {
     public function boot(): void {
         add_action('admin_menu', [$this, 'menu']);
         add_action('admin_init', [$this, 'handlePost']);
         add_action('admin_enqueue_scripts', [$this, 'assets']);
-        add_action('admin_post_cemb_export_bookings', [$this, 'exportBookings']);
+        add_action('admin_post_wpcb_export_bookings', [$this, 'exportBookings']);
     }
 
     public function assets(): void {
-        wp_enqueue_style('cemb-admin', CEMB_URL . 'assets/css/admin.css', [], CEMB_VERSION);
+        wp_enqueue_style('wpcb-admin', WPCB_URL . 'assets/css/admin.css', [], WPCB_VERSION);
     }
 
     public function menu(): void {
-        add_menu_page('Kalender & Buchungen', 'Kalender & Buchungen', 'manage_options', 'cemb_dashboard', [$this, 'dashboard'], 'dashicons-calendar-alt', 58);
-        add_submenu_page('cemb_dashboard', 'Grundeinstellungen', 'Grundeinstellungen', 'manage_options', 'cemb_settings', [$this, 'settings']);
-        add_submenu_page('cemb_dashboard', 'Terminarten', 'Terminarten', 'manage_options', 'cemb_types', [$this, 'types']);
-        add_submenu_page('cemb_dashboard', 'Formularfelder', 'Formularfelder', 'manage_options', 'cemb_fields', [$this, 'fields']);
-        add_submenu_page('cemb_dashboard', 'Verfügbarkeit', 'Verfügbarkeit', 'manage_options', 'cemb_availability', [$this, 'availability']);
-        add_submenu_page('cemb_dashboard', 'Buchungen', 'Buchungen', 'manage_options', 'cemb_bookings', [$this, 'bookings']);
-        add_submenu_page('cemb_dashboard', 'E-Mail-Vorlagen', 'E-Mail-Vorlagen', 'manage_options', 'cemb_emails', [$this, 'emails']);
-        add_submenu_page('cemb_dashboard', 'Versandprotokoll', 'Versandprotokoll', 'manage_options', 'cemb_delivery_log', [$this, 'deliveryLog']);
-        add_submenu_page('cemb_dashboard', 'Systemstatus', 'Systemstatus', 'manage_options', 'cemb_system_health', [$this, 'schedulerHealth']);
-        add_submenu_page('cemb_dashboard', 'Sync-Protokoll', 'Sync-Protokoll', 'manage_options', 'cemb_sync_log', [$this, 'syncLog']);
+        add_menu_page('Kalender & Buchungen', 'Kalender & Buchungen', 'manage_options', 'wpcb_dashboard', [$this, 'dashboard'], 'dashicons-calendar-alt', 58);
+        add_submenu_page('wpcb_dashboard', 'Grundeinstellungen', 'Grundeinstellungen', 'manage_options', 'wpcb_settings', [$this, 'settings']);
+        add_submenu_page('wpcb_dashboard', 'Terminarten', 'Terminarten', 'manage_options', 'wpcb_types', [$this, 'types']);
+        add_submenu_page('wpcb_dashboard', 'Formularfelder', 'Formularfelder', 'manage_options', 'wpcb_fields', [$this, 'fields']);
+        add_submenu_page('wpcb_dashboard', 'Verfügbarkeit', 'Verfügbarkeit', 'manage_options', 'wpcb_availability', [$this, 'availability']);
+        add_submenu_page('wpcb_dashboard', 'Buchungen', 'Buchungen', 'manage_options', 'wpcb_bookings', [$this, 'bookings']);
+        add_submenu_page('wpcb_dashboard', 'E-Mail-Vorlagen', 'E-Mail-Vorlagen', 'manage_options', 'wpcb_emails', [$this, 'emails']);
+        add_submenu_page('wpcb_dashboard', 'Versandprotokoll', 'Versandprotokoll', 'manage_options', 'wpcb_delivery_log', [$this, 'deliveryLog']);
+        add_submenu_page('wpcb_dashboard', 'Systemstatus', 'Systemstatus', 'manage_options', 'wpcb_system_health', [$this, 'schedulerHealth']);
+        add_submenu_page('wpcb_dashboard', 'Sync-Protokoll', 'Sync-Protokoll', 'manage_options', 'wpcb_sync_log', [$this, 'syncLog']);
     }
 
     public function handlePost(): void {
-        if (!current_user_can('manage_options') || empty($_POST['cemb_admin_action'])) {
+        if (!current_user_can('manage_options') || empty($_POST['wpcb_admin_action'])) {
             return;
         }
-        check_admin_referer('cemb_admin_action');
+        check_admin_referer('wpcb_admin_action');
         global $wpdb;
-        $action = sanitize_text_field(wp_unslash($_POST['cemb_admin_action']));
+        $action = sanitize_text_field(wp_unslash($_POST['wpcb_admin_action']));
         switch ($action) {
             case 'save_settings':
                 $settings_result = Settings::update([
@@ -86,8 +86,8 @@ class Admin {
                     wp_safe_redirect(
                         add_query_arg(
                             [
-                                'page' => 'cemb_settings',
-                                'cemb_error' => $settings_result->get_error_message(),
+                                'page' => 'wpcb_settings',
+                                'wpcb_error' => $settings_result->get_error_message(),
                             ],
                             admin_url('admin.php')
                         )
@@ -107,10 +107,10 @@ class Admin {
                 (new QueueService())->runNow();
                 break;
             case 'run_hourly_tasks':
-                do_action('cemb_hourly_reminders');
+                do_action('wpcb_hourly_reminders');
                 break;
             case 'save_type':
-                $table = $wpdb->prefix . 'cemb_booking_types';
+                $table = $wpdb->prefix . 'wpcb_booking_types';
                 $data = [
                     'name' => sanitize_text_field(wp_unslash($_POST['name'] ?? '')),
                     'slug' => sanitize_title(wp_unslash($_POST['slug'] ?? '')),
@@ -131,10 +131,10 @@ class Admin {
                 }
                 break;
             case 'delete_type':
-                $wpdb->delete($wpdb->prefix . 'cemb_booking_types', ['id' => absint($_POST['id'])]);
+                $wpdb->delete($wpdb->prefix . 'wpcb_booking_types', ['id' => absint($_POST['id'])]);
                 break;
             case 'save_field':
-                $table = $wpdb->prefix . 'cemb_form_fields';
+                $table = $wpdb->prefix . 'wpcb_form_fields';
                 $data = [
                     'field_key' => sanitize_key(wp_unslash($_POST['field_key'] ?? '')),
                     'label' => sanitize_text_field(wp_unslash($_POST['label'] ?? '')),
@@ -153,10 +153,10 @@ class Admin {
                 }
                 break;
             case 'delete_field':
-                $wpdb->delete($wpdb->prefix . 'cemb_form_fields', ['id' => absint($_POST['id'])]);
+                $wpdb->delete($wpdb->prefix . 'wpcb_form_fields', ['id' => absint($_POST['id'])]);
                 break;
             case 'save_rule':
-                $table = $wpdb->prefix . 'cemb_availability_rules';
+                $table = $wpdb->prefix . 'wpcb_availability_rules';
                 $data = [
                     'scope_type' => sanitize_text_field(wp_unslash($_POST['scope_type'] ?? 'global')),
                     'scope_id' => absint($_POST['scope_id'] ?? 0) ?: null,
@@ -179,10 +179,10 @@ class Admin {
                 }
                 break;
             case 'delete_rule':
-                $wpdb->delete($wpdb->prefix . 'cemb_availability_rules', ['id' => absint($_POST['id'])]);
+                $wpdb->delete($wpdb->prefix . 'wpcb_availability_rules', ['id' => absint($_POST['id'])]);
                 break;
             case 'save_exception':
-                $table = $wpdb->prefix . 'cemb_exceptions';
+                $table = $wpdb->prefix . 'wpcb_exceptions';
                 $data = [
                     'type' => sanitize_text_field(wp_unslash($_POST['type'] ?? 'blocked_range')),
                     'title' => sanitize_text_field(wp_unslash($_POST['title'] ?? '')),
@@ -201,7 +201,7 @@ class Admin {
                 }
                 break;
             case 'delete_exception':
-                $wpdb->delete($wpdb->prefix . 'cemb_exceptions', ['id' => absint($_POST['id'])]);
+                $wpdb->delete($wpdb->prefix . 'wpcb_exceptions', ['id' => absint($_POST['id'])]);
                 break;
             case 'save_emails':
                 $templates = [
@@ -213,7 +213,7 @@ class Admin {
                 foreach ($templates as $key) {
                     $data[$key] = sanitize_textarea_field(wp_unslash($_POST[$key] ?? ''));
                 }
-                update_option('cemb_email_templates', $data);
+                update_option('wpcb_email_templates', $data);
                 break;
             case 'booking_retention':
                 $id = absint($_POST['id'] ?? 0);
@@ -236,17 +236,17 @@ class Admin {
                 }
                 break;
         }
-        wp_safe_redirect(add_query_arg(['page' => sanitize_text_field(wp_unslash($_GET['page'] ?? 'cemb_dashboard')), 'updated' => 1], admin_url('admin.php')));
+        wp_safe_redirect(add_query_arg(['page' => sanitize_text_field(wp_unslash($_GET['page'] ?? 'wpcb_dashboard')), 'updated' => 1], admin_url('admin.php')));
         exit;
     }
 
     private function formStart(): void {
-        echo '<div class="wrap cemb-admin">';
+        echo '<div class="wrap wpcb-admin">';
         if (!empty($_GET['updated'])) {
             echo '<div class="notice notice-success"><p>Gespeichert.</p></div>';
         }
-        if (!empty($_GET['cemb_error'])) {
-            $error = sanitize_text_field(wp_unslash($_GET['cemb_error']));
+        if (!empty($_GET['wpcb_error'])) {
+            $error = sanitize_text_field(wp_unslash($_GET['wpcb_error']));
             echo '<div class="notice notice-error"><p>' . esc_html($error) . '</p></div>';
         }
     }
@@ -256,7 +256,7 @@ class Admin {
         $this->formStart();
         $repo = new BookingRepository();
         $bookings = $repo->all(['limit' => 10]);
-        echo '<h1>Kalender & Buchungen</h1><p>Shortcodes: <code>[cemb_booking_form]</code>, <code>[cemb_calendar]</code> und <code>[cemb_booking_calendar]</code></p><h2>Neueste Buchungen</h2>';
+        echo '<h1>Kalender & Buchungen</h1><p>Shortcodes: <code>[wpcb_booking_form]</code>, <code>[wpcb_calendar]</code> und <code>[wpcb_booking_calendar]</code></p><h2>Neueste Buchungen</h2>';
         echo '<table class="widefat"><thead><tr><th>Name</th><th>E-Mail</th><th>Termin</th><th>Status</th></tr></thead><tbody>';
         foreach ($bookings as $b) {
             echo '<tr><td>' . esc_html($b->full_name) . '</td><td>' . esc_html($b->email) . '</td><td>' . esc_html($b->slot_start) . '</td><td>' . esc_html($b->status) . '</td></tr>';
@@ -270,8 +270,8 @@ class Admin {
         $secret_status = Settings::secretStatus();
         $this->formStart();
         echo '<h1>Grundeinstellungen</h1><form method="post">';
-        wp_nonce_field('cemb_admin_action');
-        echo '<input type="hidden" name="cemb_admin_action" value="save_settings">';
+        wp_nonce_field('wpcb_admin_action');
+        echo '<input type="hidden" name="wpcb_admin_action" value="save_settings">';
         echo '<table class="form-table">';
         $this->row('Buchungsmodus', '<label><input type="radio" name="mode" value="automatic" ' . checked($s['mode'], 'automatic', false) . '> automatisch</label> <label><input type="radio" name="mode" value="approval" ' . checked($s['mode'], 'approval', false) . '> Admin-Freigabe</label>');
         $this->row('Absendername', '<input type="text" name="sender_name" value="' . esc_attr($s['sender_name']) . '" class="regular-text">');
@@ -313,27 +313,27 @@ class Admin {
         echo '</table><p><button class="button button-primary">Speichern</button></p></form>';
         echo '<p><strong>Offene Sync-Jobs:</strong> ' . (new JobRepository())->pendingCount() . '</p>';
         echo '<form method="post" style="margin-top:12px;display:inline-block">';
-        wp_nonce_field('cemb_admin_action');
-        echo '<input type="hidden" name="cemb_admin_action" value="test_icloud_sync"><button class="button">iCloud-Verbindung testen</button></form> ';
+        wp_nonce_field('wpcb_admin_action');
+        echo '<input type="hidden" name="wpcb_admin_action" value="test_icloud_sync"><button class="button">iCloud-Verbindung testen</button></form> ';
         echo '<form method="post" style="margin-top:12px;display:inline-block">';
-        wp_nonce_field('cemb_admin_action');
-        echo '<input type="hidden" name="cemb_admin_action" value="clear_calendar_cache"><button class="button">Kalender-Cache leeren</button></form> ';
+        wp_nonce_field('wpcb_admin_action');
+        echo '<input type="hidden" name="wpcb_admin_action" value="clear_calendar_cache"><button class="button">Kalender-Cache leeren</button></form> ';
         echo '<form method="post" style="margin-top:12px;display:inline-block">';
-        wp_nonce_field('cemb_admin_action');
-        echo '<input type="hidden" name="cemb_admin_action" value="process_sync_queue"><button class="button">Sync-Queue jetzt ausführen</button></form>';
+        wp_nonce_field('wpcb_admin_action');
+        echo '<input type="hidden" name="wpcb_admin_action" value="process_sync_queue"><button class="button">Sync-Queue jetzt ausführen</button></form>';
         $this->formEnd();
     }
 
     public function types(): void {
-        global $wpdb; $table = $wpdb->prefix . 'cemb_booking_types'; $items = $wpdb->get_results("SELECT * FROM {$table} ORDER BY sort_order ASC, name ASC");
+        global $wpdb; $table = $wpdb->prefix . 'wpcb_booking_types'; $items = $wpdb->get_results("SELECT * FROM {$table} ORDER BY sort_order ASC, name ASC");
         $this->formStart(); echo '<h1>Terminarten</h1>'; $this->renderTypesTable($items); $this->renderTypeForm(); $this->formEnd();
     }
     public function fields(): void {
-        global $wpdb; $table = $wpdb->prefix . 'cemb_form_fields'; $items = $wpdb->get_results("SELECT * FROM {$table} ORDER BY sort_order ASC, id ASC");
+        global $wpdb; $table = $wpdb->prefix . 'wpcb_form_fields'; $items = $wpdb->get_results("SELECT * FROM {$table} ORDER BY sort_order ASC, id ASC");
         $this->formStart(); echo '<h1>Formularfelder</h1>'; $this->renderFieldsTable($items); $this->renderFieldForm(); $this->formEnd();
     }
     public function availability(): void {
-        global $wpdb; $rules = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}cemb_availability_rules ORDER BY scope_type ASC, weekday ASC, start_time ASC"); $exceptions = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}cemb_exceptions ORDER BY date_start DESC");
+        global $wpdb; $rules = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}wpcb_availability_rules ORDER BY scope_type ASC, weekday ASC, start_time ASC"); $exceptions = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}wpcb_exceptions ORDER BY date_start DESC");
         $this->formStart(); echo '<h1>Verfügbarkeit</h1>'; $this->renderRulesTable($rules); $this->renderRuleForm(); echo '<hr><h2>Ausnahmen / Sperren</h2>'; $this->renderExceptionsTable($exceptions); $this->renderExceptionForm(); $this->formEnd();
     }
     public function bookings(): void {
@@ -346,21 +346,21 @@ class Admin {
         $privacy = new PrivacyService();
         $types = (new BookingTypeRepository())->all(false);
         echo '<form method="get" style="margin:12px 0;padding:12px;background:#fff;border:1px solid #ccd0d4">';
-        echo '<input type="hidden" name="page" value="cemb_bookings">';
+        echo '<input type="hidden" name="page" value="wpcb_bookings">';
         echo '<label>Von <input type="date" name="from" value="' . esc_attr($filters['from_date'] ?? '') . '"></label> ';
         echo '<label>Bis <input type="date" name="to" value="' . esc_attr($filters['to_date'] ?? '') . '"></label> ';
         echo '<label>Status <select name="status"><option value="">alle</option>';
-        foreach (\Cemb\Booking\BookingStatus::all() as $status) {
+        foreach (\Wpcb\Booking\BookingStatus::all() as $status) {
             echo '<option value="' . esc_attr($status) . '" ' . selected($filters['status'] ?? '', $status, false) . '>' . esc_html($status) . '</option>';
         }
         echo '</select></label> <label>Terminart <select name="booking_type_id"><option value="0">alle</option>';
         foreach ($types as $type) {
             echo '<option value="' . (int)$type->id . '" ' . selected((int)($filters['booking_type_id'] ?? 0), (int)$type->id, false) . '>' . esc_html($type->name) . '</option>';
         }
-        echo '</select></label> <button class="button">Filtern</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=cemb_bookings')) . '">Zurücksetzen</a></form>';
+        echo '</select></label> <button class="button">Filtern</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_bookings')) . '">Zurücksetzen</a></form>';
         $exportArgs = [
-            'action' => 'cemb_export_bookings',
-            '_wpnonce' => wp_create_nonce('cemb_export_bookings'),
+            'action' => 'wpcb_export_bookings',
+            '_wpnonce' => wp_create_nonce('wpcb_export_bookings'),
             'from' => $filters['from_date'] ?? '',
             'to' => $filters['to_date'] ?? '',
             'status' => $filters['status'] ?? '',
@@ -374,14 +374,14 @@ class Admin {
             $retained = $privacy->isRetained((int)$item->id);
             echo '<tr><td>' . (int)$item->id . '</td><td>' . esc_html($item->full_name) . '</td><td>' . esc_html($item->email) . '</td><td>' . esc_html($item->slot_start) . '</td><td>' . esc_html($item->status) . '</td><td>';
             echo '<form method="post">';
-            wp_nonce_field('cemb_admin_action');
-            echo '<input type="hidden" name="cemb_admin_action" value="booking_retention"><input type="hidden" name="id" value="' . (int)$item->id . '">';
+            wp_nonce_field('wpcb_admin_action');
+            echo '<input type="hidden" name="wpcb_admin_action" value="booking_retention"><input type="hidden" name="id" value="' . (int)$item->id . '">';
             echo '<label><input type="checkbox" name="retain" value="1" ' . checked($retained, true, false) . '> behalten</label> <button class="button button-small">Speichern</button></form>';
             echo '</td><td>' . esc_html((string)($meta['sync_status'] ?? '')) . (!empty($meta['sync_error']) ? '<br><small>' . esc_html((string)$meta['sync_error']) . '</small>' : '') . '</td><td>';
             if ($events) {
                 echo '<form method="post">';
-                wp_nonce_field('cemb_admin_action');
-                echo '<input type="hidden" name="cemb_admin_action" value="booking_status"><input type="hidden" name="id" value="' . (int)$item->id . '"><select name="event">';
+                wp_nonce_field('wpcb_admin_action');
+                echo '<input type="hidden" name="wpcb_admin_action" value="booking_status"><input type="hidden" name="id" value="' . (int)$item->id . '"><select name="event">';
                 foreach ($events as $event => $label) {
                     echo '<option value="' . esc_attr($event) . '">' . esc_html($label) . '</option>';
                 }
@@ -398,10 +398,10 @@ class Admin {
         if (!current_user_can('manage_options')) {
             wp_die('Nicht erlaubt.', 403);
         }
-        check_admin_referer('cemb_export_bookings');
+        check_admin_referer('wpcb_export_bookings');
         $filters = $this->bookingFilters($_GET);
         $items = (new BookingRepository())->all($filters);
-        $history = get_option('cemb_booking_export_audit', []);
+        $history = get_option('wpcb_booking_export_audit', []);
         if (!is_array($history)) {
             $history = [];
         }
@@ -416,7 +416,7 @@ class Admin {
             ],
             'row_count' => count($items),
         ]);
-        update_option('cemb_booking_export_audit', array_slice($history, 0, 50), false);
+        update_option('wpcb_booking_export_audit', array_slice($history, 0, 50), false);
 
         nocache_headers();
         header('Content-Type: text/csv; charset=UTF-8');
@@ -450,7 +450,7 @@ class Admin {
     private function bookingFilters(array $input): array {
         $filters = [];
         $status = sanitize_key(wp_unslash($input['status'] ?? ''));
-        if ($status !== '' && in_array($status, \Cemb\Booking\BookingStatus::all(), true)) {
+        if ($status !== '' && in_array($status, \Wpcb\Booking\BookingStatus::all(), true)) {
             $filters['status'] = $status;
         }
         $bookingTypeId = absint($input['booking_type_id'] ?? 0);
@@ -484,7 +484,7 @@ class Admin {
         $types = $repo->effectTypes();
 
         echo '<form method="get" style="margin:12px 0;padding:12px;background:#fff;border:1px solid #ccd0d4">';
-        echo '<input type="hidden" name="page" value="cemb_delivery_log">';
+        echo '<input type="hidden" name="page" value="wpcb_delivery_log">';
         echo '<label>Buchung <input type="number" min="1" name="booking_id" value="' . esc_attr($filters['booking_id'] ?: '') . '"></label> ';
         echo '<label>Status <select name="delivery_status"><option value="">alle</option>';
         foreach (['pending','sending','sent','failed'] as $status) {
@@ -498,7 +498,7 @@ class Admin {
         foreach (['customer' => 'Kunde', 'admin' => 'Admin'] as $value => $label) {
             echo '<option value="' . esc_attr($value) . '" ' . selected($filters['recipient_class'], $value, false) . '>' . esc_html($label) . '</option>';
         }
-        echo '</select></label> <button class="button">Filtern</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=cemb_delivery_log')) . '">Zurücksetzen</a></form>';
+        echo '</select></label> <button class="button">Filtern</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_delivery_log')) . '">Zurücksetzen</a></form>';
 
         echo '<p class="description">Das Protokoll enthält keine Nachrichtentexte, OAuth-Tokens oder Kalender-Zugangsdaten.</p>';
         echo '<table class="widefat striped"><thead><tr><th>Versuch (UTC)</th><th>Buchung</th><th>Empfänger</th><th>Typ</th><th>Status</th><th>Provider</th><th>Fehlercode</th><th>Idempotency-Key</th></tr></thead><tbody>';
@@ -511,8 +511,8 @@ class Admin {
     }
 
     public function emails(): void {
-        $templates = get_option('cemb_email_templates', []);
-        $this->formStart(); echo '<h1>E-Mail-Vorlagen</h1><form method="post">'; wp_nonce_field('cemb_admin_action'); echo '<input type="hidden" name="cemb_admin_action" value="save_emails">';
+        $templates = get_option('wpcb_email_templates', []);
+        $this->formStart(); echo '<h1>E-Mail-Vorlagen</h1><form method="post">'; wp_nonce_field('wpcb_admin_action'); echo '<input type="hidden" name="wpcb_admin_action" value="save_emails">';
         $pairs = ['doi','confirmed','pending','approved','rejected','cancelled','updated','reminder','internal'];
         foreach ($pairs as $p) {
             echo '<h2>' . esc_html($p) . '</h2>';
@@ -524,13 +524,13 @@ class Admin {
 
     private function row(string $label, string $field): void { echo '<tr><th scope="row">' . esc_html($label) . '</th><td>' . $field . '</td></tr>'; }
     private function renderTypesTable(array $items): void { echo '<table class="widefat striped"><thead><tr><th>Name</th><th>Slug</th><th>Dauer</th><th>Aktiv</th></tr></thead><tbody>'; foreach($items as $i){ echo '<tr><td>'.esc_html($i->name).'</td><td>'.esc_html($i->slug).'</td><td>'.(int)$i->duration_minutes.' Min.</td><td>'.($i->is_active?'Ja':'Nein').'</td></tr>'; } echo '</tbody></table>'; }
-    private function renderTypeForm(): void { echo '<h2>Neue Terminart</h2><form method="post">'; wp_nonce_field('cemb_admin_action'); echo '<input type="hidden" name="cemb_admin_action" value="save_type"><table class="form-table">'; $this->row('Name','<input type="text" name="name" required>'); $this->row('Slug','<input type="text" name="slug" required>'); $this->row('Beschreibung','<textarea name="description"></textarea>'); $this->row('Dauer','<input type="number" name="duration_minutes" value="30">'); $this->row('Puffer davor','<input type="number" name="buffer_before_minutes" value="0">'); $this->row('Puffer danach','<input type="number" name="buffer_after_minutes" value="0">'); $this->row('Sortierung','<input type="number" name="sort_order" value="0">'); $this->row('Aktiv','<label><input type="checkbox" name="is_active" value="1" checked> aktiv</label>'); $this->row('Öffentlich','<label><input type="checkbox" name="is_public" value="1" checked> sichtbar</label>'); echo '</table><p><button class="button button-primary">Speichern</button></p></form>'; }
+    private function renderTypeForm(): void { echo '<h2>Neue Terminart</h2><form method="post">'; wp_nonce_field('wpcb_admin_action'); echo '<input type="hidden" name="wpcb_admin_action" value="save_type"><table class="form-table">'; $this->row('Name','<input type="text" name="name" required>'); $this->row('Slug','<input type="text" name="slug" required>'); $this->row('Beschreibung','<textarea name="description"></textarea>'); $this->row('Dauer','<input type="number" name="duration_minutes" value="30">'); $this->row('Puffer davor','<input type="number" name="buffer_before_minutes" value="0">'); $this->row('Puffer danach','<input type="number" name="buffer_after_minutes" value="0">'); $this->row('Sortierung','<input type="number" name="sort_order" value="0">'); $this->row('Aktiv','<label><input type="checkbox" name="is_active" value="1" checked> aktiv</label>'); $this->row('Öffentlich','<label><input type="checkbox" name="is_public" value="1" checked> sichtbar</label>'); echo '</table><p><button class="button button-primary">Speichern</button></p></form>'; }
     private function renderFieldsTable(array $items): void { echo '<table class="widefat striped"><thead><tr><th>Key</th><th>Label</th><th>Typ</th><th>Optionen</th><th>Pflicht</th></tr></thead><tbody>'; foreach($items as $i){ echo '<tr><td>'.esc_html($i->field_key).'</td><td>'.esc_html($i->label).'</td><td>'.esc_html($i->field_type).'</td><td>'.esc_html(implode(', ', (array) json_decode((string)($i->options_json ?? ''), true))).'</td><td>'.($i->is_required?'Ja':'Nein').'</td></tr>'; } echo '</tbody></table>'; }
-    private function renderFieldForm(): void { echo '<h2>Neues Formularfeld</h2><form method="post">'; wp_nonce_field('cemb_admin_action'); echo '<input type="hidden" name="cemb_admin_action" value="save_field"><table class="form-table">'; $this->row('Key','<input type="text" name="field_key" required>'); $this->row('Label','<input type="text" name="label" required>'); $this->row('Typ','<select name="field_type"><option value="text">Text</option><option value="email">E-Mail</option><option value="textarea">Textarea</option><option value="checkbox">Checkbox</option><option value="select">Select</option><option value="radio">Radio</option></select>'); $this->row('Optionen','<textarea name="options_raw" rows="5" class="regular-text" placeholder="Eine Option pro Zeile"></textarea>'); $this->row('Sortierung','<input type="number" name="sort_order" value="0">'); $this->row('Pflicht','<label><input type="checkbox" name="is_required" value="1"> ja</label>'); $this->row('Aktiv','<label><input type="checkbox" name="is_active" value="1" checked> ja</label>'); echo '</table><p><button class="button button-primary">Speichern</button></p></form>'; }
+    private function renderFieldForm(): void { echo '<h2>Neues Formularfeld</h2><form method="post">'; wp_nonce_field('wpcb_admin_action'); echo '<input type="hidden" name="wpcb_admin_action" value="save_field"><table class="form-table">'; $this->row('Key','<input type="text" name="field_key" required>'); $this->row('Label','<input type="text" name="label" required>'); $this->row('Typ','<select name="field_type"><option value="text">Text</option><option value="email">E-Mail</option><option value="textarea">Textarea</option><option value="checkbox">Checkbox</option><option value="select">Select</option><option value="radio">Radio</option></select>'); $this->row('Optionen','<textarea name="options_raw" rows="5" class="regular-text" placeholder="Eine Option pro Zeile"></textarea>'); $this->row('Sortierung','<input type="number" name="sort_order" value="0">'); $this->row('Pflicht','<label><input type="checkbox" name="is_required" value="1"> ja</label>'); $this->row('Aktiv','<label><input type="checkbox" name="is_active" value="1" checked> ja</label>'); echo '</table><p><button class="button button-primary">Speichern</button></p></form>'; }
     private function renderRulesTable(array $items): void { echo '<h2>Regeln</h2><table class="widefat striped"><thead><tr><th>Scope</th><th>Wochentag</th><th>Zeit</th><th>Dauer</th><th>Notice</th><th>Horizont</th></tr></thead><tbody>'; foreach($items as $i){ echo '<tr><td>'.esc_html($i->scope_type . ($i->scope_id ? ' #' . $i->scope_id : '')).'</td><td>'.(int)$i->weekday.'</td><td>'.esc_html(substr($i->start_time,0,5).' - '.substr($i->end_time,0,5)).'</td><td>'.(int)$i->slot_duration_minutes.'</td><td>'.(int)$i->min_notice_minutes.'</td><td>'.(int)$i->max_days_in_advance.'</td></tr>'; } echo '</tbody></table>'; }
-    private function renderRuleForm(): void { $types = (new BookingTypeRepository())->all(false); echo '<h2>Neue Regel</h2><form method="post">'; wp_nonce_field('cemb_admin_action'); echo '<input type="hidden" name="cemb_admin_action" value="save_rule"><table class="form-table">'; $options='<option value="global">global</option><option value="booking_type">Terminart</option>'; $this->row('Scope','<select name="scope_type">'.$options.'</select>'); $typeOptions='<option value="0">-</option>'; foreach($types as $type){ $typeOptions .= '<option value="'.(int)$type->id.'">'.esc_html($type->name).'</option>'; } $this->row('Terminart-ID','<select name="scope_id">'.$typeOptions.'</select>'); $this->row('Wochentag (1=Mo)','<input type="number" name="weekday" value="1" min="1" max="7">'); $this->row('Startzeit','<input type="time" name="start_time" value="09:00">'); $this->row('Endzeit','<input type="time" name="end_time" value="17:00">'); $this->row('Slot-Dauer','<input type="number" name="slot_duration_minutes" value="30">'); $this->row('Puffer davor','<input type="number" name="buffer_before_minutes" value="0">'); $this->row('Puffer danach','<input type="number" name="buffer_after_minutes" value="15">'); $this->row('Vorlaufzeit (Min.)','<input type="number" name="min_notice_minutes" value="120">'); $this->row('Max. Tage im Voraus','<input type="number" name="max_days_in_advance" value="30">'); $this->row('Aktiv','<label><input type="checkbox" name="is_active" value="1" checked> ja</label>'); echo '</table><p><button class="button button-primary">Speichern</button></p></form>'; }
+    private function renderRuleForm(): void { $types = (new BookingTypeRepository())->all(false); echo '<h2>Neue Regel</h2><form method="post">'; wp_nonce_field('wpcb_admin_action'); echo '<input type="hidden" name="wpcb_admin_action" value="save_rule"><table class="form-table">'; $options='<option value="global">global</option><option value="booking_type">Terminart</option>'; $this->row('Scope','<select name="scope_type">'.$options.'</select>'); $typeOptions='<option value="0">-</option>'; foreach($types as $type){ $typeOptions .= '<option value="'.(int)$type->id.'">'.esc_html($type->name).'</option>'; } $this->row('Terminart-ID','<select name="scope_id">'.$typeOptions.'</select>'); $this->row('Wochentag (1=Mo)','<input type="number" name="weekday" value="1" min="1" max="7">'); $this->row('Startzeit','<input type="time" name="start_time" value="09:00">'); $this->row('Endzeit','<input type="time" name="end_time" value="17:00">'); $this->row('Slot-Dauer','<input type="number" name="slot_duration_minutes" value="30">'); $this->row('Puffer davor','<input type="number" name="buffer_before_minutes" value="0">'); $this->row('Puffer danach','<input type="number" name="buffer_after_minutes" value="15">'); $this->row('Vorlaufzeit (Min.)','<input type="number" name="min_notice_minutes" value="120">'); $this->row('Max. Tage im Voraus','<input type="number" name="max_days_in_advance" value="30">'); $this->row('Aktiv','<label><input type="checkbox" name="is_active" value="1" checked> ja</label>'); echo '</table><p><button class="button button-primary">Speichern</button></p></form>'; }
     private function renderExceptionsTable(array $items): void { echo '<table class="widefat striped"><thead><tr><th>Titel</th><th>Typ</th><th>Von</th><th>Bis</th></tr></thead><tbody>'; foreach($items as $i){ echo '<tr><td>'.esc_html($i->title).'</td><td>'.esc_html($i->type).'</td><td>'.esc_html($i->date_start).'</td><td>'.esc_html($i->date_end).'</td></tr>'; } echo '</tbody></table>'; }
-    private function renderExceptionForm(): void { $types = (new BookingTypeRepository())->all(false); echo '<h2>Neue Ausnahme / Sperre</h2><form method="post">'; wp_nonce_field('cemb_admin_action'); echo '<input type="hidden" name="cemb_admin_action" value="save_exception"><table class="form-table">'; $this->row('Typ','<select name="type"><option value="holiday">Feiertag</option><option value="blocked_day">Gesperrter Tag</option><option value="blocked_range">Gesperrter Zeitraum</option><option value="vacation">Urlaub</option></select>'); $this->row('Titel','<input type="text" name="title" required>'); $this->row('Von','<input type="datetime-local" name="date_start" required>'); $this->row('Bis','<input type="datetime-local" name="date_end" required>'); $typeOptions='<option value="0">alle Terminarten</option>'; foreach($types as $type){ $typeOptions .= '<option value="'.(int)$type->id.'">'.esc_html($type->name).'</option>'; } $this->row('Terminart','<select name="booking_type_id">'.$typeOptions.'</select>'); $this->row('Ganztägig','<label><input type="checkbox" name="all_day" value="1" checked> ja</label>'); $this->row('Aktiv','<label><input type="checkbox" name="is_active" value="1" checked> ja</label>'); echo '</table><p><button class="button button-primary">Speichern</button></p></form>'; }
+    private function renderExceptionForm(): void { $types = (new BookingTypeRepository())->all(false); echo '<h2>Neue Ausnahme / Sperre</h2><form method="post">'; wp_nonce_field('wpcb_admin_action'); echo '<input type="hidden" name="wpcb_admin_action" value="save_exception"><table class="form-table">'; $this->row('Typ','<select name="type"><option value="holiday">Feiertag</option><option value="blocked_day">Gesperrter Tag</option><option value="blocked_range">Gesperrter Zeitraum</option><option value="vacation">Urlaub</option></select>'); $this->row('Titel','<input type="text" name="title" required>'); $this->row('Von','<input type="datetime-local" name="date_start" required>'); $this->row('Bis','<input type="datetime-local" name="date_end" required>'); $typeOptions='<option value="0">alle Terminarten</option>'; foreach($types as $type){ $typeOptions .= '<option value="'.(int)$type->id.'">'.esc_html($type->name).'</option>'; } $this->row('Terminart','<select name="booking_type_id">'.$typeOptions.'</select>'); $this->row('Ganztägig','<label><input type="checkbox" name="all_day" value="1" checked> ja</label>'); $this->row('Aktiv','<label><input type="checkbox" name="is_active" value="1" checked> ja</label>'); echo '</table><p><button class="button button-primary">Speichern</button></p></form>'; }
 
     public function schedulerHealth(): void {
         $this->formStart();
@@ -559,12 +559,12 @@ class Admin {
 
         echo '<div style="margin-top:16px">';
         echo '<form method="post" style="display:inline-block;margin-right:8px">';
-        wp_nonce_field('cemb_admin_action');
-        echo '<input type="hidden" name="cemb_admin_action" value="process_sync_queue">';
+        wp_nonce_field('wpcb_admin_action');
+        echo '<input type="hidden" name="wpcb_admin_action" value="process_sync_queue">';
         echo '<button class="button button-primary">Sync-Queue jetzt ausführen</button></form>';
         echo '<form method="post" style="display:inline-block">';
-        wp_nonce_field('cemb_admin_action');
-        echo '<input type="hidden" name="cemb_admin_action" value="run_hourly_tasks">';
+        wp_nonce_field('wpcb_admin_action');
+        echo '<input type="hidden" name="wpcb_admin_action" value="run_hourly_tasks">';
         echo '<button class="button">Stündliche Aufgaben jetzt ausführen</button></form>';
         echo '</div>';
         echo '<p class="description">Für zuverlässige Produktion sollte WP-Cron durch einen echten System-Cron angestoßen werden. Siehe <code>docs/OPERATIONS.md</code>.</p>';

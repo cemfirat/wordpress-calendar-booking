@@ -1,12 +1,12 @@
 <?php
-namespace Cemb\Reliability;
+namespace Wpcb\Reliability;
 
-use Cemb\Support\Time;
-use Cemb\Sync\JobRepository;
+use Wpcb\Support\Time;
+use Wpcb\Sync\JobRepository;
 
 class SchedulerHealth {
-    public const QUEUE_LAST_RUN_OPTION = 'cemb_sync_queue_last_run';
-    public const REMINDER_LAST_RUN_OPTION = 'cemb_hourly_reminders_last_run';
+    public const QUEUE_LAST_RUN_OPTION = 'wpcb_sync_queue_last_run';
+    public const REMINDER_LAST_RUN_OPTION = 'wpcb_hourly_reminders_last_run';
 
     public function snapshot(): array {
         $jobs = new JobRepository();
@@ -14,8 +14,8 @@ class SchedulerHealth {
         $staleLeases = $jobs->staleLeaseCount();
         $lastQueue = (string)get_option(self::QUEUE_LAST_RUN_OPTION, '');
         $lastReminder = (string)get_option(self::REMINDER_LAST_RUN_OPTION, '');
-        $nextQueue = wp_next_scheduled('cemb_sync_queue');
-        $nextReminder = wp_next_scheduled('cemb_hourly_reminders');
+        $nextQueue = wp_next_scheduled('wpcb_sync_queue');
+        $nextReminder = wp_next_scheduled('wpcb_hourly_reminders');
         $warnings = [];
 
         if (!$nextQueue) {

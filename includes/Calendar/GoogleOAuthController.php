@@ -1,8 +1,8 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
 final class GoogleOAuthController {
-    private const STATE_PREFIX = 'cemb_google_oauth_state_';
+    private const STATE_PREFIX = 'wpcb_google_oauth_state_';
 
     private GoogleOAuthConfig $config;
     private CalendarConnectionRepository $connections;
@@ -16,12 +16,12 @@ final class GoogleOAuthController {
     }
 
     public function boot(): void {
-        add_filter('cemb_calendar_providers', [$this, 'registerProvider']);
+        add_filter('wpcb_calendar_providers', [$this, 'registerProvider']);
         add_action('admin_menu', [$this, 'menu']);
-        add_action('admin_post_cemb_google_save_oauth', [$this, 'saveOAuthConfig']);
-        add_action('admin_post_cemb_google_connect', [$this, 'startConnect']);
-        add_action('admin_post_cemb_google_oauth_callback', [$this, 'callback']);
-        add_action('admin_post_cemb_google_disconnect', [$this, 'disconnect']);
+        add_action('admin_post_wpcb_google_save_oauth', [$this, 'saveOAuthConfig']);
+        add_action('admin_post_wpcb_google_connect', [$this, 'startConnect']);
+        add_action('admin_post_wpcb_google_oauth_callback', [$this, 'callback']);
+        add_action('admin_post_wpcb_google_disconnect', [$this, 'disconnect']);
     }
 
     public function registerProvider(array $providers): array {
@@ -31,11 +31,11 @@ final class GoogleOAuthController {
 
     public function menu(): void {
         add_submenu_page(
-            'cemb_dashboard',
+            'wpcb_dashboard',
             'Calendar Connections',
             'Calendar Connections',
             'manage_options',
-            'cemb_calendar_connections',
+            'wpcb_calendar_connections',
             [$this, 'page']
         );
     }
@@ -52,27 +52,27 @@ final class GoogleOAuthController {
         ?>
         <div class="wrap">
             <h1>Calendar Connections</h1>
-            <?php if (isset($_GET['cemb_google_notice'])): ?>
-                <div class="notice notice-success"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['cemb_google_notice']))); ?></p></div>
+            <?php if (isset($_GET['wpcb_google_notice'])): ?>
+                <div class="notice notice-success"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['wpcb_google_notice']))); ?></p></div>
             <?php endif; ?>
-            <?php if (isset($_GET['cemb_google_error'])): ?>
-                <div class="notice notice-error"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['cemb_google_error']))); ?></p></div>
+            <?php if (isset($_GET['wpcb_google_error'])): ?>
+                <div class="notice notice-error"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['wpcb_google_error']))); ?></p></div>
             <?php endif; ?>
 
             <h2>Google OAuth application</h2>
             <p>Create a Web application OAuth client in Google Cloud and register this exact redirect URI:</p>
             <p><code><?php echo esc_html($this->config->redirectUri()); ?></code></p>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                <?php wp_nonce_field('cemb_google_save_oauth'); ?>
-                <input type="hidden" name="action" value="cemb_google_save_oauth">
+                <?php wp_nonce_field('wpcb_google_save_oauth'); ?>
+                <input type="hidden" name="action" value="wpcb_google_save_oauth">
                 <table class="form-table" role="presentation">
                     <tr>
-                        <th><label for="cemb_google_client_id">Client ID</label></th>
-                        <td><input class="regular-text" id="cemb_google_client_id" name="client_id" value="<?php echo esc_attr($this->config->clientId()); ?>" autocomplete="off"></td>
+                        <th><label for="wpcb_google_client_id">Client ID</label></th>
+                        <td><input class="regular-text" id="wpcb_google_client_id" name="client_id" value="<?php echo esc_attr($this->config->clientId()); ?>" autocomplete="off"></td>
                     </tr>
                     <tr>
-                        <th><label for="cemb_google_client_secret">Client secret</label></th>
-                        <td><input class="regular-text" type="password" id="cemb_google_client_secret" name="client_secret" value="" autocomplete="new-password"><p class="description">Leave blank to keep the currently encrypted secret. Constants CEMB_GOOGLE_CLIENT_ID / CEMB_GOOGLE_CLIENT_SECRET override these fields.</p></td>
+                        <th><label for="wpcb_google_client_secret">Client secret</label></th>
+                        <td><input class="regular-text" type="password" id="wpcb_google_client_secret" name="client_secret" value="" autocomplete="new-password"><p class="description">Leave blank to keep the currently encrypted secret. Constants WPCB_GOOGLE_CLIENT_ID / WPCB_GOOGLE_CLIENT_SECRET override these fields.</p></td>
                     </tr>
                 </table>
                 <?php submit_button('Save Google OAuth settings'); ?>
@@ -84,16 +84,16 @@ final class GoogleOAuthController {
                 <p>Save a Google OAuth client ID and client secret first.</p>
             <?php else: ?>
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                    <?php wp_nonce_field('cemb_google_connect'); ?>
-                    <input type="hidden" name="action" value="cemb_google_connect">
+                    <?php wp_nonce_field('wpcb_google_connect'); ?>
+                    <input type="hidden" name="action" value="wpcb_google_connect">
                     <table class="form-table" role="presentation">
                         <tr>
-                            <th><label for="cemb_google_connection_name">Connection name</label></th>
-                            <td><input class="regular-text" id="cemb_google_connection_name" name="connection_name" value="Google Calendar" required></td>
+                            <th><label for="wpcb_google_connection_name">Connection name</label></th>
+                            <td><input class="regular-text" id="wpcb_google_connection_name" name="connection_name" value="Google Calendar" required></td>
                         </tr>
                         <tr>
-                            <th><label for="cemb_google_calendar_id">Calendar ID</label></th>
-                            <td><input class="regular-text" id="cemb_google_calendar_id" name="remote_calendar_id" value="primary" required><p class="description">Use <code>primary</code> for the signed-in account's main calendar.</p></td>
+                            <th><label for="wpcb_google_calendar_id">Calendar ID</label></th>
+                            <td><input class="regular-text" id="wpcb_google_calendar_id" name="remote_calendar_id" value="primary" required><p class="description">Use <code>primary</code> for the signed-in account's main calendar.</p></td>
                         </tr>
                         <tr>
                             <th>Capabilities</th>
@@ -123,8 +123,8 @@ final class GoogleOAuthController {
                             <td><?php echo esc_html($connection->healthStatus); ?></td>
                             <td>
                                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                                    <?php wp_nonce_field('cemb_google_disconnect_' . $connection->id); ?>
-                                    <input type="hidden" name="action" value="cemb_google_disconnect">
+                                    <?php wp_nonce_field('wpcb_google_disconnect_' . $connection->id); ?>
+                                    <input type="hidden" name="action" value="wpcb_google_disconnect">
                                     <input type="hidden" name="connection_id" value="<?php echo (int)$connection->id; ?>">
                                     <?php submit_button('Disconnect', 'secondary', 'submit', false); ?>
                                 </form>
@@ -140,7 +140,7 @@ final class GoogleOAuthController {
 
     public function saveOAuthConfig(): void {
         $this->requireAdmin();
-        check_admin_referer('cemb_google_save_oauth');
+        check_admin_referer('wpcb_google_save_oauth');
 
         $result = $this->config->save(
             sanitize_text_field(wp_unslash($_POST['client_id'] ?? '')),
@@ -155,7 +155,7 @@ final class GoogleOAuthController {
 
     public function startConnect(): void {
         $this->requireAdmin();
-        check_admin_referer('cemb_google_connect');
+        check_admin_referer('wpcb_google_connect');
 
         if (!$this->config->configured()) {
             $this->redirectError('Google OAuth client is not configured.');
@@ -284,7 +284,7 @@ final class GoogleOAuthController {
     public function disconnect(): void {
         $this->requireAdmin();
         $connectionId = absint($_POST['connection_id'] ?? 0);
-        check_admin_referer('cemb_google_disconnect_' . $connectionId);
+        check_admin_referer('wpcb_google_disconnect_' . $connectionId);
 
         $connection = $this->connections->find($connectionId);
         if (!$connection || $connection->provider !== 'google') {
@@ -304,16 +304,16 @@ final class GoogleOAuthController {
 
     private function redirectNotice(string $message): void {
         wp_safe_redirect(add_query_arg([
-            'page' => 'cemb_calendar_connections',
-            'cemb_google_notice' => $message,
+            'page' => 'wpcb_calendar_connections',
+            'wpcb_google_notice' => $message,
         ], admin_url('admin.php')));
         exit;
     }
 
     private function redirectError(string $message): void {
         wp_safe_redirect(add_query_arg([
-            'page' => 'cemb_calendar_connections',
-            'cemb_google_error' => $message,
+            'page' => 'wpcb_calendar_connections',
+            'wpcb_google_error' => $message,
         ], admin_url('admin.php')));
         exit;
     }

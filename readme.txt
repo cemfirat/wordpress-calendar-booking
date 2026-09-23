@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 2.0.0
+Stable tag: 3.0.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -15,12 +15,18 @@ WordPress Calendar Booking provides privacy-conscious appointment booking with s
 Calendar providers include public ICS feeds, generic CalDAV/iCloud, Google Calendar and Microsoft Graph. Public calendar rendering is busy-only by default. UIkit is used for the frontend with native YOOtheme Pro integration and a local fallback when YOOtheme is unavailable.
 
 Shortcodes:
-[cemb_calendar]
-[cemb_booking_form]
+[wpcb_calendar]
+[wpcb_booking_form]
+[wpcb_booking_calendar]
 
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.0.0 =
+* Normalize the plugin filename, technical prefix, PHP namespace, hooks, shortcodes, block namespace, database/options prefix and text domain.
+* Use wordpress-calendar-booking.php as the canonical plugin entry point.
+* Remove the previous abbreviated identifier before the plugin's first production deployment.
 
 = 2.0.0 =
 * First stable public release.

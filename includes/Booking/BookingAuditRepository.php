@@ -1,12 +1,12 @@
 <?php
-namespace Cemb\Booking;
+namespace Wpcb\Booking;
 
 class BookingAuditRepository {
     private string $table;
 
     public function __construct() {
         global $wpdb;
-        $this->table = $wpdb->prefix . 'cemb_booking_status_log';
+        $this->table = $wpdb->prefix . 'wpcb_booking_status_log';
     }
 
     public function search(array $filters = [], int $limit = 200): array {

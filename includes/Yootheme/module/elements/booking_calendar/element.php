@@ -1,6 +1,6 @@
 <?php
 return [
-    'name' => 'cemb_booking_calendar',
+    'name' => 'wpcb_booking_calendar',
     'title' => 'Calendar Booking Availability',
     'group' => 'Calendar Booking',
     'element' => true,

@@ -1,8 +1,8 @@
 <?php
-namespace Cemb\Booking;
+namespace Wpcb\Booking;
 
 final class BookingStatusMigration {
-    private const OPTION = 'cemb_booking_status_version';
+    private const OPTION = 'wpcb_booking_status_version';
     private const VERSION = 2;
 
     public static function maybeRun(): void {
@@ -11,7 +11,7 @@ final class BookingStatusMigration {
         }
 
         global $wpdb;
-        $table = $wpdb->prefix . 'cemb_bookings';
+        $table = $wpdb->prefix . 'wpcb_bookings';
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
         if ($exists !== $table) {
             return;
@@ -34,7 +34,7 @@ final class BookingStatusMigration {
             );
         }
 
-        $logTable = $wpdb->prefix . 'cemb_booking_status_log';
+        $logTable = $wpdb->prefix . 'wpcb_booking_status_log';
         $logExists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $logTable));
         if ($logExists === $logTable) {
             foreach ($map as $legacy => $canonical) {

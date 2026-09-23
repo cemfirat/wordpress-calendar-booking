@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Blocks;
+namespace Wpcb\Blocks;
 
-use Cemb\Frontend\ComponentRenderer;
+use Wpcb\Frontend\ComponentRenderer;
 
 final class Integration {
     private ComponentRenderer $renderer;
@@ -16,19 +16,19 @@ final class Integration {
 
     public function register(): void {
         wp_register_script(
-            'cemb-booking-blocks',
-            CEMB_URL . 'assets/js/blocks.js',
+            'wpcb-booking-blocks',
+            WPCB_URL . 'assets/js/blocks.js',
             ['wp-blocks', 'wp-element', 'wp-components', 'wp-i18n'],
-            CEMB_VERSION,
+            WPCB_VERSION,
             true
         );
 
         register_block_type(
-            CEMB_DIR . 'blocks/booking-form',
+            WPCB_DIR . 'blocks/booking-form',
             ['render_callback' => [$this, 'renderBookingForm']]
         );
         register_block_type(
-            CEMB_DIR . 'blocks/availability-calendar',
+            WPCB_DIR . 'blocks/availability-calendar',
             ['render_callback' => [$this, 'renderAvailabilityCalendar']]
         );
     }

@@ -1,7 +1,7 @@
 <?php
 if (!defined('ABSPATH')) { exit; }
 
-function cemb_audit_assert($condition, string $message): void {
+function wpcb_audit_assert($condition, string $message): void {
     if (!$condition) {
         fwrite(STDERR, "FAIL: {$message}\n");
         exit(1);
@@ -10,8 +10,8 @@ function cemb_audit_assert($condition, string $message): void {
 }
 
 global $wpdb;
-$now = Cemb\Support\Time::formatUtc(Cemb\Support\Time::nowUtc());
-$typeId = $wpdb->insert($wpdb->prefix . 'cemb_booking_types', [
+$now = Wpcb\Support\Time::formatUtc(Wpcb\Support\Time::nowUtc());
+$typeId = $wpdb->insert($wpdb->prefix . 'wpcb_booking_types', [
     'name' => 'Audit Fixture',
     'slug' => 'audit-fixture-' . wp_generate_password(6, false),
     'description' => '',
@@ -25,13 +25,13 @@ $typeId = $wpdb->insert($wpdb->prefix . 'cemb_booking_types', [
     'updated_at' => $now,
 ]) ? (int)$wpdb->insert_id : 0;
 
-$bookings = new Cemb\Booking\BookingRepository();
+$bookings = new Wpcb\Booking\BookingRepository();
 $bookingId = $bookings->create([
     'booking_uuid' => wp_generate_uuid4(),
     'booking_type_id' => $typeId,
     'slot_start' => '2031-02-03 09:00:00',
     'slot_end' => '2031-02-03 09:30:00',
-    'status' => Cemb\Booking\BookingStatus::PENDING_APPROVAL,
+    'status' => Wpcb\Booking\BookingStatus::PENDING_APPROVAL,
     'full_name' => 'Private Audit Person',
     'email' => 'private-audit@example.com',
     'phone' => '+431234567',
@@ -41,15 +41,15 @@ $bookingId = $bookings->create([
     'created_at' => $now,
     'updated_at' => $now,
 ]);
-cemb_audit_assert($bookingId > 0, 'Audit fixture booking is created.');
+wpcb_audit_assert($bookingId > 0, 'Audit fixture booking is created.');
 
-$bookings->logEvent($bookingId, Cemb\Booking\BookingStatus::PENDING_APPROVAL, 'fixture_event', 'admin', 'Generic audit note');
+$bookings->logEvent($bookingId, Wpcb\Booking\BookingStatus::PENDING_APPROVAL, 'fixture_event', 'admin', 'Generic audit note');
 $otherId = $bookings->create([
     'booking_uuid' => wp_generate_uuid4(),
     'booking_type_id' => $typeId,
     'slot_start' => '2031-02-04 09:00:00',
     'slot_end' => '2031-02-04 09:30:00',
-    'status' => Cemb\Booking\BookingStatus::CONFIRMED,
+    'status' => Wpcb\Booking\BookingStatus::CONFIRMED,
     'full_name' => 'Other Person',
     'email' => 'other@example.com',
     'phone' => '',
@@ -60,46 +60,46 @@ $otherId = $bookings->create([
     'updated_at' => $now,
 ]);
 
-$audit = new Cemb\Booking\BookingAuditRepository();
+$audit = new Wpcb\Booking\BookingAuditRepository();
 $filtered = $audit->search([
     'booking_id' => $bookingId,
     'context' => 'fixture_event',
     'actor' => 'admin',
 ], 50);
-cemb_audit_assert(count($filtered) === 1, 'Audit repository combines booking, event and actor filters.');
-cemb_audit_assert((int)$filtered[0]->booking_id === $bookingId, 'Audit result belongs to the requested booking.');
-cemb_audit_assert((string)$filtered[0]->note === 'Generic audit note', 'Audit result exposes the generic lifecycle note.');
+wpcb_audit_assert(count($filtered) === 1, 'Audit repository combines booking, event and actor filters.');
+wpcb_audit_assert((int)$filtered[0]->booking_id === $bookingId, 'Audit result belongs to the requested booking.');
+wpcb_audit_assert((string)$filtered[0]->note === 'Generic audit note', 'Audit result exposes the generic lifecycle note.');
 
 $contexts = $audit->contexts();
 $actors = $audit->actors();
-cemb_audit_assert(in_array('fixture_event', $contexts, true), 'Audit repository exposes available event filters.');
-cemb_audit_assert(in_array('admin', $actors, true), 'Audit repository exposes available actor filters.');
+wpcb_audit_assert(in_array('fixture_event', $contexts, true), 'Audit repository exposes available event filters.');
+wpcb_audit_assert(in_array('admin', $actors, true), 'Audit repository exposes available actor filters.');
 
 $admin = get_user_by('login', 'admin');
-cemb_audit_assert($admin !== false, 'WordPress admin fixture user exists.');
+wpcb_audit_assert($admin !== false, 'WordPress admin fixture user exists.');
 wp_set_current_user((int)$admin->ID);
 
 $_GET = [
-    'page' => 'cemb_booking_audit',
+    'page' => 'wpcb_booking_audit',
     'booking_id' => (string)$bookingId,
     'event' => 'fixture_event',
     'actor' => 'admin',
 ];
 ob_start();
-(new Cemb\Admin\BookingAuditPage())->render();
+(new Wpcb\Admin\BookingAuditPage())->render();
 $html = (string)ob_get_clean();
 
-cemb_audit_assert(strpos($html, 'fixture_event') !== false, 'Admin audit screen renders the matching lifecycle event.');
-cemb_audit_assert(strpos($html, 'Generic audit note') !== false, 'Admin audit screen renders the generic lifecycle note.');
-cemb_audit_assert(strpos($html, 'private-audit@example.com') === false, 'Admin audit screen does not render booking email.');
-cemb_audit_assert(strpos($html, 'Private Audit Person') === false, 'Admin audit screen does not render booking name.');
-cemb_audit_assert(strpos($html, '+431234567') === false, 'Admin audit screen does not render booking phone.');
-cemb_audit_assert(strpos($html, 'PRIVATE BOOKING NOTE') === false, 'Admin audit screen does not render booking notes.');
+wpcb_audit_assert(strpos($html, 'fixture_event') !== false, 'Admin audit screen renders the matching lifecycle event.');
+wpcb_audit_assert(strpos($html, 'Generic audit note') !== false, 'Admin audit screen renders the generic lifecycle note.');
+wpcb_audit_assert(strpos($html, 'private-audit@example.com') === false, 'Admin audit screen does not render booking email.');
+wpcb_audit_assert(strpos($html, 'Private Audit Person') === false, 'Admin audit screen does not render booking name.');
+wpcb_audit_assert(strpos($html, '+431234567') === false, 'Admin audit screen does not render booking phone.');
+wpcb_audit_assert(strpos($html, 'PRIVATE BOOKING NOTE') === false, 'Admin audit screen does not render booking notes.');
 
-$wpdb->delete($wpdb->prefix . 'cemb_booking_status_log', ['booking_id' => $bookingId]);
-$wpdb->delete($wpdb->prefix . 'cemb_booking_status_log', ['booking_id' => $otherId]);
-$wpdb->delete($wpdb->prefix . 'cemb_bookings', ['id' => $bookingId]);
-$wpdb->delete($wpdb->prefix . 'cemb_bookings', ['id' => $otherId]);
-$wpdb->delete($wpdb->prefix . 'cemb_booking_types', ['id' => $typeId]);
+$wpdb->delete($wpdb->prefix . 'wpcb_booking_status_log', ['booking_id' => $bookingId]);
+$wpdb->delete($wpdb->prefix . 'wpcb_booking_status_log', ['booking_id' => $otherId]);
+$wpdb->delete($wpdb->prefix . 'wpcb_bookings', ['id' => $bookingId]);
+$wpdb->delete($wpdb->prefix . 'wpcb_bookings', ['id' => $otherId]);
+$wpdb->delete($wpdb->prefix . 'wpcb_booking_types', ['id' => $typeId]);
 
 echo "PASS: booking audit history smoke test complete.\n";

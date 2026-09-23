@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Reliability;
+namespace Wpcb\Reliability;
 
-use Cemb\Support\Time;
+use Wpcb\Support\Time;
 
 /**
  * Durable idempotency ledger for non-transactional side effects.
@@ -11,7 +11,7 @@ final class DeliveryRepository {
 
     public function __construct() {
         global $wpdb;
-        $this->table = $wpdb->prefix . 'cemb_deliveries';
+        $this->table = $wpdb->prefix . 'wpcb_deliveries';
     }
 
     public function begin(int $bookingId, string $key, string $channel, string $effectType, string $recipientClass = 'customer', string $providerCode = 'wp_mail'): array {

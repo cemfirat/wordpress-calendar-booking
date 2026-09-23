@@ -1,10 +1,10 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
-use Cemb\Admin\Settings;
-use Cemb\ICS\IcsGenerator;
-use Cemb\Support\BookingFormatter;
-use Cemb\Support\Time;
+use Wpcb\Admin\Settings;
+use Wpcb\ICS\IcsGenerator;
+use Wpcb\Support\BookingFormatter;
+use Wpcb\Support\Time;
 
 final class CalDavProvider implements CalendarSyncProviderInterface {
     private CalendarConnectionRepository $connections;
@@ -38,7 +38,7 @@ final class CalDavProvider implements CalendarSyncProviderInterface {
 
         $calendarUrl = $this->calendarUrl($connection);
         if ($calendarUrl === '') {
-            return new \WP_Error('cemb_caldav_calendar', 'CalDAV calendar URL is missing.');
+            return new \WP_Error('wpcb_caldav_calendar', 'CalDAV calendar URL is missing.');
         }
 
         $objects = $client->calendarQuery($calendarUrl, $fromUtc, $toUtc);
@@ -75,10 +75,10 @@ final class CalDavProvider implements CalendarSyncProviderInterface {
 
         $calendarUrl = $this->calendarUrl($connection);
         if ($calendarUrl === '') {
-            return new \WP_Error('cemb_caldav_calendar', 'CalDAV calendar URL is missing.');
+            return new \WP_Error('wpcb_caldav_calendar', 'CalDAV calendar URL is missing.');
         }
 
-        $uid = 'cemb-' . sanitize_key((string)($booking['booking_uuid'] ?? wp_generate_uuid4()))
+        $uid = 'wpcb-' . sanitize_key((string)($booking['booking_uuid'] ?? wp_generate_uuid4()))
             . '@' . sanitize_text_field((string)(wp_parse_url(home_url('/'), PHP_URL_HOST) ?: 'wordpress'));
         $eventUrl = rtrim($calendarUrl, '/') . '/' . rawurlencode($uid) . '.ics';
         $ics = $this->ics($booking, $meta, $uid);
@@ -107,10 +107,10 @@ final class CalDavProvider implements CalendarSyncProviderInterface {
 
         $handle = $this->decodeHandle($eventId);
         if (!$handle) {
-            return new \WP_Error('cemb_caldav_event', 'CalDAV event handle is invalid.');
+            return new \WP_Error('wpcb_caldav_event', 'CalDAV event handle is invalid.');
         }
 
-        $uid = 'cemb-' . sanitize_key((string)($booking['booking_uuid'] ?? ''))
+        $uid = 'wpcb-' . sanitize_key((string)($booking['booking_uuid'] ?? ''))
             . '@' . sanitize_text_field((string)(wp_parse_url(home_url('/'), PHP_URL_HOST) ?: 'wordpress'));
         $ics = $this->ics($booking, $meta, $uid);
         if (is_wp_error($ics)) {
@@ -145,7 +145,7 @@ final class CalDavProvider implements CalendarSyncProviderInterface {
 
         $handle = $this->decodeHandle($eventId);
         if (!$handle) {
-            return new \WP_Error('cemb_caldav_event', 'CalDAV event handle is invalid.');
+            return new \WP_Error('wpcb_caldav_event', 'CalDAV event handle is invalid.');
         }
 
         $result = $client->deleteEvent($handle['url'], $handle['etag']);
@@ -163,14 +163,14 @@ final class CalDavProvider implements CalendarSyncProviderInterface {
         $credentials = $this->connections->credentials($connection->id);
         $config = $this->connections->config($connection->id);
         if (!is_array($credentials)) {
-            return new \WP_Error('cemb_caldav_credentials', 'CalDAV credentials cannot be decrypted. Reconnect the calendar.');
+            return new \WP_Error('wpcb_caldav_credentials', 'CalDAV credentials cannot be decrypted. Reconnect the calendar.');
         }
 
         $endpoint = trim((string)($config['endpoint'] ?? ''));
         $username = trim((string)($credentials['username'] ?? ''));
         $password = (string)($credentials['password'] ?? '');
         if ($endpoint === '' || $username === '' || $password === '') {
-            return new \WP_Error('cemb_caldav_credentials', 'CalDAV endpoint, username and password are incomplete.');
+            return new \WP_Error('wpcb_caldav_credentials', 'CalDAV endpoint, username and password are incomplete.');
         }
 
         return new CalDavClient($endpoint, $username, $password);
@@ -189,7 +189,7 @@ final class CalDavProvider implements CalendarSyncProviderInterface {
         $start = Time::parseUtc((string)($booking['slot_start'] ?? ''));
         $end = Time::parseUtc((string)($booking['slot_end'] ?? ''));
         if (!$start || !$end || $end <= $start) {
-            return new \WP_Error('cemb_caldav_event_time', 'Booking contains invalid UTC event times.');
+            return new \WP_Error('wpcb_caldav_event_time', 'Booking contains invalid UTC event times.');
         }
 
         $formatter = new BookingFormatter();

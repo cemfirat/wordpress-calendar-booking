@@ -1,12 +1,12 @@
 <?php
-namespace Cemb\Availability;
+namespace Wpcb\Availability;
 
-use Cemb\Booking\BookingRepository;
-use Cemb\Booking\BookingTypeRepository;
-use Cemb\Calendar\IcloudProvider;
-use Cemb\Calendar\PublicBusyPresenter;
-use Cemb\Calendar\ConnectionBusyService;
-use Cemb\Support\Time;
+use Wpcb\Booking\BookingRepository;
+use Wpcb\Booking\BookingTypeRepository;
+use Wpcb\Calendar\IcloudProvider;
+use Wpcb\Calendar\PublicBusyPresenter;
+use Wpcb\Calendar\ConnectionBusyService;
+use Wpcb\Support\Time;
 
 class SlotService {
     private AvailabilityRepository $repo;

@@ -7,20 +7,20 @@ if (!defined('ABSPATH')) {
 }
 
 global $wpdb;
-$action = (string)getenv('CEMB_TEST_STATE_ACTION');
+$action = (string)getenv('WPCB_TEST_STATE_ACTION');
 
 if ($action === 'count') {
-    echo (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}cemb_bookings");
+    echo (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_bookings");
     return;
 }
 
 if ($action === 'expire') {
-    $past = Cemb\Support\Time::formatUtc(Cemb\Support\Time::nowUtc()->modify('-1 minute'));
+    $past = Wpcb\Support\Time::formatUtc(Wpcb\Support\Time::nowUtc()->modify('-1 minute'));
     $wpdb->query(
         $wpdb->prepare(
-            "UPDATE {$wpdb->prefix}cemb_bookings SET reserved_until = %s WHERE status = %s",
+            "UPDATE {$wpdb->prefix}wpcb_bookings SET reserved_until = %s WHERE status = %s",
             $past,
-            Cemb\Booking\BookingStatus::RESERVED_UNCONFIRMED
+            Wpcb\Booking\BookingStatus::RESERVED_UNCONFIRMED
         )
     );
     echo 'EXPIRED';

@@ -1,5 +1,21 @@
 # Architecture
 
+## Naming convention
+
+The canonical product name is **WordPress Calendar Booking** and the canonical plugin slug/text domain is `wordpress-calendar-booking`.
+
+Technical identifiers use one derived prefix consistently:
+
+- PHP namespace: `Wpcb\\...`
+- PHP constants: `WPCB_*`
+- WordPress hooks, options, cron events and database tables: `wpcb_*`
+- frontend handles, CSS classes and data attributes: `wpcb-*`
+- Gutenberg block namespace: `wpcb/*`
+- shortcodes: `wpcb_*`
+- main plugin file: `wordpress-calendar-booking.php`
+
+Do not introduce a second product abbreviation or identifier prefix.
+
 ## Core rule
 
 The booking domain owns availability. Calendar providers only contribute busy intervals and optional write-back events.
@@ -28,7 +44,7 @@ Initial adapters:
 
 ## Calendar connection model
 
-Provider adapters are registered through the `cemb_calendar_providers` filter and implement `CalendarProviderInterface`. The registry normalizes capability identifiers so booking-domain code can ask for behavior without knowing Google, Microsoft, Apple or CalDAV details.
+Provider adapters are registered through the `wpcb_calendar_providers` filter and implement `CalendarProviderInterface`. The registry normalizes capability identifiers so booking-domain code can ask for behavior without knowing Google, Microsoft, Apple or CalDAV details.
 
 Canonical capabilities:
 
@@ -38,7 +54,7 @@ Canonical capabilities:
 - `event_cancel`
 - `calendar_discovery`
 
-Connections are stored in `cemb_calendar_connections` with:
+Connections are stored in `wpcb_calendar_connections` with:
 
 - provider identifier
 - administrator-facing connection name
@@ -50,7 +66,7 @@ Connections are stored in `cemb_calendar_connections` with:
 
 Credentials are deliberately excluded from normal `find()`/`all()` connection reads. Provider code must request them explicitly through the connection repository, which decrypts the authenticated payload only at the point of use.
 
-Booking-type routing lives in `cemb_booking_type_calendar_connections`. A booking type can use multiple connections, and each mapping independently controls whether that connection blocks availability and/or receives confirmed booking write-back. This keeps external account topology out of the booking state machine.
+Booking-type routing lives in `wpcb_booking_type_calendar_connections`. A booking type can use multiple connections, and each mapping independently controls whether that connection blocks availability and/or receives confirmed booking write-back. This keeps external account topology out of the booking state machine.
 
 ## Availability pipeline
 
@@ -97,7 +113,7 @@ Mail and calendar write-back are subscribed to lifecycle events after the databa
 
 ## Public email-link actions
 
-Email links are safe to prefetch. `GET ?cemb_action=...&cemb_token=...` only inspects the token and renders a confirmation/status screen; it never changes a booking.
+Email links are safe to prefetch. `GET ?wpcb_action=...&wpcb_token=...` only inspects the token and renders a confirmation/status screen; it never changes a booking.
 
 Mutating actions post to `admin-post.php` and require all of:
 

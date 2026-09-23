@@ -1,23 +1,23 @@
-.cemb-booking-form-wrap,.cemb-calendar-list,.cemb-booking-calendar-wrap{display:grid;gap:1rem}
-.cemb-field{display:grid;gap:.35rem}
-.cemb-calendar-toolbar .gap-1{gap:.5rem}
-.cemb-apple-calendar{display:grid;grid-template-columns:48px repeat(7,minmax(0,1fr));border-top:1px solid #e5e5ea;border-left:1px solid #e5e5ea;background:#fff}
-.cemb-week-header,.cemb-weeknumber{padding:.5rem .4rem;border-right:1px solid #e5e5ea;border-bottom:1px solid #e5e5ea;font-size:.85rem;font-weight:600;text-align:center;background:#fafafa}
-.cemb-day{min-height:9.5rem;border-right:1px solid #e5e5ea;border-bottom:1px solid #e5e5ea;background:#fff;display:flex;flex-direction:column}
-.cemb-day.is-past{background:#f7f7f8;color:#6b7280}
-.cemb-day.is-weekend{background:#f3f4f6;color:#9ca3af}
-.cemb-day.is-today .cemb-day-number{background:#111827;color:#fff}
-.cemb-day-head{padding:.35rem .45rem .2rem .45rem}
-.cemb-day-number{display:inline-flex;align-items:center;justify-content:center;width:1.9rem;height:1.9rem;border-radius:999px;font-size:.95rem;font-weight:600}
-.cemb-day-body{padding:0 .35rem .35rem .35rem;display:grid;gap:.22rem;align-content:start}
-.cemb-event-pill{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:.18rem .45rem;border-radius:6px;font-size:.76rem;line-height:1.35;color:#fff}
-.cemb-event-external,.cemb-event-busy{background:#8e8e93}
-.cemb-type-color-1{background:#0a84ff}.cemb-type-color-2{background:#30d158}.cemb-type-color-3{background:#ff9f0a}.cemb-type-color-4{background:#bf5af2}.cemb-type-color-5{background:#ff375f}.cemb-type-color-6{background:#64d2ff;color:#0b1320}
-.cemb-booking-modal[hidden]{display:none}
-.cemb-booking-modal{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9999;padding:4vh 1rem;overflow:auto}
-.cemb-modal-panel{position:relative;max-width:760px;margin:0 auto;border-radius:18px}
-.cemb-modal-close{position:absolute;top:.5rem;right:.75rem;border:0;background:transparent;font-size:2rem;line-height:1;cursor:pointer}
-.cemb-calendar-item{padding:1rem;border:1px solid #ddd;border-radius:10px}
-.cemb-modal-open{overflow:hidden}
-@media (max-width:900px){.cemb-apple-calendar{grid-template-columns:36px repeat(7,minmax(0,1fr))}.cemb-day{min-height:7.5rem}.cemb-event-pill{font-size:.68rem}}
-@media (max-width:700px){.cemb-apple-calendar{grid-template-columns:1fr}.cemb-week-header,.cemb-weeknumber{display:none}.cemb-day{min-height:auto}}
+.wpcb-booking-form-wrap,.wpcb-calendar-list,.wpcb-booking-calendar-wrap{display:grid;gap:1rem}
+.wpcb-field{display:grid;gap:.35rem}
+.wpcb-calendar-toolbar .gap-1{gap:.5rem}
+.wpcb-apple-calendar{display:grid;grid-template-columns:48px repeat(7,minmax(0,1fr));border-top:1px solid #e5e5ea;border-left:1px solid #e5e5ea;background:#fff}
+.wpcb-week-header,.wpcb-weeknumber{padding:.5rem .4rem;border-right:1px solid #e5e5ea;border-bottom:1px solid #e5e5ea;font-size:.85rem;font-weight:600;text-align:center;background:#fafafa}
+.wpcb-day{min-height:9.5rem;border-right:1px solid #e5e5ea;border-bottom:1px solid #e5e5ea;background:#fff;display:flex;flex-direction:column}
+.wpcb-day.is-past{background:#f7f7f8;color:#6b7280}
+.wpcb-day.is-weekend{background:#f3f4f6;color:#9ca3af}
+.wpcb-day.is-today .wpcb-day-number{background:#111827;color:#fff}
+.wpcb-day-head{padding:.35rem .45rem .2rem .45rem}
+.wpcb-day-number{display:inline-flex;align-items:center;justify-content:center;width:1.9rem;height:1.9rem;border-radius:999px;font-size:.95rem;font-weight:600}
+.wpcb-day-body{padding:0 .35rem .35rem .35rem;display:grid;gap:.22rem;align-content:start}
+.wpcb-event-pill{display:block;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:.18rem .45rem;border-radius:6px;font-size:.76rem;line-height:1.35;color:#fff}
+.wpcb-event-external,.wpcb-event-busy{background:#8e8e93}
+.wpcb-type-color-1{background:#0a84ff}.wpcb-type-color-2{background:#30d158}.wpcb-type-color-3{background:#ff9f0a}.wpcb-type-color-4{background:#bf5af2}.wpcb-type-color-5{background:#ff375f}.wpcb-type-color-6{background:#64d2ff;color:#0b1320}
+.wpcb-booking-modal[hidden]{display:none}
+.wpcb-booking-modal{position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:9999;padding:4vh 1rem;overflow:auto}
+.wpcb-modal-panel{position:relative;max-width:760px;margin:0 auto;border-radius:18px}
+.wpcb-modal-close{position:absolute;top:.5rem;right:.75rem;border:0;background:transparent;font-size:2rem;line-height:1;cursor:pointer}
+.wpcb-calendar-item{padding:1rem;border:1px solid #ddd;border-radius:10px}
+.wpcb-modal-open{overflow:hidden}
+@media (max-width:900px){.wpcb-apple-calendar{grid-template-columns:36px repeat(7,minmax(0,1fr))}.wpcb-day{min-height:7.5rem}.wpcb-event-pill{font-size:.68rem}}
+@media (max-width:700px){.wpcb-apple-calendar{grid-template-columns:1fr}.wpcb-week-header,.wpcb-weeknumber{display:none}.wpcb-day{min-height:auto}}

@@ -19,9 +19,9 @@ base = "http://127.0.0.1:8080/"
 
 def wp_fixture(action, booking_id=None):
     env = os.environ.copy()
-    env["CEMB_PUBLIC_FIXTURE_ACTION"] = action
+    env["WPCB_PUBLIC_FIXTURE_ACTION"] = action
     if booking_id is not None:
-        env["CEMB_PUBLIC_BOOKING_ID"] = str(booking_id)
+        env["WPCB_PUBLIC_BOOKING_ID"] = str(booking_id)
     out = subprocess.check_output(
         ["wp", "eval-file", str(helper), f"--path={wp_root}"],
         env=env,
@@ -83,7 +83,7 @@ def assert_state(booking_id, status=None, slot_start=None):
 
 
 created_booking_ids = []
-log = open(pathlib.Path(os.environ["RUNNER_TEMP"]) / "cemb-public-http.log", "w")
+log = open(pathlib.Path(os.environ["RUNNER_TEMP"]) / "wpcb-public-http.log", "w")
 server = subprocess.Popen(
     ["php", "-S", "127.0.0.1:8080", "-t", str(wp_root)],
     stdout=log,
@@ -109,21 +109,21 @@ try:
 
     post(
         {
-            "action": "cemb_booking_action",
-            "cemb_link_action": "confirm",
-            "cemb_token": confirm["token"],
+            "action": "wpcb_booking_action",
+            "wpcb_link_action": "confirm",
+            "wpcb_token": confirm["token"],
         },
         expect_error=403,
     )
     assert_state(confirm["booking_id"], "reserved_unconfirmed", before["slot_start"])
 
-    nonce = hidden(page, "cemb_action_nonce")
+    nonce = hidden(page, "wpcb_action_nonce")
     result_page, _, status = post(
         {
-            "action": "cemb_booking_action",
-            "cemb_link_action": "confirm",
-            "cemb_token": confirm["token"],
-            "cemb_action_nonce": nonce,
+            "action": "wpcb_booking_action",
+            "wpcb_link_action": "confirm",
+            "wpcb_token": confirm["token"],
+            "wpcb_action_nonce": nonce,
         }
     )
     assert status == 200
@@ -142,13 +142,13 @@ try:
     assert "Termin stornieren" in cancel_page
     assert_state(cancel["booking_id"], "confirmed", cancel_before["slot_start"])
 
-    cancel_nonce = hidden(cancel_page, "cemb_action_nonce")
+    cancel_nonce = hidden(cancel_page, "wpcb_action_nonce")
     cancelled_page, _, _ = post(
         {
-            "action": "cemb_booking_action",
-            "cemb_link_action": "cancel",
-            "cemb_token": cancel["token"],
-            "cemb_action_nonce": cancel_nonce,
+            "action": "wpcb_booking_action",
+            "wpcb_link_action": "cancel",
+            "wpcb_token": cancel["token"],
+            "wpcb_action_nonce": cancel_nonce,
         }
     )
     assert "Termin bereits storniert" in cancelled_page
@@ -163,15 +163,15 @@ try:
     update_before = assert_state(update["booking_id"], "confirmed")
     update_page, _ = get(update["url"])
     assert "Termin ändern" in update_page
-    update_nonce = hidden(update_page, "cemb_action_nonce")
+    update_nonce = hidden(update_page, "wpcb_action_nonce")
     new_slot_token = slot_value(update_page)
     assert_state(update["booking_id"], "confirmed", update_before["slot_start"])
 
     post(
         {
-            "action": "cemb_booking_action",
-            "cemb_link_action": "update",
-            "cemb_token": update["token"],
+            "action": "wpcb_booking_action",
+            "wpcb_link_action": "update",
+            "wpcb_token": update["token"],
             "new_slot_token": new_slot_token,
         },
         expect_error=403,
@@ -180,10 +180,10 @@ try:
 
     updated_page, _, _ = post(
         {
-            "action": "cemb_booking_action",
-            "cemb_link_action": "update",
-            "cemb_token": update["token"],
-            "cemb_action_nonce": update_nonce,
+            "action": "wpcb_booking_action",
+            "wpcb_link_action": "update",
+            "wpcb_token": update["token"],
+            "wpcb_action_nonce": update_nonce,
             "new_slot_token": new_slot_token,
         }
     )
@@ -193,10 +193,10 @@ try:
 
     post(
         {
-            "action": "cemb_booking_action",
-            "cemb_link_action": "update",
-            "cemb_token": update["token"],
-            "cemb_action_nonce": update_nonce,
+            "action": "wpcb_booking_action",
+            "wpcb_link_action": "update",
+            "wpcb_token": update["token"],
+            "wpcb_action_nonce": update_nonce,
             "new_slot_token": new_slot_token,
         }
     )

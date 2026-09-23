@@ -1,5 +1,5 @@
 <?php
-namespace Cemb\Booking;
+namespace Wpcb\Booking;
 
 final class BookingStatus {
     public const RESERVED_UNCONFIRMED = 'reserved_unconfirmed';

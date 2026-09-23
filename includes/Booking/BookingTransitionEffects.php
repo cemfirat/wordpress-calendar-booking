@@ -1,18 +1,18 @@
 <?php
-namespace Cemb\Booking;
+namespace Wpcb\Booking;
 
-use Cemb\Admin\Settings;
-use Cemb\Mail\Mailer;
-use Cemb\Sync\QueueService;
-use Cemb\Tokens\TokenService;
+use Wpcb\Admin\Settings;
+use Wpcb\Mail\Mailer;
+use Wpcb\Sync\QueueService;
+use Wpcb\Tokens\TokenService;
 
 /**
  * Central side effects for lifecycle transitions and domain events.
  */
 final class BookingTransitionEffects {
     public function boot(): void {
-        add_action('cemb_booking_transitioned', [$this, 'onTransition'], 10, 2);
-        add_action('cemb_booking_event_recorded', [$this, 'onEvent'], 10, 2);
+        add_action('wpcb_booking_transitioned', [$this, 'onTransition'], 10, 2);
+        add_action('wpcb_booking_event_recorded', [$this, 'onEvent'], 10, 2);
     }
 
     public function onTransition(array $transition, $booking): void {
@@ -89,11 +89,11 @@ final class BookingTransitionEffects {
 
         return [
             'cancel' => add_query_arg(
-                ['cemb_action' => 'cancel', 'cemb_token' => rawurlencode($cancelToken)],
+                ['wpcb_action' => 'cancel', 'wpcb_token' => rawurlencode($cancelToken)],
                 home_url('/')
             ),
             'update' => add_query_arg(
-                ['cemb_action' => 'update', 'cemb_token' => rawurlencode($updateToken)],
+                ['wpcb_action' => 'update', 'wpcb_token' => rawurlencode($updateToken)],
                 home_url('/')
             ),
         ];

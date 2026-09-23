@@ -1,13 +1,13 @@
 {
   "apiVersion": 3,
-  "name": "cemb/booking-form",
-  "version": "2.0.0",
+  "name": "wpcb/booking-form",
+  "version": "3.0.0",
   "title": "Booking Form",
   "category": "widgets",
   "icon": "calendar-alt",
   "description": "Render the shared WordPress Calendar Booking form.",
-  "textdomain": "cemb",
-  "editorScript": "cemb-booking-blocks",
+  "textdomain": "wordpress-calendar-booking",
+  "editorScript": "wpcb-booking-blocks",
   "supports": {
     "html": false
   }

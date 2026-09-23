@@ -6,14 +6,14 @@
     var TextControl = components.TextControl;
     var __ = i18n.__;
 
-    blocks.registerBlockType('cemb/booking-form', {
+    blocks.registerBlockType('wpcb/booking-form', {
         edit: function () {
             return el(
                 Placeholder,
                 {
                     icon: 'calendar-alt',
-                    label: __('Booking Form', 'cemb'),
-                    instructions: __('The live booking form is rendered on the frontend. The editor preview is intentionally read-only.', 'cemb')
+                    label: __('Booking Form', 'wordpress-calendar-booking'),
+                    instructions: __('The live booking form is rendered on the frontend. The editor preview is intentionally read-only.', 'wordpress-calendar-booking')
                 }
             );
         },
@@ -22,17 +22,17 @@
         }
     });
 
-    blocks.registerBlockType('cemb/availability-calendar', {
+    blocks.registerBlockType('wpcb/availability-calendar', {
         edit: function (props) {
             return el(
                 Placeholder,
                 {
                     icon: 'calendar',
-                    label: __('Availability Calendar', 'cemb'),
-                    instructions: __('The live availability calendar is rendered on the frontend. The editor preview never creates bookings or loads private calendar data.', 'cemb')
+                    label: __('Availability Calendar', 'wordpress-calendar-booking'),
+                    instructions: __('The live availability calendar is rendered on the frontend. The editor preview never creates bookings or loads private calendar data.', 'wordpress-calendar-booking')
                 },
                 el(TextControl, {
-                    label: __('Initial month (YYYY-MM)', 'cemb'),
+                    label: __('Initial month (YYYY-MM)', 'wordpress-calendar-booking'),
                     value: props.attributes.month || '',
                     placeholder: '2026-09',
                     onChange: function (value) {

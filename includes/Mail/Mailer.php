@@ -1,12 +1,12 @@
 <?php
-namespace Cemb\Mail;
+namespace Wpcb\Mail;
 
-use Cemb\Admin\Settings;
-use Cemb\ICS\IcsGenerator;
-use Cemb\Support\BookingFormatter;
-use Cemb\Booking\BookingTypeRepository;
-use Cemb\Support\Time;
-use Cemb\Reliability\DeliveryRepository;
+use Wpcb\Admin\Settings;
+use Wpcb\ICS\IcsGenerator;
+use Wpcb\Support\BookingFormatter;
+use Wpcb\Booking\BookingTypeRepository;
+use Wpcb\Support\Time;
+use Wpcb\Reliability\DeliveryRepository;
 
 class Mailer {
     private BookingFormatter $formatter;
@@ -86,7 +86,7 @@ class Mailer {
     }
 
     public function sendTemplate(string $key, array $booking, array $meta, array $links = [], bool $attachIcs = false): bool {
-        $templates = get_option('cemb_email_templates', []);
+        $templates = get_option('wpcb_email_templates', []);
         $subject = $templates[$key . '_subject'] ?? $key;
         $body = $templates[$key . '_body'] ?? '';
         $typeRepo = new BookingTypeRepository();
@@ -121,7 +121,7 @@ class Mailer {
         if ($attachIcs) {
             $summary = $this->formatter->summary($booking, $meta);
             $ics = (new IcsGenerator())->generate($booking, $meta, $summary, $resolvedLocation);
-            $path = wp_upload_dir()['basedir'] . '/cemb-' . md5(($booking['booking_uuid'] ?? '') . time()) . '.ics';
+            $path = wp_upload_dir()['basedir'] . '/wpcb-' . md5(($booking['booking_uuid'] ?? '') . time()) . '.ics';
             file_put_contents($path, $ics);
             $attachments[] = $path;
         }
@@ -135,7 +135,7 @@ class Mailer {
     public function sendInternal(array $booking, array $meta): bool {
         $settings = Settings::get();
         if (empty($settings['notifications_enabled']) || empty($settings['notification_emails'])) return true;
-        $templates = get_option('cemb_email_templates', []);
+        $templates = get_option('wpcb_email_templates', []);
         $typeRepo = new BookingTypeRepository();
         $type = $typeRepo->find((int)$booking['booking_type_id']);
         $map = [

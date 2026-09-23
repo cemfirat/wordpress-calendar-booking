@@ -77,7 +77,7 @@ jobs:
           WP_ROOT="$RUNNER_TEMP/wordpress"
           wp core download --path="$WP_ROOT" --version="$WP_VERSION"
           wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
-          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=CEMB --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCB --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
           mkdir -p "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking"
           rsync -a --delete             --exclude='.git'             --exclude='.github'             --exclude='_bootstrap'             "$GITHUB_WORKSPACE/" "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking/"
           wp plugin activate wordpress-calendar-booking --path="$WP_ROOT"
@@ -107,19 +107,19 @@ jobs:
         run: |
           set -euo pipefail
           fixture="$(wp eval-file "$GITHUB_WORKSPACE/tests/create-reservation-fixture.php" --path="$RUNNER_TEMP/wordpress")"
-          export CEMB_TEST_TYPE_ID="${fixture%%|*}"
-          export CEMB_TEST_SLOT_TOKEN="${fixture#*|}"
-          echo "Fixture type: $CEMB_TEST_TYPE_ID"
-          echo "Slot token length: ${#CEMB_TEST_SLOT_TOKEN}"
-          printf '%s' "$CEMB_TEST_SLOT_TOKEN" | grep -Eq '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
+          export WPCB_TEST_TYPE_ID="${fixture%%|*}"
+          export WPCB_TEST_SLOT_TOKEN="${fixture#*|}"
+          echo "Fixture type: $WPCB_TEST_TYPE_ID"
+          echo "Slot token length: ${#WPCB_TEST_SLOT_TOKEN}"
+          printf '%s' "$WPCB_TEST_SLOT_TOKEN" | grep -Eq '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
 
           token_check="$(wp eval-file "$GITHUB_WORKSPACE/tests/verify-slot-token.php" --path="$RUNNER_TEMP/wordpress")"
           echo "$token_check"
           test "$token_check" = "TOKEN_OK"
 
-          CEMB_TEST_EMAIL=first@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-a.txt" &
+          WPCB_TEST_EMAIL=first@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-a.txt" &
           first_pid=$!
-          CEMB_TEST_EMAIL=second@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-b.txt" &
+          WPCB_TEST_EMAIL=second@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-b.txt" &
           second_pid=$!
           wait "$first_pid"
           wait "$second_pid"
@@ -130,17 +130,17 @@ jobs:
           test "$reserved_count" -eq 1
           test "$rejected_count" -eq 1
 
-          booking_count="$(CEMB_TEST_STATE_ACTION=count wp eval-file "$GITHUB_WORKSPACE/tests/reservation-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          booking_count="$(WPCB_TEST_STATE_ACTION=count wp eval-file "$GITHUB_WORKSPACE/tests/reservation-race-state.php" --path="$RUNNER_TEMP/wordpress")"
           test "$booking_count" -eq 1
 
-          expire_result="$(CEMB_TEST_STATE_ACTION=expire wp eval-file "$GITHUB_WORKSPACE/tests/reservation-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          expire_result="$(WPCB_TEST_STATE_ACTION=expire wp eval-file "$GITHUB_WORKSPACE/tests/reservation-race-state.php" --path="$RUNNER_TEMP/wordpress")"
           test "$expire_result" = "EXPIRED"
 
-          CEMB_TEST_EMAIL=after-expiry@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-after-expiry.txt"
+          WPCB_TEST_EMAIL=after-expiry@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-after-expiry.txt"
           cat "$RUNNER_TEMP/reserve-after-expiry.txt"
           grep -q '^RESERVED ' "$RUNNER_TEMP/reserve-after-expiry.txt"
 
-          booking_count="$(CEMB_TEST_STATE_ACTION=count wp eval-file "$GITHUB_WORKSPACE/tests/reservation-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          booking_count="$(WPCB_TEST_STATE_ACTION=count wp eval-file "$GITHUB_WORKSPACE/tests/reservation-race-state.php" --path="$RUNNER_TEMP/wordpress")"
           test "$booking_count" -eq 2
 
 
@@ -218,7 +218,7 @@ jobs:
           WP_ROOT="$RUNNER_TEMP/wordpress"
           wp core download --path="$WP_ROOT" --version=latest
           wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
-          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=CEMBRelease --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBRelease --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
           wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
           wp eval-file "$GITHUB_WORKSPACE/tests/release-fresh.php" --path="$WP_ROOT"
 
@@ -257,7 +257,7 @@ jobs:
           WP_ROOT="$RUNNER_TEMP/wordpress"
           wp core download --path="$WP_ROOT" --version=latest
           wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
-          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=CEMBLegacy --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBLegacy --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
           wp eval-file "$GITHUB_WORKSPACE/tests/legacy-1x-fixture.php" --path="$WP_ROOT"
       - name: Install release ZIP and verify migrations
         run: |
@@ -287,7 +287,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import os, pathlib, re
-          text = pathlib.Path('cemb-calendar-booking.php').read_text()
+          text = pathlib.Path('wordpress-calendar-booking.php').read_text()
           def header(name):
               match = re.search(r'^ \* ' + re.escape(name) + r': ([0-9.]+)$', text, re.M)
               assert match, name
@@ -354,23 +354,23 @@ jobs:
           unzip -q dist/wordpress-calendar-booking.zip -d "$RUNNER_TEMP/synthetic"
           python3 - <<'PY'
           import os, pathlib
-          p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/cemb-calendar-booking.php"
+          p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/wordpress-calendar-booking.php"
           text = p.read_text()
-          text = text.replace(" * Version: 2.0.0", " * Version: 1.9.9")
-          text = text.replace("define('CEMB_VERSION', '2.0.0');", "define('CEMB_VERSION', '1.9.9');")
+          text = text.replace(" * Version: 3.0.0", " * Version: 2.9.9")
+          text = text.replace("define('WPCB_VERSION', '3.0.0');", "define('WPCB_VERSION', '2.9.9');")
           p.write_text(text)
           PY
-          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-1.9.9.zip" wordpress-calendar-booking)
+          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-2.9.9.zip" wordpress-calendar-booking)
       - name: Install synthetic old version
         run: |
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
           wp core download --path="$WP_ROOT" --version=latest
           wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
-          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=CEMBUpdater --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
-          wp plugin install "$RUNNER_TEMP/calendar-booking-1.9.9.zip" --activate --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "1.9.9"
-      - name: Discover real public v2.0.0 release
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBUpdater --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp plugin install "$RUNNER_TEMP/calendar-booking-2.9.9.zip" --activate --path="$WP_ROOT"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "2.9.9"
+      - name: Discover real public v3.0.0 release
         run: |
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
@@ -378,16 +378,16 @@ jobs:
           for attempt in 1 2 3 4 5 6; do
             version="$(wp eval '
               require_once ABSPATH . "wp-admin/includes/update.php";
-              delete_site_transient(Cemb\Updates\GitHubUpdater::CACHE_KEY);
+              delete_site_transient(Wpcb\Updates\GitHubUpdater::CACHE_KEY);
               delete_site_transient("update_plugins");
               wp_update_plugins();
               $updates = get_site_transient("update_plugins");
-              $basename = plugin_basename(CEMB_FILE);
+              $basename = plugin_basename(WPCB_FILE);
               if (isset($updates->response[$basename])) {
                   echo $updates->response[$basename]->new_version;
               }
             ' --path="$WP_ROOT")"
-            if [ "$version" = "2.0.0" ]; then
+            if [ "$version" = "3.0.0" ]; then
               found=1
               break
             fi
@@ -399,6 +399,6 @@ jobs:
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
           wp plugin update wordpress-calendar-booking --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "2.0.0"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.0.0"
           wp plugin is-active wordpress-calendar-booking --path="$WP_ROOT"
-          echo "PASS: synthetic 1.9.9 updated through the public GitHub release to 2.0.0."
+          echo "PASS: synthetic 2.9.9 updated through the public GitHub release to 3.0.0."

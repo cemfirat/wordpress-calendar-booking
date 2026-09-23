@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Tokens;
+namespace Wpcb\Tokens;
 
-use Cemb\Support\Time;
+use Wpcb\Support\Time;
 
 final class TokenService {
     private const SELECTOR_BYTES = 16;
@@ -12,7 +12,7 @@ final class TokenService {
 
     public function __construct() {
         global $wpdb;
-        $this->table = $wpdb->prefix . 'cemb_tokens';
+        $this->table = $wpdb->prefix . 'wpcb_tokens';
     }
 
     public function create(int $bookingId, string $type, int $ttlMinutes): string {
@@ -106,19 +106,19 @@ final class TokenService {
     public function consume(string $token, string $type, callable $callback) {
         $parts = $this->parseToken($token);
         if (!$parts || $type === '') {
-            return new \WP_Error('cemb_token_invalid', 'This action link is invalid, expired or already used.');
+            return new \WP_Error('wpcb_token_invalid', 'This action link is invalid, expired or already used.');
         }
 
         $selector = $parts[0];
-        $lockName = 'cemb_tok_' . substr(hash('sha256', $type . '|' . $selector), 0, 48);
+        $lockName = 'wpcb_tok_' . substr(hash('sha256', $type . '|' . $selector), 0, 48);
         if (!$this->acquireLock($lockName, 5)) {
-            return new \WP_Error('cemb_token_busy', 'This action is already being processed. Please try again.');
+            return new \WP_Error('wpcb_token_busy', 'This action is already being processed. Please try again.');
         }
 
         try {
             $row = $this->validate($token, $type);
             if (!$row) {
-                return new \WP_Error('cemb_token_invalid', 'This action link is invalid, expired or already used.');
+                return new \WP_Error('wpcb_token_invalid', 'This action link is invalid, expired or already used.');
             }
 
             $result = $callback($row);
@@ -127,7 +127,7 @@ final class TokenService {
             }
 
             if (!$this->markUsed((int)$row->id)) {
-                return new \WP_Error('cemb_token_race', 'This action link was already used.');
+                return new \WP_Error('wpcb_token_race', 'This action link was already used.');
             }
 
             return $result;
@@ -242,7 +242,7 @@ final class TokenService {
         return hash_hmac(
             'sha256',
             $selector . '|' . $type . '|' . $verifier,
-            wp_salt('auth') . '|cemb-one-time-token-v2'
+            wp_salt('auth') . '|wpcb-one-time-token-v2'
         );
     }
 

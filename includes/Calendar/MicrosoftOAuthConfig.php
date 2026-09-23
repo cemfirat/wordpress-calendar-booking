@@ -1,11 +1,11 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
-use Cemb\Security\SecretBox;
+use Wpcb\Security\SecretBox;
 
 final class MicrosoftOAuthConfig {
-    private const CLIENT_ID_OPTION = 'cemb_microsoft_oauth_client_id';
-    private const CLIENT_SECRET_OPTION = 'cemb_microsoft_oauth_client_secret_enc';
+    private const CLIENT_ID_OPTION = 'wpcb_microsoft_oauth_client_id';
+    private const CLIENT_SECRET_OPTION = 'wpcb_microsoft_oauth_client_secret_enc';
 
     private SecretBox $secrets;
 
@@ -14,15 +14,15 @@ final class MicrosoftOAuthConfig {
     }
 
     public function clientId(): string {
-        if (defined('CEMB_MICROSOFT_CLIENT_ID') && CEMB_MICROSOFT_CLIENT_ID) {
-            return trim((string)CEMB_MICROSOFT_CLIENT_ID);
+        if (defined('WPCB_MICROSOFT_CLIENT_ID') && WPCB_MICROSOFT_CLIENT_ID) {
+            return trim((string)WPCB_MICROSOFT_CLIENT_ID);
         }
         return trim((string)get_option(self::CLIENT_ID_OPTION, ''));
     }
 
     public function clientSecret(): string {
-        if (defined('CEMB_MICROSOFT_CLIENT_SECRET') && CEMB_MICROSOFT_CLIENT_SECRET) {
-            return trim((string)CEMB_MICROSOFT_CLIENT_SECRET);
+        if (defined('WPCB_MICROSOFT_CLIENT_SECRET') && WPCB_MICROSOFT_CLIENT_SECRET) {
+            return trim((string)WPCB_MICROSOFT_CLIENT_SECRET);
         }
 
         $encoded = (string)get_option(self::CLIENT_SECRET_OPTION, '');
@@ -37,7 +37,7 @@ final class MicrosoftOAuthConfig {
     public function save(string $clientId, string $clientSecret) {
         $clientId = trim($clientId);
         if ($clientId === '') {
-            return new \WP_Error('cemb_microsoft_client_id', 'Microsoft OAuth client ID is required.');
+            return new \WP_Error('wpcb_microsoft_client_id', 'Microsoft OAuth client ID is required.');
         }
 
         update_option(self::CLIENT_ID_OPTION, sanitize_text_field($clientId), false);
@@ -58,7 +58,7 @@ final class MicrosoftOAuthConfig {
     }
 
     public function redirectUri(): string {
-        return admin_url('admin-post.php?action=cemb_microsoft_oauth_callback');
+        return admin_url('admin-post.php?action=wpcb_microsoft_oauth_callback');
     }
 
     /** @return string[] */

@@ -1,5 +1,5 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
 final class CalendarConnection {
     public int $id;

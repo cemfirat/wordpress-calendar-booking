@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Admin;
+namespace Wpcb\Admin;
 
-use Cemb\Security\SecretBox;
+use Wpcb\Security\SecretBox;
 
 class Settings {
     public static function get(): array {
@@ -44,7 +44,7 @@ class Settings {
             'icloud_sync_cancellations' => 1,
             'icloud_sync_last_test' => '',
         ];
-        $settings = wp_parse_args((array) get_option('cemb_settings', []), $defaults);
+        $settings = wp_parse_args((array) get_option('wpcb_settings', []), $defaults);
         if (empty($settings['calendar_urls']) && !empty($settings['calendar_url'])) {
             $settings['calendar_urls'] = (string) $settings['calendar_url'];
         }
@@ -84,11 +84,11 @@ class Settings {
                     return $encrypted;
                 }
                 $data['icloud_sync_password_enc'] = $encrypted;
-                delete_option('cemb_secret_reentry_required');
+                delete_option('wpcb_secret_reentry_required');
             }
         }
 
-        update_option('cemb_settings', array_merge($settings, $data));
+        update_option('wpcb_settings', array_merge($settings, $data));
         return true;
     }
 
@@ -164,7 +164,7 @@ class Settings {
         $encoded = (string)($settings['icloud_sync_password_enc'] ?? '');
         $box = new SecretBox();
 
-        if ((int)get_option('cemb_secret_reentry_required', 0) === 1) {
+        if ((int)get_option('wpcb_secret_reentry_required', 0) === 1) {
             return ['state' => 'reentry', 'format' => ''];
         }
 

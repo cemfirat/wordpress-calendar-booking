@@ -1,8 +1,8 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
-use Cemb\Security\SecretBox;
-use Cemb\Support\Time;
+use Wpcb\Security\SecretBox;
+use Wpcb\Support\Time;
 
 final class CalendarConnectionRepository {
     private string $table;
@@ -11,8 +11,8 @@ final class CalendarConnectionRepository {
 
     public function __construct(?SecretBox $secrets = null) {
         global $wpdb;
-        $this->table = $wpdb->prefix . 'cemb_calendar_connections';
-        $this->mappingTable = $wpdb->prefix . 'cemb_booking_type_calendar_connections';
+        $this->table = $wpdb->prefix . 'wpcb_calendar_connections';
+        $this->mappingTable = $wpdb->prefix . 'wpcb_booking_type_calendar_connections';
         $this->secrets = $secrets ?: new SecretBox();
     }
 
@@ -25,7 +25,7 @@ final class CalendarConnectionRepository {
         $provider = sanitize_key((string)($data['provider'] ?? ''));
         $name = sanitize_text_field((string)($data['name'] ?? ''));
         if ($provider === '' || $name === '') {
-            return new \WP_Error('cemb_connection_invalid', 'Calendar provider and connection name are required.');
+            return new \WP_Error('wpcb_connection_invalid', 'Calendar provider and connection name are required.');
         }
 
         $encrypted = $this->encryptCredentials($credentials);
@@ -53,7 +53,7 @@ final class CalendarConnectionRepository {
             'updated_at' => $now,
         ]);
         if ($ok === false) {
-            return new \WP_Error('cemb_connection_storage', 'Calendar connection could not be saved.');
+            return new \WP_Error('wpcb_connection_storage', 'Calendar connection could not be saved.');
         }
         return (int)$wpdb->insert_id;
     }
@@ -112,7 +112,7 @@ final class CalendarConnectionRepository {
     public function replaceCredentials(int $connectionId, array $credentials) {
         global $wpdb;
         if (!$this->find($connectionId)) {
-            return new \WP_Error('cemb_connection_missing', 'Calendar connection does not exist.');
+            return new \WP_Error('wpcb_connection_missing', 'Calendar connection does not exist.');
         }
 
         $encrypted = $this->encryptCredentials($credentials);
@@ -129,7 +129,7 @@ final class CalendarConnectionRepository {
             ['id' => $connectionId]
         );
         return $updated === false
-            ? new \WP_Error('cemb_connection_storage', 'Calendar credentials could not be saved.')
+            ? new \WP_Error('wpcb_connection_storage', 'Calendar credentials could not be saved.')
             : true;
     }
 
@@ -261,7 +261,7 @@ final class CalendarConnectionRepository {
         }
         $json = wp_json_encode($credentials);
         if (!is_string($json)) {
-            return new \WP_Error('cemb_connection_credentials', 'Calendar credentials could not be encoded.');
+            return new \WP_Error('wpcb_connection_credentials', 'Calendar credentials could not be encoded.');
         }
         return $this->secrets->encrypt($json);
     }

@@ -1,5 +1,5 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
 final class ProviderRegistry {
     /** @var array<string,CalendarProviderInterface>|null */
@@ -18,7 +18,7 @@ final class ProviderRegistry {
          * Providers may be supplied as objects or factories returning
          * CalendarProviderInterface instances.
          */
-        $candidates = apply_filters('cemb_calendar_providers', []);
+        $candidates = apply_filters('wpcb_calendar_providers', []);
         if (!is_array($candidates)) {
             $candidates = [];
         }

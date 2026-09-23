@@ -1,8 +1,8 @@
 <?php
-namespace Cemb\Admin;
+namespace Wpcb\Admin;
 
-use Cemb\Booking\BookingAuditRepository;
-use Cemb\Support\Time;
+use Wpcb\Booking\BookingAuditRepository;
+use Wpcb\Support\Time;
 
 class BookingAuditPage {
     public function boot(): void {
@@ -11,11 +11,11 @@ class BookingAuditPage {
 
     public function menu(): void {
         add_submenu_page(
-            'cemb_dashboard',
+            'wpcb_dashboard',
             'Buchungs-Historie',
             'Buchungs-Historie',
             'manage_options',
-            'cemb_booking_audit',
+            'wpcb_booking_audit',
             [$this, 'render']
         );
     }
@@ -29,12 +29,12 @@ class BookingAuditPage {
         $filters = $this->filters($_GET);
         $items = $repo->search($filters, 200);
 
-        echo '<div class="wrap cemb-admin">';
+        echo '<div class="wrap wpcb-admin">';
         echo '<h1>Buchungs-Historie</h1>';
         echo '<p class="description">Datensparsames Lifecycle-Protokoll. Namen, E-Mail-Adressen, Telefonnummern und Formularantworten werden hier nicht geladen oder angezeigt.</p>';
 
         echo '<form method="get" style="margin:12px 0;padding:12px;background:#fff;border:1px solid #ccd0d4">';
-        echo '<input type="hidden" name="page" value="cemb_booking_audit">';
+        echo '<input type="hidden" name="page" value="wpcb_booking_audit">';
         echo '<label>Buchung <input type="number" min="1" name="booking_id" value="' . esc_attr($filters['booking_id'] ?: '') . '"></label> ';
         echo '<label>Ereignis <select name="event"><option value="">alle</option>';
         foreach ($repo->contexts() as $context) {
@@ -49,7 +49,7 @@ class BookingAuditPage {
         echo '<label>Von <input type="date" name="from" value="' . esc_attr($filters['from_date']) . '"></label> ';
         echo '<label>Bis <input type="date" name="to" value="' . esc_attr($filters['to_date']) . '"></label> ';
         echo '<button class="button">Filtern</button> ';
-        echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=cemb_booking_audit')) . '">Zurücksetzen</a>';
+        echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_booking_audit')) . '">Zurücksetzen</a>';
         echo '</form>';
 
         echo '<table class="widefat striped"><thead><tr><th>Zeit (UTC)</th><th>Buchung</th><th>Ereignis</th><th>Von</th><th>Nach</th><th>Akteur</th><th>Notiz</th></tr></thead><tbody>';

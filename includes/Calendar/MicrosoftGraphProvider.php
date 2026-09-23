@@ -1,9 +1,9 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
-use Cemb\Admin\Settings;
-use Cemb\Support\BookingFormatter;
-use Cemb\Support\Time;
+use Wpcb\Admin\Settings;
+use Wpcb\Support\BookingFormatter;
+use Wpcb\Support\Time;
 
 final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
     private const TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
@@ -42,12 +42,12 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
         $from = Time::parseUtc($fromUtc);
         $to = Time::parseUtc($toUtc);
         if (!$from || !$to || $to <= $from) {
-            return new \WP_Error('cemb_microsoft_range', 'Invalid Microsoft calendar busy-time range.');
+            return new \WP_Error('wpcb_microsoft_range', 'Invalid Microsoft calendar busy-time range.');
         }
 
         $credentials = $this->connections->credentials($connection->id);
         if (!is_array($credentials)) {
-            return new \WP_Error('cemb_microsoft_credentials', 'Microsoft calendar credentials cannot be decrypted. Reconnect the calendar.');
+            return new \WP_Error('wpcb_microsoft_credentials', 'Microsoft calendar credentials cannot be decrypted. Reconnect the calendar.');
         }
 
         $isPersonal = (($credentials['tenant_id'] ?? '') === self::PERSONAL_TENANT_ID)
@@ -87,7 +87,7 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
         }
         $eventId = sanitize_text_field((string)($response['id'] ?? ''));
         if ($eventId === '') {
-            return new \WP_Error('cemb_microsoft_event_id', 'Microsoft Graph did not return an event identifier.');
+            return new \WP_Error('wpcb_microsoft_event_id', 'Microsoft Graph did not return an event identifier.');
         }
         $this->connections->setHealthSuccess($connection->id, 'write');
         return ['ok' => true, 'event_id' => $eventId];
@@ -100,7 +100,7 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
         }
         $eventId = trim($eventId);
         if ($eventId === '') {
-            return new \WP_Error('cemb_microsoft_event_missing', 'Microsoft event identifier is missing.');
+            return new \WP_Error('wpcb_microsoft_event_missing', 'Microsoft event identifier is missing.');
         }
 
         $response = $this->apiRequest(
@@ -250,7 +250,7 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
         $start = Time::parseUtc((string)($booking['slot_start'] ?? ''));
         $end = Time::parseUtc((string)($booking['slot_end'] ?? ''));
         if (!$start || !$end || $end <= $start) {
-            return new \WP_Error('cemb_microsoft_event_time', 'Booking contains invalid UTC event times.');
+            return new \WP_Error('wpcb_microsoft_event_time', 'Booking contains invalid UTC event times.');
         }
 
         $formatter = new BookingFormatter();
@@ -289,7 +289,7 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
         $decoded = $body !== '' ? json_decode($body, true) : [];
         if ($body !== '' && !is_array($decoded)) {
             $this->connections->setHealthError($connection->id, 'Microsoft Graph returned invalid JSON.');
-            return new \WP_Error('cemb_microsoft_json', 'Microsoft Graph returned an unreadable response.');
+            return new \WP_Error('wpcb_microsoft_json', 'Microsoft Graph returned an unreadable response.');
         }
         return is_array($decoded) ? $decoded : [];
     }
@@ -324,7 +324,7 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
         $response = wp_remote_request($url, $args);
         if (is_wp_error($response)) {
             $this->connections->setHealthError($connection->id, 'Microsoft Graph request failed.');
-            return new \WP_Error('cemb_microsoft_http', 'Microsoft Graph request failed. Please retry or reconnect.');
+            return new \WP_Error('wpcb_microsoft_http', 'Microsoft Graph request failed. Please retry or reconnect.');
         }
 
         $code = (int)wp_remote_retrieve_response_code($response);
@@ -334,9 +334,9 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
             }
             $this->connections->setHealthError($connection->id, 'Microsoft Graph returned HTTP ' . $code . '.');
             if ($code === 401 || $code === 403) {
-                return new \WP_Error('cemb_microsoft_reauth', 'Microsoft authorization is no longer valid or lacks permission. Reconnect the calendar.');
+                return new \WP_Error('wpcb_microsoft_reauth', 'Microsoft authorization is no longer valid or lacks permission. Reconnect the calendar.');
             }
-            return new \WP_Error('cemb_microsoft_api', 'Microsoft Graph request failed with HTTP ' . $code . '.');
+            return new \WP_Error('wpcb_microsoft_api', 'Microsoft Graph request failed with HTTP ' . $code . '.');
         }
         return $response;
     }
@@ -344,7 +344,7 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
     private function accessToken(CalendarConnection $connection) {
         $credentials = $this->connections->credentials($connection->id);
         if (!is_array($credentials)) {
-            return new \WP_Error('cemb_microsoft_credentials', 'Microsoft calendar credentials cannot be decrypted. Reconnect the calendar.');
+            return new \WP_Error('wpcb_microsoft_credentials', 'Microsoft calendar credentials cannot be decrypted. Reconnect the calendar.');
         }
 
         $access = (string)($credentials['access_token'] ?? '');
@@ -355,7 +355,7 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
 
         $refresh = (string)($credentials['refresh_token'] ?? '');
         if ($refresh === '' || !$this->oauth->configured()) {
-            return new \WP_Error('cemb_microsoft_reauth', 'Microsoft Calendar needs to be reconnected.');
+            return new \WP_Error('wpcb_microsoft_reauth', 'Microsoft Calendar needs to be reconnected.');
         }
 
         $response = wp_remote_post(self::TOKEN_URL, [
@@ -370,12 +370,12 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
             ],
         ]);
         if (is_wp_error($response) || (int)wp_remote_retrieve_response_code($response) !== 200) {
-            return new \WP_Error('cemb_microsoft_reauth', 'Microsoft token refresh failed. Reconnect the calendar.');
+            return new \WP_Error('wpcb_microsoft_reauth', 'Microsoft token refresh failed. Reconnect the calendar.');
         }
 
         $body = json_decode((string)wp_remote_retrieve_body($response), true);
         if (!is_array($body) || empty($body['access_token'])) {
-            return new \WP_Error('cemb_microsoft_reauth', 'Microsoft token refresh returned an invalid response.');
+            return new \WP_Error('wpcb_microsoft_reauth', 'Microsoft token refresh returned an invalid response.');
         }
 
         $credentials['access_token'] = (string)$body['access_token'];

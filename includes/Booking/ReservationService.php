@@ -1,9 +1,9 @@
 <?php
-namespace Cemb\Booking;
+namespace Wpcb\Booking;
 
-use Cemb\Admin\Settings;
-use Cemb\Availability\SlotSelectionService;
-use Cemb\Support\Time;
+use Wpcb\Admin\Settings;
+use Wpcb\Availability\SlotSelectionService;
+use Wpcb\Support\Time;
 
 /**
  * Creates the initial booking reservation inside a serialized critical section.
@@ -26,12 +26,12 @@ class ReservationService {
      */
     public function reserve(string $slotToken, int $expectedTypeId, array $customer, array $meta = []) {
         if ($expectedTypeId < 1 || !$this->selection->resolve($slotToken, $expectedTypeId)) {
-            return new \WP_Error('cemb_slot_unavailable', 'The selected slot is invalid, expired or no longer available.');
+            return new \WP_Error('wpcb_slot_unavailable', 'The selected slot is invalid, expired or no longer available.');
         }
 
         $lockName = $this->lockName();
         if (!$this->acquireLock($lockName, 5)) {
-            return new \WP_Error('cemb_reservation_busy', 'The booking system is busy. Please try again.');
+            return new \WP_Error('wpcb_reservation_busy', 'The booking system is busy. Please try again.');
         }
 
         try {
@@ -39,7 +39,7 @@ class ReservationService {
             // reservation writers using this service have been serialized.
             $slot = $this->selection->resolve($slotToken, $expectedTypeId);
             if (!$slot) {
-                return new \WP_Error('cemb_slot_unavailable', 'The selected slot is no longer available.');
+                return new \WP_Error('wpcb_slot_unavailable', 'The selected slot is no longer available.');
             }
 
             $settings = Settings::get();
@@ -64,7 +64,7 @@ class ReservationService {
             ], $meta);
 
             if ($bookingId < 1) {
-                return new \WP_Error('cemb_reservation_storage', 'The booking reservation could not be stored.');
+                return new \WP_Error('wpcb_reservation_storage', 'The booking reservation could not be stored.');
             }
             return $bookingId;
         } finally {
@@ -73,7 +73,7 @@ class ReservationService {
     }
 
     private function lockName(): string {
-        return 'cemb_reserve_' . md5(home_url('/'));
+        return 'wpcb_reserve_' . md5(home_url('/'));
     }
 
     private function acquireLock(string $name, int $timeoutSeconds): bool {

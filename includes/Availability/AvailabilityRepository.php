@@ -1,13 +1,13 @@
 <?php
-namespace Cemb\Availability;
+namespace Wpcb\Availability;
 
 class AvailabilityRepository {
     private string $rulesTable;
     private string $exceptionsTable;
     public function __construct() {
         global $wpdb;
-        $this->rulesTable = $wpdb->prefix . 'cemb_availability_rules';
-        $this->exceptionsTable = $wpdb->prefix . 'cemb_exceptions';
+        $this->rulesTable = $wpdb->prefix . 'wpcb_availability_rules';
+        $this->exceptionsTable = $wpdb->prefix . 'wpcb_exceptions';
     }
     public function rulesForType(?int $typeId = null): array {
         global $wpdb;

@@ -1,9 +1,9 @@
 <?php
-namespace Cemb\Privacy;
+namespace Wpcb\Privacy;
 
-use Cemb\Admin\Settings;
-use Cemb\Booking\BookingStatus;
-use Cemb\Support\Time;
+use Wpcb\Admin\Settings;
+use Wpcb\Booking\BookingStatus;
+use Wpcb\Support\Time;
 
 final class PrivacyService {
     private const PAGE_SIZE = 50;
@@ -13,24 +13,24 @@ final class PrivacyService {
         add_filter('wp_privacy_personal_data_exporters', [$this, 'registerExporter']);
         add_filter('wp_privacy_personal_data_erasers', [$this, 'registerEraser']);
         add_action('admin_init', [$this, 'addPolicyText']);
-        add_action('cemb_privacy_retention', [$this, 'runRetention']);
+        add_action('wpcb_privacy_retention', [$this, 'runRetention']);
 
-        if (!wp_next_scheduled('cemb_privacy_retention')) {
-            wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'cemb_privacy_retention');
+        if (!wp_next_scheduled('wpcb_privacy_retention')) {
+            wp_schedule_event(time() + HOUR_IN_SECONDS, 'daily', 'wpcb_privacy_retention');
         }
     }
 
     public function registerExporter(array $exporters): array {
-        $exporters['cemb-bookings'] = [
-            'exporter_friendly_name' => __('Calendar Booking appointments', 'cemb'),
+        $exporters['wpcb-bookings'] = [
+            'exporter_friendly_name' => __('Calendar Booking appointments', 'wordpress-calendar-booking'),
             'callback' => [$this, 'exporter'],
         ];
         return $exporters;
     }
 
     public function registerEraser(array $erasers): array {
-        $erasers['cemb-bookings'] = [
-            'eraser_friendly_name' => __('Calendar Booking appointments', 'cemb'),
+        $erasers['wpcb-bookings'] = [
+            'eraser_friendly_name' => __('Calendar Booking appointments', 'wordpress-calendar-booking'),
             'callback' => [$this, 'eraser'],
         ];
         return $erasers;
@@ -44,7 +44,7 @@ final class PrivacyService {
             return ['data' => [], 'done' => true];
         }
 
-        $table = $wpdb->prefix . 'cemb_bookings';
+        $table = $wpdb->prefix . 'wpcb_bookings';
         $offset = ($page - 1) * self::PAGE_SIZE;
         $rows = $wpdb->get_results(
             $wpdb->prepare(
@@ -59,27 +59,27 @@ final class PrivacyService {
         foreach ($rows as $booking) {
             $meta = $this->personalMeta((int)$booking->id);
             $items = [
-                ['name' => __('Booking ID', 'cemb'), 'value' => (string)$booking->id],
-                ['name' => __('Status', 'cemb'), 'value' => (string)$booking->status],
-                ['name' => __('Appointment start (UTC)', 'cemb'), 'value' => (string)$booking->slot_start],
-                ['name' => __('Appointment end (UTC)', 'cemb'), 'value' => (string)$booking->slot_end],
-                ['name' => __('Name', 'cemb'), 'value' => (string)$booking->full_name],
-                ['name' => __('Email', 'cemb'), 'value' => (string)$booking->email],
-                ['name' => __('Phone', 'cemb'), 'value' => (string)$booking->phone],
-                ['name' => __('Notes', 'cemb'), 'value' => (string)$booking->notes],
-                ['name' => __('Admin notes', 'cemb'), 'value' => (string)$booking->admin_notes],
+                ['name' => __('Booking ID', 'wordpress-calendar-booking'), 'value' => (string)$booking->id],
+                ['name' => __('Status', 'wordpress-calendar-booking'), 'value' => (string)$booking->status],
+                ['name' => __('Appointment start (UTC)', 'wordpress-calendar-booking'), 'value' => (string)$booking->slot_start],
+                ['name' => __('Appointment end (UTC)', 'wordpress-calendar-booking'), 'value' => (string)$booking->slot_end],
+                ['name' => __('Name', 'wordpress-calendar-booking'), 'value' => (string)$booking->full_name],
+                ['name' => __('Email', 'wordpress-calendar-booking'), 'value' => (string)$booking->email],
+                ['name' => __('Phone', 'wordpress-calendar-booking'), 'value' => (string)$booking->phone],
+                ['name' => __('Notes', 'wordpress-calendar-booking'), 'value' => (string)$booking->notes],
+                ['name' => __('Admin notes', 'wordpress-calendar-booking'), 'value' => (string)$booking->admin_notes],
             ];
 
             foreach ($meta as $key => $value) {
                 $items[] = [
-                    'name' => sprintf(__('Form field: %s', 'cemb'), $key),
+                    'name' => sprintf(__('Form field: %s', 'wordpress-calendar-booking'), $key),
                     'value' => is_scalar($value) ? (string)$value : wp_json_encode($value),
                 ];
             }
 
             $data[] = [
-                'group_id' => 'cemb-bookings',
-                'group_label' => __('Calendar Booking appointments', 'cemb'),
+                'group_id' => 'wpcb-bookings',
+                'group_label' => __('Calendar Booking appointments', 'wordpress-calendar-booking'),
                 'item_id' => 'booking-' . (int)$booking->id,
                 'data' => $items,
             ];
@@ -104,7 +104,7 @@ final class PrivacyService {
             ];
         }
 
-        $table = $wpdb->prefix . 'cemb_bookings';
+        $table = $wpdb->prefix . 'wpcb_bookings';
         // Always process the first matching batch. Successful anonymization
         // removes rows from this email lookup, so offset pagination would skip
         // records on subsequent WordPress eraser calls.
@@ -125,7 +125,7 @@ final class PrivacyService {
             if ($this->isRetained($bookingId)) {
                 $retained = true;
                 $messages[] = sprintf(
-                    __('Booking #%d was retained because an administrator marked it for retention.', 'cemb'),
+                    __('Booking #%d was retained because an administrator marked it for retention.', 'wordpress-calendar-booking'),
                     $bookingId
                 );
                 continue;
@@ -141,7 +141,7 @@ final class PrivacyService {
                 "SELECT COUNT(*) FROM {$table} b
                  WHERE b.email = %s
                    AND NOT EXISTS (
-                       SELECT 1 FROM {$wpdb->prefix}cemb_booking_meta m
+                       SELECT 1 FROM {$wpdb->prefix}wpcb_booking_meta m
                        WHERE m.booking_id = b.id
                          AND m.meta_key = %s
                          AND m.meta_value = '1'
@@ -168,8 +168,8 @@ final class PrivacyService {
         global $wpdb;
         $days = max(1, (int)($settings['retention_days'] ?? 365));
         $cutoff = Time::formatUtc(Time::nowUtc()->modify('-' . $days . ' days'));
-        $bookings = $wpdb->prefix . 'cemb_bookings';
-        $meta = $wpdb->prefix . 'cemb_booking_meta';
+        $bookings = $wpdb->prefix . 'wpcb_bookings';
+        $meta = $wpdb->prefix . 'wpcb_booking_meta';
 
         $statuses = [
             BookingStatus::CONFIRMED,
@@ -204,7 +204,7 @@ final class PrivacyService {
 
     public function setRetention(int $bookingId, bool $retain): void {
         global $wpdb;
-        $table = $wpdb->prefix . 'cemb_booking_meta';
+        $table = $wpdb->prefix . 'wpcb_booking_meta';
         $wpdb->delete($table, [
             'booking_id' => $bookingId,
             'meta_key' => self::RETAIN_META_KEY,
@@ -220,7 +220,7 @@ final class PrivacyService {
 
     public function isRetained(int $bookingId): bool {
         global $wpdb;
-        $table = $wpdb->prefix . 'cemb_booking_meta';
+        $table = $wpdb->prefix . 'wpcb_booking_meta';
         return '1' === (string)$wpdb->get_var(
             $wpdb->prepare(
                 "SELECT meta_value FROM {$table} WHERE booking_id = %d AND meta_key = %s LIMIT 1",
@@ -237,16 +237,16 @@ final class PrivacyService {
 
         $content = __(
             'When visitors book appointments, this site may store their name, email address, phone number, form responses, appointment time, booking status and administrator notes. The data is used to process the appointment, send Double Opt-In and appointment messages, prevent scheduling conflicts and maintain an audit trail. If calendar synchronization is enabled, appointment data required to create or update the event may be transferred to the configured calendar provider. Calendar account credentials are stored separately in the site settings and are never included in WordPress personal-data exports. Site administrators can configure automatic anonymization of older completed/terminal bookings and can mark individual bookings for retention when they must be kept.',
-            'cemb'
+            'wordpress-calendar-booking'
         );
         wp_add_privacy_policy_content('WordPress Calendar Booking', wpautop($content));
     }
 
     private function anonymizeBooking(int $bookingId): bool {
         global $wpdb;
-        $bookings = $wpdb->prefix . 'cemb_bookings';
-        $meta = $wpdb->prefix . 'cemb_booking_meta';
-        $tokens = $wpdb->prefix . 'cemb_tokens';
+        $bookings = $wpdb->prefix . 'wpcb_bookings';
+        $meta = $wpdb->prefix . 'wpcb_booking_meta';
+        $tokens = $wpdb->prefix . 'wpcb_tokens';
 
         $booking = $wpdb->get_row(
             $wpdb->prepare("SELECT id, email FROM {$bookings} WHERE id = %d LIMIT 1", $bookingId)
@@ -298,7 +298,7 @@ final class PrivacyService {
 
     private function personalMeta(int $bookingId): array {
         global $wpdb;
-        $table = $wpdb->prefix . 'cemb_booking_meta';
+        $table = $wpdb->prefix . 'wpcb_booking_meta';
         $rows = $wpdb->get_results(
             $wpdb->prepare(
                 "SELECT meta_key, meta_value FROM {$table} WHERE booking_id = %d ORDER BY id ASC",

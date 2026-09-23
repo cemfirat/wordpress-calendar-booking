@@ -1,5 +1,5 @@
 <?php
-namespace Cemb\Security;
+namespace Wpcb\Security;
 
 /**
  * Versioned authenticated encryption for provider credentials.
@@ -9,7 +9,7 @@ namespace Cemb\Security;
  */
 final class SecretBox {
     private const VERSION = 'v2';
-    private const AAD = 'cemb-provider-secret:v2';
+    private const AAD = 'wpcb-provider-secret:v2';
 
     public function backend(): string {
         $detected = '';
@@ -19,7 +19,7 @@ final class SecretBox {
             $detected = 'aesgcm';
         }
 
-        $requested = (string)apply_filters('cemb_secret_storage_backend', $detected);
+        $requested = (string)apply_filters('wpcb_secret_storage_backend', $detected);
         if ($requested === 'sodium' && $this->sodiumAvailable()) {
             return 'sodium';
         }
@@ -68,7 +68,7 @@ final class SecretBox {
             );
             if ($cipher === false || strlen($tag) !== 16) {
                 return new \WP_Error(
-                    'cemb_secret_encrypt_failed',
+                    'wpcb_secret_encrypt_failed',
                     'Calendar credentials could not be encrypted securely and were not saved.'
                 );
             }
@@ -82,7 +82,7 @@ final class SecretBox {
         }
 
         return new \WP_Error(
-            'cemb_secret_crypto_unavailable',
+            'wpcb_secret_crypto_unavailable',
             'Secure credential storage requires libsodium or OpenSSL AES-256-GCM. The secret was not saved.'
         );
     }
@@ -147,7 +147,7 @@ final class SecretBox {
             'sha256',
             wp_salt('auth'),
             32,
-            'cemb/provider-secret/' . self::VERSION
+            'wpcb/provider-secret/' . self::VERSION
         );
     }
 
