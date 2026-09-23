@@ -146,7 +146,7 @@ Payment handling is provider-neutral. A booking may have a payment obligation wi
 
 Raw PAN/CVC or equivalent card credentials are not stored by the plugin. Expired/abandoned payment obligations integrate with reservation expiry so held capacity can be released safely.
 
-A paid recurring series uses one payment obligation owned by its first occurrence. The amount is computed server-side as the booking-type unit price multiplied by the bounded occurrence count; the stored payment amount/currency are the immutable price snapshot. Every occurrence resolves to that same payment for confirmation gating and customer display. Payment expiry releases the complete reserved series. Because partial-refund accounting is intentionally not implemented, paid-series cancellation is supported only for the complete series from its first occurrence; narrower cancellation scopes fail closed.
+A paid recurring series uses one payment obligation owned by its first occurrence. The amount is computed server-side as the booking-type unit price multiplied by the bounded occurrence count; the stored payment amount/currency are the immutable price snapshot. Every occurrence resolves to that same payment for confirmation gating and customer display. Payment expiry releases the complete reserved series. Authenticated portal sessions can resume an open provider Checkout session without creating another payment obligation; expired provider sessions are replaced under serialized checkout preparation. Cancellation can refund one occurrence or the selected occurrence plus the remaining series. Refund amounts are derived deterministically from the immutable original amount in integer minor units, cumulative queued/refunded amounts are tracked atomically, and provider refunds use stable idempotency keys so retries cannot over-refund.
 
 ## Waiting lists
 
@@ -169,7 +169,7 @@ Series operations distinguish:
 - a single occurrence;
 - remaining occurrences from a chosen point.
 
-Per-occurrence lifecycle/audit semantics remain intact. Calendar write-back and notifications operate through the same idempotent effect layer as single bookings. Paid series additionally share one series-level payment state while retaining per-occurrence privacy-safe payment audit events.
+Per-occurrence lifecycle/audit semantics remain intact. Calendar write-back and notifications operate through the same idempotent effect layer as single bookings. Paid series additionally share one series-level payment state while retaining per-occurrence privacy-safe payment audit events; cancellation scopes map to deterministic refund allocations without copying customer data into payment audit context.
 
 ## Frontend architecture
 

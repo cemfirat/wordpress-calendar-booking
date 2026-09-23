@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.15.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.17.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -153,9 +153,9 @@ Authenticated customers can see only bookings matching their verified session em
 
 ## Payments
 
-The payment lifecycle remains provider-neutral. Version 3.13 adds a production Stripe Checkout adapter for payment-required booking types: visitors are redirected to Stripe-hosted Checkout after the slot is atomically reserved, while booking confirmation remains blocked until a verified payment event is received.
+The payment lifecycle remains provider-neutral. Version 3.13 adds production Stripe Checkout for payment-required booking types: visitors are redirected to Stripe-hosted Checkout after the slot is atomically reserved, while booking confirmation remains blocked until a verified payment event is received. Version 3.16 lets authenticated customers safely resume an open Checkout session from the customer portal and replaces expired sessions without creating a second payment obligation.
 
-Stripe API and webhook signing secrets are encrypted with the shared authenticated secret-storage layer. Checkout requests contain only the technical payment identifier, server-side amount/currency and return URLs; customer names, email addresses, phone numbers, notes and raw card/bank credentials are not sent by this plugin to the adapter or stored in WordPress. Signed Stripe webhooks are verified over the raw request body, provider retries are idempotent, expired pending payments release reservations, and cancelled paid bookings can be refunded from the payment administration screen.
+Stripe API and webhook signing secrets are encrypted with the shared authenticated secret-storage layer. Checkout requests contain only technical payment identifiers, server-side amount/currency and return URLs; customer names, email addresses, phone numbers, notes and raw card/bank credentials are not sent by this plugin to the adapter or stored in WordPress. Signed Stripe webhooks are verified over the raw request body, provider retries are idempotent, expired pending payments release reservations, and paid bookings support deterministic refunds. Since 3.17, paid recurring series support exact single-occurrence and remaining-series partial refunds with cumulative refund accounting and over-refund protection.
 
 
 ## Video meetings
@@ -165,6 +165,6 @@ Version 3.6 adds provider-neutral video meeting orchestration for Zoom, Google M
 
 ## Recurring bookings
 
-Version 3.7 adds bounded weekly booking series for free booking types. The first signed canonical slot anchors the series; every later occurrence is regenerated and revalidated on the server before any booking is stored. Series preserve the configured local wall-clock time across UTC offset changes, reject ambiguous/non-existent DST wall times, and can be cancelled or rescheduled for one occurrence or the selected occurrence plus all remaining appointments.
+Version 3.7 adds bounded weekly booking series. The first signed canonical slot anchors the series; every later occurrence is regenerated and revalidated on the server before any booking is stored. Series preserve the configured local wall-clock time across UTC offset changes, reject ambiguous/non-existent DST wall times, and can be cancelled or rescheduled for one occurrence or the selected occurrence plus all remaining appointments.
 
-Series creation is all-or-nothing. If any occurrence is no longer bookable, no partial series is stored. Paid booking types are intentionally excluded until payment authorization, expiry and refund behavior for a whole series is specified explicitly.
+Series creation is all-or-nothing. If any occurrence is no longer bookable, no partial series is stored. Since 3.15, paid series use one server-authoritative upfront payment obligation shared by all occurrences; payment confirmation and expiry apply consistently to the series. Version 3.17 adds deterministic partial refunds for cancelling one occurrence or the selected occurrence plus the remaining series, with exact minor-unit allocation, cumulative refund tracking and over-refund protection.

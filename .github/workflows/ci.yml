@@ -26,9 +26,27 @@ jobs:
           grep -q 'ResourceLock' docs/ARCHITECTURE.md
           grep -q 'Versioned `/wp-json/wpcb/v1` REST API' docs/PRODUCT.md
           python3 - <<'PY'
+          import re
           from pathlib import Path
 
+          plugin = Path("wordpress-calendar-booking.php").read_text()
+          version_lines = [line for line in plugin.splitlines() if line.startswith(" * Version: ")]
+          assert len(version_lines) == 1, "plugin header version is missing or ambiguous"
+          version = version_lines[0].split(": ", 1)[1]
+
+          readme = Path("README.md").read_text()
+          wp_readme = Path("readme.txt").read_text()
           changelog = Path("CHANGELOG.md").read_text()
+          product = Path("docs/PRODUCT.md").read_text()
+          architecture = Path("docs/ARCHITECTURE.md").read_text()
+
+          assert f"**Stable release:** {version}." in readme, "README stable release must match plugin header"
+          assert f"Stable tag: {version}" in wp_readme.splitlines(), "readme.txt stable tag must match plugin header"
+          assert f"## {version}" in changelog.splitlines(), "CHANGELOG must contain current plugin version"
+          assert "Paid booking types are intentionally excluded" not in readme, "README contains stale paid-series exclusion"
+          assert "partial-refund accounting is intentionally not implemented" not in architecture, "Architecture contains stale refund limitation"
+          assert "conservative full-series refund semantics" not in product, "Product definition contains stale refund limitation"
+
           section_311 = changelog.split("## 3.11.0\n", 1)[1].split("\n## ", 1)[0]
           assert "Paginate the interactive administrator booking list" not in section_311, "3.11.0 section must not contain pagination"
           assert "## 3.12.0" in changelog and "Paginate the interactive administrator booking list" in changelog.split("## 3.12.0\n", 1)[1].split("\n## ", 1)[0]
