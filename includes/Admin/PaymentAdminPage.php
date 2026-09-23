@@ -9,24 +9,29 @@ final class PaymentAdminPage {
     }
 
     public function menu(): void {
-        add_submenu_page(
-            'wpcb_dashboard',
-            'Zahlungen',
-            'Zahlungen',
-            'manage_options',
-            'wpcb_payments',
-            [$this, 'render']
-        );
+        $title = __('Zahlungen', 'wordpress-calendar-booking');
+        add_submenu_page('wpcb_dashboard', $title, $title, 'manage_options', 'wpcb_payments', [$this, 'render']);
     }
 
     public function render(): void {
         if (!current_user_can('manage_options')) {
-            wp_die('Nicht erlaubt.', 403);
+            wp_die(esc_html__('Nicht erlaubt.', 'wordpress-calendar-booking'), '', ['response' => 403]);
         }
         $rows = (new PaymentRepository())->recent(200);
-        echo '<div class="wrap"><h1>Zahlungen</h1>';
-        echo '<p class="description">Es werden nur Zahlungsstatus und technische Referenzen verwaltet. Karten-/Bank-Zugangsdaten werden nicht in WordPress gespeichert.</p>';
-        echo '<table class="widefat striped"><thead><tr><th>ID</th><th>Buchung</th><th>Anbieter</th><th>Betrag</th><th>Status</th><th>Aktualisiert</th></tr></thead><tbody>';
+        echo '<div class="wrap"><h1>' . esc_html__('Zahlungen', 'wordpress-calendar-booking') . '</h1>';
+        echo '<p class="description">' . esc_html__('Es werden nur Zahlungsstatus und technische Referenzen verwaltet. Karten-/Bank-Zugangsdaten werden nicht in WordPress gespeichert.', 'wordpress-calendar-booking') . '</p>';
+        echo '<table class="widefat striped"><thead><tr>';
+        foreach ([
+            __('ID', 'wordpress-calendar-booking'),
+            __('Buchung', 'wordpress-calendar-booking'),
+            __('Anbieter', 'wordpress-calendar-booking'),
+            __('Betrag', 'wordpress-calendar-booking'),
+            __('Status', 'wordpress-calendar-booking'),
+            __('Aktualisiert', 'wordpress-calendar-booking'),
+        ] as $heading) {
+            echo '<th>' . esc_html($heading) . '</th>';
+        }
+        echo '</tr></thead><tbody>';
         foreach ($rows as $row) {
             $amount = number_format(((int)$row->amount_minor) / 100, 2, ',', '.');
             echo '<tr><td>#' . (int)$row->id . '</td><td>#' . (int)$row->booking_id . '</td>';
@@ -36,7 +41,7 @@ final class PaymentAdminPage {
             echo '<td>' . esc_html((string)$row->updated_at) . '</td></tr>';
         }
         if (!$rows) {
-            echo '<tr><td colspan="6">Keine Zahlungen vorhanden.</td></tr>';
+            echo '<tr><td colspan="6">' . esc_html__('Keine Zahlungen vorhanden.', 'wordpress-calendar-booking') . '</td></tr>';
         }
         echo '</tbody></table></div>';
     }
