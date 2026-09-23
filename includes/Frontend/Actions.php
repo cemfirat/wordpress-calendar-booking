@@ -8,6 +8,7 @@ use Wpcb\Booking\BookingStatus;
 use Wpcb\Booking\BookingStateMachine;
 use Wpcb\Booking\BookingTransitionService;
 use Wpcb\Booking\ReservationService;
+use Wpcb\Booking\RecurringBookingService;
 use Wpcb\Tokens\TokenService;
 use Wpcb\Tokens\SlotTokenService;
 use Wpcb\Mail\Mailer;
@@ -111,22 +112,41 @@ class Actions {
 
         $partySize = max(1, min(10000, absint($_POST['party_size'] ?? 1)));
 
-        $bookingId = (new ReservationService())->reserve(
-            $slotToken,
-            $typeId,
-            [
-                'full_name' => $fullName,
-                'email' => $email,
-                'phone' => $phone,
-                'notes' => isset($meta['message']) ? (string)$meta['message'] : '',
-                'source' => 'frontend',
-                'lang' => 'de',
-                'party_size' => $partySize,
-            ],
-            $meta
-        );
-        if (is_wp_error($bookingId)) {
-            wp_die(esc_html($bookingId->get_error_message()));
+        $customer = [
+            'full_name' => $fullName,
+            'email' => $email,
+            'phone' => $phone,
+            'notes' => isset($meta['message']) ? (string)$meta['message'] : '',
+            'source' => 'frontend',
+            'lang' => 'de',
+            'party_size' => $partySize,
+        ];
+        $recurrenceCount = max(1, min(24, absint($_POST['recurrence_count'] ?? 1)));
+        $recurrenceInterval = max(1, min(4, absint($_POST['recurrence_interval'] ?? 1)));
+
+        if ($recurrenceCount > 1) {
+            $series = (new RecurringBookingService())->reserveWeekly(
+                $slotToken,
+                $typeId,
+                $customer,
+                $meta,
+                $recurrenceCount,
+                $recurrenceInterval
+            );
+            if (is_wp_error($series)) {
+                wp_die(esc_html($series->get_error_message()));
+            }
+            $bookingId = (int)$series['primary_booking_id'];
+        } else {
+            $bookingId = (new ReservationService())->reserve(
+                $slotToken,
+                $typeId,
+                $customer,
+                $meta
+            );
+            if (is_wp_error($bookingId)) {
+                wp_die(esc_html($bookingId->get_error_message()));
+            }
         }
 
         $repo = new BookingRepository();
@@ -248,6 +268,15 @@ class Actions {
                 ? BookingStateMachine::EMAIL_CONFIRMED_APPROVAL
                 : BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC;
 
+            if (!empty($booking->series_id)) {
+                return (new RecurringBookingService())->applyRemaining(
+                    (int)$booking->id,
+                    $event,
+                    'user',
+                    'Recurring series Double-Opt-In confirmed'
+                );
+            }
+
             return $transitions->apply(
                 (int)$booking->id,
                 $event,
@@ -261,6 +290,16 @@ class Actions {
             $start = Time::parseUtc((string)$booking->slot_start);
             if (!$start || $start < $cutoff) {
                 return new \WP_Error('wpcb_cancel_too_late', 'Stornierung ist für diesen Termin nicht mehr möglich.');
+            }
+
+            $seriesScope = sanitize_key(wp_unslash($_POST['series_scope'] ?? 'single'));
+            if (!empty($booking->series_id) && $seriesScope === 'remaining') {
+                return (new RecurringBookingService())->applyRemaining(
+                    (int)$booking->id,
+                    BookingStateMachine::USER_CANCELLED,
+                    'user',
+                    'Recurring series cancelled by visitor'
+                );
             }
 
             return $transitions->apply(
@@ -287,6 +326,17 @@ class Actions {
             );
             if (!$selection) {
                 return new \WP_Error('wpcb_slot_unavailable', 'Der neue Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
+            }
+
+            $seriesScope = sanitize_key(wp_unslash($_POST['series_scope'] ?? 'single'));
+            if (!empty($booking->series_id) && $seriesScope === 'remaining') {
+                return (new RecurringBookingService())->rescheduleRemaining(
+                    (int)$booking->id,
+                    (string)$selection['start'],
+                    (string)$selection['end'],
+                    (int)$selection['resource_id'],
+                    'user'
+                );
             }
 
             return $transitions->reschedule(
@@ -331,9 +381,18 @@ class Actions {
                 $this->renderActionScreen('Stornierung nicht mehr möglich', 'Die Stornofrist für diesen Termin ist abgelaufen.');
             }
 
+            $seriesControl = '';
+            if (!empty($booking->series_id)) {
+                $seriesControl = '<label class="uk-form-label" for="wpcb-series-cancel-scope">Serienumfang</label>'
+                    . '<div class="uk-form-controls"><select class="uk-select" id="wpcb-series-cancel-scope" name="series_scope">'
+                    . '<option value="single">Nur diesen Termin</option>'
+                    . '<option value="remaining">Diesen und alle folgenden Termine</option>'
+                    . '</select></div>';
+            }
             $form = $this->actionFormStart($action, $token)
                 . '<p>Termin: <strong>' . esc_html($date . ' ' . $time) . '</strong></p>'
-                . '<button class="uk-button uk-button-danger" type="submit">Termin verbindlich stornieren</button></form>';
+                . $seriesControl
+                . '<button class="uk-button uk-button-danger uk-margin-top" type="submit">Termin verbindlich stornieren</button></form>';
             $this->renderActionScreen('Termin stornieren', 'Der Termin wird erst nach dem Klick auf den Button storniert.', $form);
         }
 
@@ -375,9 +434,18 @@ class Actions {
                 $this->renderActionScreen('Keine freien Alternativen', 'Aktuell ist kein alternativer Termin verfügbar.');
             }
 
+            $seriesControl = '';
+            if (!empty($booking->series_id)) {
+                $seriesControl = '<label class="uk-form-label" for="wpcb-series-update-scope">Serienumfang</label>'
+                    . '<div class="uk-form-controls"><select class="uk-select" id="wpcb-series-update-scope" name="series_scope">'
+                    . '<option value="single">Nur diesen Termin</option>'
+                    . '<option value="remaining">Diesen und alle folgenden Termine</option>'
+                    . '</select></div>';
+            }
             $form = $this->actionFormStart($action, $token)
                 . '<p>Aktuell: <strong>' . esc_html($date . ' ' . $time) . '</strong></p>'
-                . '<label class="uk-form-label" for="wpcb-new-slot">Neuer Termin</label>'
+                . $seriesControl
+                . '<label class="uk-form-label uk-margin-top" for="wpcb-new-slot">Neuer Termin</label>'
                 . '<div class="uk-form-controls"><select class="uk-select" id="wpcb-new-slot" name="new_slot_token" required>'
                 . '<option value="">Bitte wählen</option>' . $options . '</select></div>'
                 . '<p><button class="uk-button uk-button-primary" type="submit">Termin ändern</button></p></form>';
