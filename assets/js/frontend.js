@@ -69,14 +69,28 @@
 
   function hideModal(modal){
     var trigger = modal.__wpcbTrigger;
+    var restoreFocus = function(){
+      if(trigger && trigger.focus) trigger.focus();
+    };
     if(window.UIkit && UIkit.modal){
       var inst = UIkit.modal(modal);
+      var restored = false;
+      var restoreOnce = function(){
+        if(restored) return;
+        restored = true;
+        restoreFocus();
+      };
+      modal.addEventListener('hidden', restoreOnce, {once:true});
       inst.hide();
+      // UIkit restores/touches focus during its hide transition. Keep a
+      // bounded fallback so the original trigger wins even if the theme uses
+      // a UIkit build that does not emit the native hidden event here.
+      window.setTimeout(restoreOnce, 350);
     } else {
       modal.hidden = true;
       document.documentElement.classList.remove('wpcb-modal-open');
+      window.setTimeout(restoreFocus, 0);
     }
-    if(trigger && trigger.focus) window.setTimeout(function(){ trigger.focus(); }, 0);
   }
 
   function fillSlots(form, typeId, preselect){
