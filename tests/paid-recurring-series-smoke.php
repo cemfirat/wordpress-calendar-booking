@@ -152,6 +152,18 @@ wpcb_paid_series_assert(
     'Partial remaining-series cancellation of a paid series fails closed.'
 );
 
+
+$partialReject = (new BookingTransitionService())->apply(
+    (int)$members[1]->id,
+    BookingStateMachine::ADMIN_REJECTED,
+    'ci',
+    'Unsupported paid partial rejection'
+);
+wpcb_paid_series_assert(
+    is_wp_error($partialReject) && $partialReject->get_error_code() === 'wpcb_paid_series_partial_refund_unsupported',
+    'Single-occurrence rejection of a paid series fails closed before any refund state can be created.'
+);
+
 $cancelled = $seriesService->applyRemaining(
     (int)$members[0]->id,
     BookingStateMachine::USER_CANCELLED,
