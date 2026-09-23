@@ -5,6 +5,7 @@ use Wpcb\Admin\Settings;
 use Wpcb\Booking\BookingStatus;
 use Wpcb\Support\Time;
 use Wpcb\Portal\CustomerSessionRepository;
+use Wpcb\WaitingList\WaitingListRepository;
 
 final class PrivacyService {
     private const PAGE_SIZE = 50;
@@ -26,6 +27,10 @@ final class PrivacyService {
             'exporter_friendly_name' => __('Calendar Booking appointments', 'wordpress-calendar-booking'),
             'callback' => [$this, 'exporter'],
         ];
+        $exporters['wpcb-waiting-list'] = [
+            'exporter_friendly_name' => __('Calendar Booking waiting list', 'wordpress-calendar-booking'),
+            'callback' => [$this, 'exportWaitingList'],
+        ];
         return $exporters;
     }
 
@@ -34,7 +39,44 @@ final class PrivacyService {
             'eraser_friendly_name' => __('Calendar Booking appointments', 'wordpress-calendar-booking'),
             'callback' => [$this, 'eraser'],
         ];
+        $erasers['wpcb-waiting-list'] = [
+            'eraser_friendly_name' => __('Calendar Booking waiting list', 'wordpress-calendar-booking'),
+            'callback' => [$this, 'eraseWaitingList'],
+        ];
         return $erasers;
+    }
+
+    public function exportWaitingList(string $emailAddress, int $page = 1): array {
+        if ($page > 1) {
+            return ['data' => [], 'done' => true];
+        }
+        $rows = (new WaitingListRepository())->forEmail($emailAddress, 100);
+        $data = [];
+        foreach ($rows as $row) {
+            $data[] = [
+                'group_id' => 'wpcb-waiting-list',
+                'group_label' => __('Calendar Booking waiting list', 'wordpress-calendar-booking'),
+                'item_id' => 'waitlist-' . (int)$row->id,
+                'data' => [
+                    ['name' => __('Status', 'wordpress-calendar-booking'), 'value' => (string)$row->status],
+                    ['name' => __('Appointment start (UTC)', 'wordpress-calendar-booking'), 'value' => (string)$row->slot_start],
+                    ['name' => __('Appointment end (UTC)', 'wordpress-calendar-booking'), 'value' => (string)$row->slot_end],
+                    ['name' => __('Party size', 'wordpress-calendar-booking'), 'value' => (string)$row->party_size],
+                    ['name' => __('Email', 'wordpress-calendar-booking'), 'value' => (string)$row->email],
+                ],
+            ];
+        }
+        return ['data' => $data, 'done' => true];
+    }
+
+    public function eraseWaitingList(string $emailAddress, int $page = 1): array {
+        $removed = $page === 1 ? (new WaitingListRepository())->eraseEmail($emailAddress) : 0;
+        return [
+            'items_removed' => $removed > 0,
+            'items_retained' => false,
+            'messages' => [],
+            'done' => true,
+        ];
     }
 
     public function exporter(string $emailAddress, int $page = 1): array {
