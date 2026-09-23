@@ -2,6 +2,7 @@
 namespace Wpcb\Portal;
 
 use Wpcb\Availability\SlotService;
+use Wpcb\Frontend\AssetManager;
 use Wpcb\Booking\BookingRepository;
 use Wpcb\Booking\BookingStateMachine;
 use Wpcb\Booking\BookingStatus;
@@ -14,15 +15,18 @@ final class CustomerPortalController {
     private CustomerSessionRepository $sessions;
     private BookingRepository $bookings;
     private TokenService $tokens;
+    private AssetManager $assets;
 
     public function __construct(
         ?CustomerSessionRepository $sessions = null,
         ?BookingRepository $bookings = null,
-        ?TokenService $tokens = null
+        ?TokenService $tokens = null,
+        ?AssetManager $assets = null
     ) {
         $this->sessions = $sessions ?: new CustomerSessionRepository();
         $this->bookings = $bookings ?: new BookingRepository();
         $this->tokens = $tokens ?: new TokenService();
+        $this->assets = $assets ?: new AssetManager();
     }
 
     public function boot(): void {
@@ -49,6 +53,8 @@ final class CustomerPortalController {
     }
 
     public function shortcode(array $atts = []): string {
+        $this->assets->register();
+        $this->assets->enqueue(false);
         $session = $this->currentSession();
         $returnUrl = $this->currentUrl();
 
@@ -398,7 +404,8 @@ final class CustomerPortalController {
             . '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
             . '<input type="hidden" name="action" value="wpcb_portal_request">'
             . '<input type="hidden" name="return_url" value="' . esc_attr($returnUrl) . '">'
-            . '<input class="uk-input" type="email" name="email" required autocomplete="email">'
+            . '<label class="uk-form-label" for="wpcb-portal-email">E-Mail-Adresse</label>'
+            . '<input id="wpcb-portal-email" class="uk-input" type="email" name="email" required autocomplete="email">'
             . '<button class="uk-button uk-button-primary uk-margin-small-top" type="submit">Anmeldelink senden</button>'
             . '</form></div>';
     }
