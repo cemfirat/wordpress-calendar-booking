@@ -8,6 +8,10 @@ The public frontend reveals availability only. External calendar summaries, loca
 
 The browser never supplies authoritative availability. The server issues short-lived HMAC-signed slot tokens that bind booking type, canonical start/end and expiry and contain no personal data. A token may be replayed during its short lifetime, but every booking/reschedule revalidates availability; atomic reservation is handled separately by the concurrency invariant.
 
+### Abuse protection
+
+Public booking submissions can use honeypot, minimum-form-time and IP-scoped rate-limit checks. The rate limiter uses only the server-observed `REMOTE_ADDR`; forwarding headers are not trusted implicitly. The address is transformed into an HMAC-SHA-256 transient key using WordPress secret salt material, and the transient value stores only a request counter. The raw address and a reversible unsalted digest are not stored by the Guard.
+
 ## Concurrency
 
 Conflict checking and reservation creation occur in one serialized critical section. Re-check after acquiring the lock.
