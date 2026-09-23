@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.svg" alt="Cem Firat logo" width="120" />
+  <img src="https://raw.githubusercontent.com/cemfirat/repository-governance/main/assets/brand-banner.webp" alt="Cem Firat creative consultancy artwork" width="900" />
 </p>
 
 # WordPress Calendar Booking
