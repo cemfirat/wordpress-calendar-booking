@@ -7,6 +7,7 @@ use Wpcb\Resources\ResourceLock;
 use Wpcb\Security\SecretBox;
 use Wpcb\Support\Time;
 use Wpcb\Tokens\SlotTokenService;
+use Wpcb\Mail\SpecialNotificationMailer;
 
 final class WaitingListService {
     private WaitingListRepository $repo;
@@ -89,27 +90,7 @@ final class WaitingListService {
     }
 
     public function sendOffer(int $entryId): void {
-        $entry = $this->repo->find($entryId);
-        if (!$entry || (string)$entry->status !== 'offered' || empty($entry->offer_secret_enc)) {
-            return;
-        }
-        $verifier = (new SecretBox())->decrypt((string)$entry->offer_secret_enc);
-        if ($verifier === null) {
-            return;
-        }
-        $token = (string)$entry->offer_selector . '.' . $verifier;
-        $url = add_query_arg([
-            'wpcb_waitlist_action' => 'accept',
-            'wpcb_waitlist_id' => (int)$entry->id,
-            'wpcb_waitlist_token' => rawurlencode($token),
-        ], home_url('/'));
-        $subject = __('A booking slot is available', 'wordpress-calendar-booking');
-        $body = sprintf(
-            __("Hello %s,\n\na place became available for your requested appointment. Confirm within 30 minutes:\n%s", 'wordpress-calendar-booking'),
-            (string)$entry->full_name,
-            $url
-        );
-        wp_mail((string)$entry->email, $subject, nl2br(esc_html($body)), ['Content-Type: text/html; charset=UTF-8']);
+        (new SpecialNotificationMailer())->sendWaitingListOffer($entryId);
     }
 
     public function accept(int $entryId, string $token) {
