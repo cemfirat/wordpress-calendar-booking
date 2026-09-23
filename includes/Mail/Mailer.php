@@ -110,6 +110,7 @@ class Mailer {
             '{status}' => $booking['status'] ?? '',
             '{betreff}' => (string)($meta['subject'] ?? ''),
             '{ort}' => $resolvedLocation,
+            '{teilnehmer}' => (string)max(1, (int)($booking['party_size'] ?? 1)),
         ];
         $subject = strtr($subject, $replacements);
         $body = nl2br(esc_html(strtr($body, $replacements)));
@@ -147,6 +148,7 @@ class Mailer {
             '{uhrzeit}' => Time::display((string)$booking['slot_start'], $settings['time_format']),
             '{betreff}' => (string)($meta['subject'] ?? ''),
             '{ort}' => $this->formatter->location($booking, $meta, $settings),
+            '{teilnehmer}' => (string)max(1, (int)($booking['party_size'] ?? 1)),
         ];
         $subject = strtr($templates['internal_subject'] ?? 'Neue Termin-Aktion', $map);
         $body = nl2br(esc_html(strtr($templates['internal_body'] ?? '', $map)));
