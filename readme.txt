@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.14.0
+Stable tag: 3.15.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,13 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.15.0 =
+* Add one upfront server-calculated payment obligation for bounded recurring booking series.
+* Gate confirmation of every paid-series occurrence on the same verified payment state.
+* Expire all reserved occurrences together when the series payment expires.
+* Allow full-series cancellation/refund only from the first occurrence; unsupported partial refund scopes fail closed.
+* Show the shared series payment consistently in customer self-service and audit every occurrence without copying customer data.
 
 = 3.14.0 =
 * Add read-only Stripe Checkout success/cancel return status pages.
