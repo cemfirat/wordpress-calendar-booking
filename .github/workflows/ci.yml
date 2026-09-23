@@ -214,6 +214,51 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/recurring-series-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run paid recurring series smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/paid-recurring-series-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Verify partial refund cancellation and provider races
+        if: matrix.wordpress == 'latest'
+        run: |
+          set -euo pipefail
+          fixture="$(wp eval-file "$GITHUB_WORKSPACE/tests/create-partial-refund-race-fixture.php" --path="$RUNNER_TEMP/wordpress")"
+          booking_a="${fixture%%|*}"
+          rest="${fixture#*|}"
+          booking_b="${rest%%|*}"
+          rest="${rest#*|}"
+          payment_id="${rest%%|*}"
+          rest="${rest#*|}"
+          expected_pending="${rest%%|*}"
+
+          WPCB_TEST_BOOKING_ID="$booking_a" wp eval-file "$GITHUB_WORKSPACE/tests/cancel-partial-refund-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/refund-cancel-a.txt" &
+          first_pid=$!
+          WPCB_TEST_BOOKING_ID="$booking_b" wp eval-file "$GITHUB_WORKSPACE/tests/cancel-partial-refund-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/refund-cancel-b.txt" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+          cat "$RUNNER_TEMP/refund-cancel-a.txt" "$RUNNER_TEMP/refund-cancel-b.txt"
+          test "$(grep -c '^CANCELLED' "$RUNNER_TEMP/refund-cancel-a.txt" "$RUNNER_TEMP/refund-cancel-b.txt" | awk -F: '{n+=$NF} END{print n+0}')" -eq 2
+
+          queued="$(WPCB_TEST_STATE_ACTION=payment WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/partial-refund-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$queued" = "refund_pending|0|$expected_pending|10001"
+
+          WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/refund-partial-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/refund-a.txt" &
+          first_pid=$!
+          WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/refund-partial-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/refund-b.txt" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+          cat "$RUNNER_TEMP/refund-a.txt" "$RUNNER_TEMP/refund-b.txt"
+          refunded_count="$(awk '/^REFUNDED /{n++} END{print n+0}' "$RUNNER_TEMP/refund-a.txt" "$RUNNER_TEMP/refund-b.txt")"
+          rejected_count="$(awk '/^REJECTED /{n++} END{print n+0}' "$RUNNER_TEMP/refund-a.txt" "$RUNNER_TEMP/refund-b.txt")"
+          test "$refunded_count" -eq 1
+          test "$rejected_count" -eq 1
+
+          final="$(WPCB_TEST_STATE_ACTION=payment WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/partial-refund-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$final" = "paid|$expected_pending|0|10001"
+
+          cleanup="$(WPCB_TEST_STATE_ACTION=cleanup WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/partial-refund-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$cleanup" = "CLEAN"
+
       - name: Verify GET-safe and POST-only public booking actions
         if: matrix.wordpress == 'latest'
         run: python3 "$GITHUB_WORKSPACE/tests/public-action-flow.py"
