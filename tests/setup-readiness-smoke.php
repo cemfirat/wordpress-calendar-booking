@@ -70,7 +70,11 @@ $badSettings['sender_email'] = '';
 $badSettings['timezone'] = 'Invalid/Timezone';
 update_option('wpcb_settings', $badSettings);
 wpcb_readiness_assert(wpcb_readiness_item($service->snapshot(), 'settings')['ready'] === false, 'Invalid sender/timezone settings are reported as incomplete.');
-update_option('wpcb_settings', $oldSettings);
+
+$goodSettings = (array)$oldSettings;
+$goodSettings['sender_email'] = 'test@example.com';
+$goodSettings['timezone'] = 'UTC';
+update_option('wpcb_settings', $goodSettings);
 
 $final = $service->snapshot();
 wpcb_readiness_assert(wpcb_readiness_item($final, 'booking_type')['ready'] === true, 'Booking type readiness recovers after fixture restore.');
@@ -90,5 +94,6 @@ wpcb_readiness_assert(strpos($html, 'Einrichtung &amp; Bereitschaft') !== false 
 wpcb_readiness_assert(strpos($html, 'Bereit für Buchungen.') !== false, 'Dashboard renders ready state.');
 
 wp_delete_post((int)$pageId, true);
+update_option('wpcb_settings', $oldSettings);
 
 WP_CLI::success('Setup readiness smoke test passed.');
