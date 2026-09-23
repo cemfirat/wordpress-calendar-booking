@@ -10,13 +10,14 @@ function wpcb_release_assert($condition, string $message): void {
     WP_CLI::log('PASS: ' . $message);
 }
 
-wpcb_release_assert(defined('WPCB_VERSION') && WPCB_VERSION === '3.4.0', 'Release ZIP boots version 3.4.0.');
+wpcb_release_assert(defined('WPCB_VERSION') && WPCB_VERSION === '3.5.0', 'Release ZIP boots version 3.5.0.');
 wpcb_release_assert(class_exists('Sabre\\VObject\\Reader'), 'Release ZIP contains Composer runtime dependencies.');
 wpcb_release_assert(is_file(WPCB_DIR . 'assets/vendor/uikit/uikit.min.css'), 'Release ZIP contains local UIkit CSS fallback.');
 wpcb_release_assert(is_file(WPCB_DIR . 'assets/vendor/uikit/uikit.min.js'), 'Release ZIP contains local UIkit JavaScript fallback.');
 wpcb_release_assert(is_file(WPCB_DIR . 'LICENSE') && filesize(WPCB_DIR . 'LICENSE') > 10000, 'Release ZIP contains the complete GPL license.');
 wpcb_release_assert(shortcode_exists('wpcb_booking_form'), 'Fresh release registers booking form shortcode.');
 wpcb_release_assert(shortcode_exists('wpcb_customer_portal'), 'Fresh release registers customer portal shortcode.');
+wpcb_release_assert(shortcode_exists('wpcb_waiting_list'), 'Fresh release registers waiting-list shortcode.');
 wpcb_release_assert(false !== has_action('admin_post_nopriv_wpcb_booking_action'), 'Fresh release registers POST-only public booking actions.');
 if (!did_action('rest_api_init')) {
     do_action('rest_api_init');
@@ -31,7 +32,7 @@ foreach ([
     'form_fields', 'availability_rules', 'exceptions', 'tokens', 'booking_status_log',
     'sync_jobs', 'deliveries', 'calendar_connections', 'booking_type_calendar_connections',
     'resource_calendar_connections', 'sync_log', 'api_idempotency', 'webhook_endpoints', 'webhook_deliveries',
-    'customer_sessions', 'payments', 'payment_events',
+    'customer_sessions', 'payments', 'payment_events', 'waiting_list',
 ] as $suffix) {
     $table = $wpdb->prefix . 'wpcb_' . $suffix;
     wpcb_release_assert($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table, 'Fresh release created table ' . $table . '.');
