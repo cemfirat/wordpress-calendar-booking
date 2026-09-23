@@ -103,6 +103,20 @@ final class DeliveryRepository {
         );
     }
 
+    public function markUncertain(int $id, string $message, string $errorCode = 'mail_uncertain'): void {
+        global $wpdb;
+        $wpdb->update(
+            $this->table,
+            [
+                'status' => 'uncertain',
+                'last_error_code' => $this->sanitizeCode($errorCode),
+                'last_error' => $this->sanitizeError($message),
+                'updated_at' => Time::formatUtc(Time::nowUtc()),
+            ],
+            ['id' => $id]
+        );
+    }
+
     public function findByKey(string $key): ?object {
         global $wpdb;
         return $wpdb->get_row(
@@ -152,7 +166,7 @@ final class DeliveryRepository {
         return (int)$wpdb->query(
             $wpdb->prepare(
                 "DELETE FROM {$this->table}
-                 WHERE status IN ('sent','failed')
+                 WHERE status IN ('sent','failed','uncertain')
                    AND updated_at < %s",
                 $cutoff
             )
