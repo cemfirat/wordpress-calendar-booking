@@ -190,18 +190,19 @@ final class WaitingListService {
                 'created_at' => $now,
                 'updated_at' => $now,
             ]);
-            if ($bookingId < 1 || !$this->entries->accept((int)$fresh->id, $bookingId)) {
-                if ($bookingId > 0) {
-                    global $wpdb;
-                    $wpdb->delete($wpdb->prefix . 'wpcb_booking_status_log', ['booking_id' => $bookingId]);
-                    $wpdb->delete($wpdb->prefix . 'wpcb_bookings', ['id' => $bookingId]);
-                }
+            if ($bookingId < 1) {
                 return new \WP_Error('wpcb_waitlist_accept_failed', 'The offered slot could not be reserved.');
             }
 
             $payment = (new PaymentService())->ensureForBooking($bookingId);
             if (is_wp_error($payment)) {
+                $this->rollbackBooking($bookingId);
                 return $payment;
+            }
+
+            if (!$this->entries->accept((int)$fresh->id, $bookingId)) {
+                $this->rollbackBooking($bookingId);
+                return new \WP_Error('wpcb_waitlist_accept_failed', 'The offered slot could not be reserved.');
             }
 
             $settings = Settings::get();
@@ -225,5 +226,20 @@ final class WaitingListService {
         } finally {
             $this->locks->release($resourceId);
         }
+    }
+
+    private function rollbackBooking(int $bookingId): void {
+        global $wpdb;
+        $paymentIds = $wpdb->get_col($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}wpcb_payments WHERE booking_id = %d",
+            $bookingId
+        ));
+        foreach ($paymentIds as $paymentId) {
+            $wpdb->delete($wpdb->prefix . 'wpcb_payment_events', ['payment_id' => (int)$paymentId]);
+        }
+        $wpdb->delete($wpdb->prefix . 'wpcb_payments', ['booking_id' => $bookingId]);
+        $wpdb->delete($wpdb->prefix . 'wpcb_booking_status_log', ['booking_id' => $bookingId]);
+        $wpdb->delete($wpdb->prefix . 'wpcb_booking_meta', ['booking_id' => $bookingId]);
+        $wpdb->delete($wpdb->prefix . 'wpcb_bookings', ['id' => $bookingId]);
     }
 }
