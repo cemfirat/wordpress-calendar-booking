@@ -229,6 +229,43 @@ class JobRepository {
         return false;
     }
 
+    /**
+     * Batch-load jobs by their non-secret idempotency keys.
+     *
+     * @return array<string,object>
+     */
+    public function findByIdempotencyKeys(array $keys): array {
+        global $wpdb;
+        $keys = array_values(array_unique(array_filter(array_map(
+            static function ($key): string {
+                $value = (string)$key;
+                return preg_match('/^[A-Za-z0-9:_-]{1,190}$/', $value) === 1 ? $value : '';
+            },
+            $keys
+        ))));
+        $keys = array_slice($keys, 0, 500);
+        if (!$keys) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($keys), '%s'));
+        $rows = $wpdb->get_results(
+            $wpdb->prepare(
+                "SELECT id, booking_id, job_type, status, attempts, last_error, idempotency_key,
+                        lease_owner, lease_expires_at, available_at, created_at, updated_at
+                 FROM {$this->jobsTable}
+                 WHERE idempotency_key IN ({$placeholders})",
+                ...$keys
+            )
+        );
+
+        $out = [];
+        foreach ($rows as $row) {
+            $out[(string)$row->idempotency_key] = $row;
+        }
+        return $out;
+    }
+
     public function pendingCount(): int {
         global $wpdb;
         return (int)$wpdb->get_var(
