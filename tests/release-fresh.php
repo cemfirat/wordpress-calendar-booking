@@ -29,7 +29,7 @@ wpcb_release_assert(isset($routes['/wpcb/v1/webhooks/endpoints']), 'Fresh releas
 
 global $wpdb;
 foreach ([
-    'bookings', 'booking_meta', 'booking_types', 'resources', 'booking_type_resources',
+    'bookings', 'booking_series', 'booking_meta', 'booking_types', 'resources', 'booking_type_resources',
     'form_fields', 'availability_rules', 'exceptions', 'tokens', 'booking_status_log',
     'sync_jobs', 'deliveries', 'calendar_connections', 'booking_type_calendar_connections',
     'resource_calendar_connections', 'sync_log', 'api_idempotency', 'webhook_endpoints', 'webhook_deliveries',
