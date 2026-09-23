@@ -72,3 +72,8 @@ Completed.
 - safe uninstall and explicit destructive-delete policy
 - complete WordPress internationalization and reproducible translation catalog
 - packaged launch hardening for the first production deployment
+
+### 3.9
+- first-run setup readiness dashboard
+- actionable core configuration checklist
+- core-only booking readiness without external provider dependencies

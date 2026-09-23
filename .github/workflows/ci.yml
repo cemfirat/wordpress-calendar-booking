@@ -72,6 +72,7 @@ jobs:
           grep -q 'msgid "Zahlungen"' "$RUNNER_TEMP/wordpress-calendar-booking.pot"
           grep -q 'msgid "Meine Buchungen"' "$RUNNER_TEMP/wordpress-calendar-booking.pot"
           grep -q 'msgid "Lade freie Zeiten ..."' "$RUNNER_TEMP/wordpress-calendar-booking.pot"
+          grep -q 'msgid "Einrichtung & Bereitschaft"' "$RUNNER_TEMP/wordpress-calendar-booking.pot"
           ! grep -R -nE "add_(sub)?menu_page\('[^']*[[:alpha:]][^']*'" includes/Admin
           ! grep -R -nE "wp_die\('[^']*[[:alpha:]][^']*'" includes/Admin includes/Frontend includes/Portal includes/WaitingList
       - uses: actions/upload-artifact@v4
@@ -139,6 +140,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-export-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run booking audit history smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-audit-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run setup readiness smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/setup-readiness-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run resource scheduling smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/resource-scheduling-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run capacity/group booking smoke test
@@ -624,11 +627,11 @@ jobs:
           import os, pathlib
           p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/wordpress-calendar-booking.php"
           text = p.read_text()
-          text = text.replace(" * Version: 3.8.1", " * Version: 3.8.0")
-          text = text.replace("define('WPCB_VERSION', '3.8.1');", "define('WPCB_VERSION', '3.8.0');")
+          text = text.replace(" * Version: 3.9.0", " * Version: 3.8.1")
+          text = text.replace("define('WPCB_VERSION', '3.9.0');", "define('WPCB_VERSION', '3.8.1');")
           p.write_text(text)
           PY
-          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-3.8.0.zip" wordpress-calendar-booking)
+          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-3.8.1.zip" wordpress-calendar-booking)
       - name: Install synthetic old version
         run: |
           set -euo pipefail
@@ -636,9 +639,9 @@ jobs:
           wp core download --path="$WP_ROOT" --version=latest
           wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
           wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBUpdater --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
-          wp plugin install "$RUNNER_TEMP/calendar-booking-3.8.0.zip" --activate --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.8.0"
-      - name: Discover real public v3.8.1 release
+          wp plugin install "$RUNNER_TEMP/calendar-booking-3.8.1.zip" --activate --path="$WP_ROOT"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.8.1"
+      - name: Discover real public v3.9.0 release
         run: |
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
@@ -655,7 +658,7 @@ jobs:
                   echo $updates->response[$basename]->new_version;
               }
             ' --path="$WP_ROOT")"
-            if [ "$version" = "3.8.1" ]; then
+            if [ "$version" = "3.9.0" ]; then
               found=1
               break
             fi
@@ -667,6 +670,6 @@ jobs:
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
           wp plugin update wordpress-calendar-booking --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.8.1"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.9.0"
           wp plugin is-active wordpress-calendar-booking --path="$WP_ROOT"
-          echo "PASS: synthetic 3.8.0 updated through the public GitHub release to 3.8.1."
+          echo "PASS: synthetic 3.8.1 updated through the public GitHub release to 3.9.0."
