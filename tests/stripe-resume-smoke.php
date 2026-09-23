@@ -162,11 +162,8 @@ $expiredBegin = $service->begin($bookingId, $adapter);
 wpcb_resume_assert(is_wp_error($expiredBegin) && $expiredBegin->get_error_code() === 'wpcb_payment_expired', 'Expired local reservation cannot restart Checkout.');
 
 unset($_COOKIE[Wpcb\Portal\CustomerSessionRepository::COOKIE], $_GET['wpcb_booking']);
-$wpdb->delete($wpdb->prefix . 'wpcb_customer_sessions', ['id' => (int)($session['id'] ?? 0)]);
-$otherSession = $sessions->authenticate((string)$otherToken);
-if ($otherSession) {
-    $wpdb->delete($wpdb->prefix . 'wpcb_customer_sessions', ['id' => (int)$otherSession['id']]);
-}
+$sessions->destroy((string)$sessionToken);
+$sessions->destroy((string)$otherToken);
 $paymentIds = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$wpdb->prefix}wpcb_payments WHERE booking_id = %d", $bookingId));
 foreach ($paymentIds as $paymentId) {
     $wpdb->delete($wpdb->prefix . 'wpcb_payment_events', ['payment_id' => (int)$paymentId]);
