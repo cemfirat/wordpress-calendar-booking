@@ -76,12 +76,30 @@ final class PaymentService {
             'amount_minor' => (int)$payment->amount_minor,
             'currency' => (string)$payment->currency,
             'expires_at' => (string)$payment->expires_at,
+            'provider_reference' => (string)($payment->provider_reference ?? ''),
         ]);
         if (is_wp_error($result)) {
             return $result;
         }
         $reference = sanitize_text_field((string)($result['provider_reference'] ?? ''));
-        if ($reference === '' || !$this->payments->attachProvider((int)$payment->id, $adapter->code(), $reference)) {
+        $oldReference = sanitize_text_field((string)($payment->provider_reference ?? ''));
+        $provider = sanitize_key($adapter->code());
+        if ($reference === '') {
+            return new \WP_Error('wpcb_payment_provider_reference', 'Payment provider reference could not be stored.');
+        }
+        if ($oldReference === '') {
+            $storedReference = $this->payments->attachProvider((int)$payment->id, $provider, $reference);
+        } elseif (hash_equals($oldReference, $reference)) {
+            $storedReference = true;
+        } else {
+            $storedReference = $this->payments->replaceProviderReference(
+                (int)$payment->id,
+                $provider,
+                $oldReference,
+                $reference
+            );
+        }
+        if (!$storedReference) {
             return new \WP_Error('wpcb_payment_provider_reference', 'Payment provider reference could not be stored.');
         }
         $stored = $this->payments->find((int)$payment->id);
