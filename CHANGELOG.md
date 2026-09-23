@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.9.0
+
+- Add a read-only first-run readiness service and wp-admin setup checklist.
+- Detect active public booking types, active assigned resources and effective availability without loading booking/customer PII.
+- Validate sender email, booking timezone and scheduler health.
+- Detect a published shortcode or native Gutenberg booking surface.
+- Link every readiness item directly to its relevant administration screen and document the core-only first-run workflow.
+- Add WordPress integration coverage and gate the release on the readiness smoke test.
+
 ## 3.8.1
 
 - Ship the internationalization hardening merged after the immutable 3.8.0 release was published.
