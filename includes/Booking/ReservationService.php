@@ -54,6 +54,15 @@ class ReservationService {
             if (!$slot) {
                 return new \WP_Error('wpcb_slot_unavailable', 'The selected slot is no longer available.');
             }
+            if (!$this->capacity->canFit(
+                (int)$slot['type_id'],
+                $resourceId,
+                (string)$slot['start'],
+                (string)$slot['end'],
+                $partySize
+            )) {
+                return new \WP_Error('wpcb_capacity_unavailable', 'The selected slot does not have enough remaining capacity.');
+            }
 
             $settings = Settings::get();
             $now = Time::formatUtc(Time::nowUtc());
