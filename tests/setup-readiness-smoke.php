@@ -125,7 +125,12 @@ $badSettings['sender_email'] = '';
 $badSettings['timezone'] = 'Invalid/Timezone';
 update_option('wpcb_settings', $badSettings);
 wpcb_readiness_assert(wpcb_readiness_item($service->snapshot(), 'settings')['ready'] === false, 'Invalid sender/timezone settings are reported as incomplete.');
-update_option('wpcb_settings', $oldSettings);
+
+$readySettings = (array)$oldSettings;
+$readySettings['sender_email'] = 'readiness@example.com';
+$readySettings['timezone'] = 'Europe/Vienna';
+update_option('wpcb_settings', $readySettings);
+wpcb_readiness_assert(wpcb_readiness_item($service->snapshot(), 'settings')['ready'] === true, 'Valid sender/timezone settings satisfy readiness.');
 
 $queueOption = Wpcb\Reliability\SchedulerHealth::QUEUE_LAST_RUN_OPTION;
 $reminderOption = Wpcb\Reliability\SchedulerHealth::REMINDER_LAST_RUN_OPTION;
@@ -163,6 +168,7 @@ wpcb_readiness_assert(strpos($html, 'Bereit für Buchungen.') !== false, 'Dashbo
 
 wp_delete_post((int)$pageId, true);
 wp_delete_post((int)$decoyId, true);
+update_option('wpcb_settings', $oldSettings);
 if ($oldQueueRun === '__wpcb_missing__') {
     delete_option($queueOption);
 } else {
