@@ -139,6 +139,11 @@ foreach ([
 
 $GLOBALS['wpcb_email_retry_mode'] = 'success';
 $GLOBALS['wpcb_email_retry_capture'] = null;
+$wpdb->update(
+    $wpdb->prefix . 'wpcb_sync_jobs',
+    ['available_at' => Wpcb\Support\Time::formatUtc(Wpcb\Support\Time::nowUtc())],
+    ['idempotency_key' => $retryKey, 'status' => 'pending']
+);
 (new Wpcb\Sync\QueueService())->runNow(100);
 
 $delivery = $deliveries->findByKey($deliveryKey);
@@ -191,6 +196,11 @@ $staleJobId = (new Wpcb\Mail\EmailRetryJobRunner())->enqueueTemplate(
     (string)$booking['status']
 );
 wpcb_email_retry_assert($staleJobId > 0, 'Stale in-flight retry fixture is queued.');
+$wpdb->update(
+    $wpdb->prefix . 'wpcb_sync_jobs',
+    ['available_at' => Wpcb\Support\Time::formatUtc(Wpcb\Support\Time::nowUtc())],
+    ['id' => $staleJobId, 'status' => 'pending']
+);
 $beforeStaleCalls = $GLOBALS['wpcb_email_retry_calls'];
 $GLOBALS['wpcb_email_retry_mode'] = 'success';
 (new Wpcb\Sync\QueueService())->runNow(100);
