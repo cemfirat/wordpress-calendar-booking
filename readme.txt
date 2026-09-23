@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.12.0
+Stable tag: 3.13.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,11 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.13.0 =
+* Add Stripe-hosted Checkout for payment-required booking types.
+* Verify signed Stripe webhooks and process payment/refund events idempotently.
+* Encrypt Stripe API and webhook secrets; WordPress never collects or stores raw card data.
 
 = 3.12.0 =
 * Paginate the interactive administrator booking list in bounded 50-row pages.

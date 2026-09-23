@@ -3,7 +3,7 @@
  * Plugin Name: WordPress Calendar Booking
  * Plugin URI: https://github.com/cemfirat/wordpress-calendar-booking
  * Description: Calendar availability and appointment booking with Double Opt-In, optional admin approval, ICS attachments and configurable slots.
- * Version: 3.12.0
+ * Version: 3.13.0
  * Requires at least: 6.5
  * Requires PHP: 8.0
  * Author: Cem Firat
@@ -18,7 +18,7 @@ if (!defined('ABSPATH')) {
     exit;
 }
 
-define('WPCB_VERSION', '3.12.0');
+define('WPCB_VERSION', '3.13.0');
 define('WPCB_FILE', __FILE__);
 define('WPCB_DIR', plugin_dir_path(__FILE__));
 define('WPCB_URL', plugin_dir_url(__FILE__));

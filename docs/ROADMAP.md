@@ -95,3 +95,9 @@ Completed.
 - bounded/paginated administrator booking list
 - batch metadata loading for admin booking pages
 - filtered counts without changing complete CSV export semantics
+
+### 3.13
+- Stripe-hosted Checkout for payment-required booking types
+- encrypted Stripe API and webhook signing secrets
+- verified/idempotent Stripe payment webhooks
+- administrator-triggered Stripe refunds

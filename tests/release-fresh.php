@@ -10,7 +10,7 @@ function wpcb_release_assert($condition, string $message): void {
     WP_CLI::log('PASS: ' . $message);
 }
 
-wpcb_release_assert(defined('WPCB_VERSION') && WPCB_VERSION === '3.12.0', 'Release ZIP boots version 3.12.0.');
+wpcb_release_assert(defined('WPCB_VERSION') && WPCB_VERSION === '3.13.0', 'Release ZIP boots version 3.13.0.');
 wpcb_release_assert(class_exists('Sabre\\VObject\\Reader'), 'Release ZIP contains Composer runtime dependencies.');
 wpcb_release_assert(is_file(WPCB_DIR . 'assets/vendor/uikit/uikit.min.css'), 'Release ZIP contains local UIkit CSS fallback.');
 wpcb_release_assert(is_file(WPCB_DIR . 'assets/vendor/uikit/uikit.min.js'), 'Release ZIP contains local UIkit JavaScript fallback.');
@@ -26,6 +26,7 @@ if (!did_action('rest_api_init')) {
 $routes = rest_get_server()->get_routes();
 wpcb_release_assert(isset($routes['/wpcb/v1/booking-types']), 'Fresh release registers the versioned REST API.');
 wpcb_release_assert(isset($routes['/wpcb/v1/webhooks/endpoints']), 'Fresh release registers webhook administration routes.');
+wpcb_release_assert(isset($routes['/wpcb/v1/payments/stripe/webhook']), 'Fresh release registers the Stripe payment webhook route.');
 
 global $wpdb;
 foreach ([

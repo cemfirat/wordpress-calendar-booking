@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.12.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.13.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -153,9 +153,9 @@ Authenticated customers can see only bookings matching their verified session em
 
 ## Payments
 
-Version 3.4 adds a provider-neutral payment lifecycle foundation. Booking types can be configured as free or payment-required with a price and ISO currency. Paid reservations receive a separate pending payment record; booking confirmation remains blocked until the payment is verified.
+The payment lifecycle remains provider-neutral. Version 3.13 adds a production Stripe Checkout adapter for payment-required booking types: visitors are redirected to Stripe-hosted Checkout after the slot is atomically reserved, while booking confirmation remains blocked until a verified payment event is received.
 
-Payment adapters receive only a technical payment identifier, amount, currency and expiry. Raw card numbers, CVC/CVV values, bank credentials and full provider callback payloads are never stored by the plugin. Provider callbacks are idempotent, expired pending payments release unconfirmed reservations, and cancelling a paid booking moves its payment into an explicit refund workflow.
+Stripe API and webhook signing secrets are encrypted with the shared authenticated secret-storage layer. Checkout requests contain only the technical payment identifier, server-side amount/currency and return URLs; customer names, email addresses, phone numbers, notes and raw card/bank credentials are not sent by this plugin to the adapter or stored in WordPress. Signed Stripe webhooks are verified over the raw request body, provider retries are idempotent, expired pending payments release reservations, and cancelled paid bookings can be refunded from the payment administration screen.
 
 
 ## Video meetings

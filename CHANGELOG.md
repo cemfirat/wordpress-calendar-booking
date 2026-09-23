@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.13.0
+
+- Add a production Stripe Checkout adapter behind the provider-neutral payment contract.
+- Redirect payment-required bookings to Stripe-hosted Checkout without sending customer PII or collecting card data in WordPress.
+- Encrypt Stripe API and webhook signing secrets with the shared authenticated secret-storage layer.
+- Verify Stripe webhook signatures over the raw request body with timestamp tolerance and map completed, failed and refunded events into the idempotent payment lifecycle.
+- Add administrator Stripe configuration, refund controls and deterministic HTTP-fake integration coverage.
+
 ## 3.12.0
 
 - Paginate the interactive administrator booking list with bounded 50-row pages.
