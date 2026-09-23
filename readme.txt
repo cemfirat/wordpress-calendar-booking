@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.4.0
+Stable tag: 3.5.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -19,10 +19,16 @@ Shortcodes:
 [wpcb_booking_form]
 [wpcb_booking_calendar]
 [wpcb_customer_portal]
+[wpcb_waiting_list]
 
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.5.0 =
+* Add privacy-aware waiting lists with capacity-safe promotion holds.
+* Add scanner-safe one-time promotion confirmation and automatic re-promotion after expiry.
+* Add administrator history, privacy export/erase support and integration coverage.
 
 = 3.4.0 =
 * Add provider-neutral payment lifecycle records and adapter contract.
