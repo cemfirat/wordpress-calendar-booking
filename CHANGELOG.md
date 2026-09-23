@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.15.0
+
+- Add one upfront payment obligation for bounded recurring booking series, calculated server-side as unit price × occurrence count.
+- Store the resulting amount/currency in the payment row as the immutable series price snapshot.
+- Resolve every occurrence to the same payment and block confirmation of the complete series until a verified provider event marks it paid.
+- Expire all still-reserved occurrences when the series payment expires.
+- Allow cancellation/refund of a paid series only for the complete series from its first occurrence; unsupported partial-refund scopes fail closed.
+- Show series payment state in the customer portal and write privacy-safe payment lifecycle audit entries to every occurrence.
+- Add integration coverage for total amount, shared payment state, confirmation gating, full refund and series-wide expiry.
+
 ## 3.14.0
 
 - Add a read-only Stripe Checkout return-status screen for successful and cancelled browser returns.

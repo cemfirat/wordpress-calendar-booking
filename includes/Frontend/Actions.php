@@ -409,11 +409,25 @@ class Actions {
 
             $seriesControl = '';
             if (!empty($booking->series_id)) {
-                $seriesControl = '<label class="uk-form-label" for="wpcb-series-cancel-scope">' . esc_html__('Serienumfang', 'wordpress-calendar-booking') . '</label>'
-                    . '<div class="uk-form-controls"><select class="uk-select" id="wpcb-series-cancel-scope" name="series_scope">'
-                    . '<option value="single">' . esc_html__('Nur diesen Termin', 'wordpress-calendar-booking') . '</option>'
-                    . '<option value="remaining">' . esc_html__('Diesen und alle folgenden Termine', 'wordpress-calendar-booking') . '</option>'
-                    . '</select></div>';
+                $seriesPayment = (new PaymentService())->paymentForBooking((int)$booking->id);
+                if ($seriesPayment) {
+                    if ((int)($booking->series_occurrence ?? -1) !== 0) {
+                        $this->renderActionScreen(
+                            __('Bezahlte Terminserie', 'wordpress-calendar-booking'),
+                            __('Eine bezahlte Terminserie kann derzeit nur vollständig über den ersten Termin der Serie storniert werden.', 'wordpress-calendar-booking')
+                        );
+                    }
+                    $seriesControl = '<input type="hidden" name="series_scope" value="remaining">'
+                        . '<p class="uk-alert-warning" uk-alert>'
+                        . esc_html__('Diese Zahlung deckt die gesamte Terminserie ab. Die Stornierung betrifft daher die komplette Serie und löst die Rückerstattungsprüfung für die Gesamtzahlung aus.', 'wordpress-calendar-booking')
+                        . '</p>';
+                } else {
+                    $seriesControl = '<label class="uk-form-label" for="wpcb-series-cancel-scope">' . esc_html__('Serienumfang', 'wordpress-calendar-booking') . '</label>'
+                        . '<div class="uk-form-controls"><select class="uk-select" id="wpcb-series-cancel-scope" name="series_scope">'
+                        . '<option value="single">' . esc_html__('Nur diesen Termin', 'wordpress-calendar-booking') . '</option>'
+                        . '<option value="remaining">' . esc_html__('Diesen und alle folgenden Termine', 'wordpress-calendar-booking') . '</option>'
+                        . '</select></div>';
+                }
             }
             $form = $this->actionFormStart($action, $token)
                 . '<p>' . esc_html__('Termin:', 'wordpress-calendar-booking') . ' <strong>' . esc_html($date . ' ' . $time) . '</strong></p>'

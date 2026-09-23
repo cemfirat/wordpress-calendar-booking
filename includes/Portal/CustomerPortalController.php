@@ -8,9 +8,10 @@ use Wpcb\Booking\BookingStateMachine;
 use Wpcb\Booking\BookingStatus;
 use Wpcb\Booking\BookingTransitionService;
 use Wpcb\Booking\BookingTypeRepository;
+use Wpcb\Booking\RecurringBookingService;
 use Wpcb\Support\Time;
 use Wpcb\Tokens\TokenService;
-use Wpcb\Payments\PaymentRepository;
+use Wpcb\Payments\PaymentService;
 
 final class CustomerPortalController {
     private CustomerSessionRepository $sessions;
@@ -219,12 +220,22 @@ final class CustomerPortalController {
             $this->redirect($returnUrl, 'not_allowed');
         }
 
-        $result = (new BookingTransitionService())->apply(
-            $bookingId,
-            BookingStateMachine::USER_CANCELLED,
-            'customer_portal',
-            'Customer cancelled from portal'
-        );
+        $payment = (new PaymentService())->paymentForBooking($bookingId);
+        if (!empty($booking->series_id) && $payment) {
+            $result = (new RecurringBookingService())->applyRemaining(
+                $bookingId,
+                BookingStateMachine::USER_CANCELLED,
+                'customer_portal',
+                'Customer cancelled paid recurring series from portal'
+            );
+        } else {
+            $result = (new BookingTransitionService())->apply(
+                $bookingId,
+                BookingStateMachine::USER_CANCELLED,
+                'customer_portal',
+                'Customer cancelled from portal'
+            );
+        }
         $this->redirect($returnUrl, is_wp_error($result) ? 'action_failed' : 'cancelled');
     }
 
@@ -381,10 +392,11 @@ final class CustomerPortalController {
         $html .= '<dt>' . esc_html__('Termin', 'wordpress-calendar-booking') . '</dt><dd>' . esc_html(Time::display((string)$booking->slot_start, 'd.m.Y H:i')) . ' – ' . esc_html(Time::display((string)$booking->slot_end, 'H:i')) . '</dd>';
         $html .= '<dt>' . esc_html__('Status', 'wordpress-calendar-booking') . '</dt><dd>' . esc_html((string)$booking->status) . '</dd>';
         $html .= '<dt>' . esc_html__('Teilnehmer', 'wordpress-calendar-booking') . '</dt><dd>' . max(1, (int)$booking->party_size) . '</dd>';
-        $payment = (new PaymentRepository())->forBooking((int)$booking->id);
+        $payment = (new PaymentService())->paymentForBooking((int)$booking->id);
         if ($payment) {
             $amount = number_format(((int)$payment->amount_minor) / 100, 2, ',', '.');
-            $html .= '<dt>' . esc_html__('Zahlung', 'wordpress-calendar-booking') . '</dt><dd>' . esc_html($amount . ' ' . (string)$payment->currency . ' · ' . (string)$payment->status) . '</dd>';
+            $paymentLabel = !empty($booking->series_id) ? __('Serienzahlung', 'wordpress-calendar-booking') : __('Zahlung', 'wordpress-calendar-booking');
+            $html .= '<dt>' . esc_html($paymentLabel) . '</dt><dd>' . esc_html($amount . ' ' . (string)$payment->currency . ' · ' . (string)$payment->status) . '</dd>';
         }
         $html .= '</dl>';
 
@@ -403,8 +415,18 @@ final class CustomerPortalController {
             $fields .= '</select><button class="uk-button uk-button-primary uk-margin-small-top" type="submit">' . esc_html__('Termin verschieben', 'wordpress-calendar-booking') . '</button>';
             $html .= '<h4>' . esc_html__('Termin ändern', 'wordpress-calendar-booking') . '</h4>' . $this->postForm('wpcb_portal_reschedule', $returnUrl, $session, $fields);
 
-            $cancelFields = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '"><button class="uk-button uk-button-danger" type="submit">' . esc_html__('Buchung stornieren', 'wordpress-calendar-booking') . '</button>';
-            $html .= '<div class="uk-margin-top">' . $this->postForm('wpcb_portal_cancel', $returnUrl, $session, $cancelFields) . '</div>';
+            $canCancelHere = !$payment
+                || empty($booking->series_id)
+                || (int)($booking->series_occurrence ?? -1) === 0;
+            if ($canCancelHere) {
+                $cancelLabel = $payment && !empty($booking->series_id)
+                    ? __('Komplette Terminserie stornieren', 'wordpress-calendar-booking')
+                    : __('Buchung stornieren', 'wordpress-calendar-booking');
+                $cancelFields = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '"><button class="uk-button uk-button-danger" type="submit">' . esc_html($cancelLabel) . '</button>';
+                $html .= '<div class="uk-margin-top">' . $this->postForm('wpcb_portal_cancel', $returnUrl, $session, $cancelFields) . '</div>';
+            } else {
+                $html .= '<p class="uk-text-meta uk-margin-top">' . esc_html__('Bezahlte Terminserien können derzeit nur vollständig über den ersten Termin der Serie storniert werden.', 'wordpress-calendar-booking') . '</p>';
+            }
         }
 
         $contact = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '">';
