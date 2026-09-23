@@ -246,6 +246,19 @@ final class CustomerPortalController {
         $resourceId = absint($parts[0]);
         $start = $parts[1];
         $end = $parts[2];
+
+        $slotService = new SlotService();
+        if (!$slotService->isCanonicalSlot(
+            (int)$booking->booking_type_id,
+            $start,
+            $end,
+            $bookingId,
+            $resourceId,
+            max(1, (int)($booking->party_size ?? 1))
+        )) {
+            $this->redirect($returnUrl, 'action_failed');
+        }
+
         $result = (new BookingTransitionService())->reschedule(
             $bookingId,
             $start,
