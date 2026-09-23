@@ -107,3 +107,10 @@ Completed.
 - read-only Stripe Checkout return status flow
 - technical payment identifiers only in success/cancel return URLs
 - verified webhooks remain the sole payment-state authority
+
+
+### 3.15
+- one upfront payment obligation for paid recurring series
+- server-authoritative series amount/currency snapshot
+- series-wide payment confirmation and expiry
+- full-series cancellation/refund with partial-refund scopes failing closed
