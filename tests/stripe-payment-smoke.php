@@ -127,6 +127,7 @@ $payload = wp_json_encode([
         'id' => 'cs_test_wpcb_123',
         'amount_total' => 12900,
         'currency' => 'eur',
+        'payment_status' => 'paid',
         'metadata' => ['payment_uuid' => (string)$payment->payment_uuid],
     ]],
 ]);
@@ -141,6 +142,25 @@ wpcb_stripe_assert(
     !Wpcb\Payments\StripeWebhookController::verifySignature($payload, 't=' . $timestamp . ',v1=' . str_repeat('0', 64), 'whsec_test_super_secret', $timestamp),
     'Invalid Stripe webhook signature is rejected.'
 );
+
+$unpaidPayload = wp_json_encode([
+    'id' => 'evt_wpcb_unpaid_completed',
+    'type' => 'checkout.session.completed',
+    'data' => ['object' => [
+        'id' => 'cs_test_wpcb_123',
+        'amount_total' => 12900,
+        'currency' => 'eur',
+        'payment_status' => 'unpaid',
+        'metadata' => ['payment_uuid' => (string)$payment->payment_uuid],
+    ]],
+]);
+$unpaidSignature = hash_hmac('sha256', $timestamp . '.' . $unpaidPayload, 'whsec_test_super_secret');
+$unpaidRequest = new WP_REST_Request('POST', '/wpcb/v1/payments/stripe/webhook');
+$unpaidRequest->set_body($unpaidPayload);
+$unpaidRequest->set_header('stripe-signature', 't=' . $timestamp . ',v1=' . $unpaidSignature);
+$unpaidResponse = (new Wpcb\Payments\StripeWebhookController())->handle($unpaidRequest);
+wpcb_stripe_assert($unpaidResponse instanceof WP_REST_Response && !empty($unpaidResponse->get_data()['ignored']), 'Completed Checkout with unpaid status does not confirm payment.');
+wpcb_stripe_assert((new Wpcb\Payments\PaymentRepository())->forBooking($bookingId)->status === 'pending', 'Unpaid Checkout leaves payment pending.');
 
 $request = new WP_REST_Request('POST', '/wpcb/v1/payments/stripe/webhook');
 $request->set_body($payload);
