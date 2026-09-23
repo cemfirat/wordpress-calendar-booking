@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.8.1. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.9.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -102,6 +102,7 @@ The asset build copies the pinned UIkit fallback from npm into `assets/vendor/ui
 - Product definition: [docs/PRODUCT.md](docs/PRODUCT.md)
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
+- First-run setup: [docs/FIRST-RUN.md](docs/FIRST-RUN.md)
 - Initial issue backlog: [docs/GITHUB-ISSUES.md](docs/GITHUB-ISSUES.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 
