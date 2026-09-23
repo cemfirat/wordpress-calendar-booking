@@ -2,7 +2,7 @@
 
 ## 2.0 — reliable booking core
 
-Release only after all P0 issues are closed.
+Released in stable 2.0.0.
 
 - canonical signed slot tokens and server-side revalidation
 - atomic reservation / double-booking protection
@@ -19,6 +19,8 @@ Release only after all P0 issues are closed.
 
 ## 2.1 — provider ecosystem
 
+Completed on the current 2.x codebase.
+
 - calendar connection data model
 - Google Calendar OAuth + FreeBusy + Events
 - Microsoft Graph provider
@@ -27,10 +29,12 @@ Release only after all P0 issues are closed.
 
 ## 2.2 — operations/admin
 
+Completed on the current 2.x codebase.
+
 - CSV export and filters
 - scheduler health
 - notification delivery log
-- audit history improvements
+- filterable, privacy-conscious booking lifecycle audit history
 
 ## Later
 
