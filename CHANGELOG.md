@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.10.0
+
+- Add a capability- and nonce-protected mail transport diagnostic to Systemstatus.
+- Send neutral test messages through the configured WordPress mail path and sender identity.
+- Record diagnostic attempts in the existing delivery ledger without persisting recipient addresses or message bodies.
+- Capture and redact mail transport errors before storage.
+- Show untested, accepted and failed diagnostic state while explicitly distinguishing transport acceptance from inbox delivery.
+- Add integration coverage for successful, failed and exceptional mail transports plus secret redaction.
+
 ## 3.9.0
 
 - Add a first-run setup readiness dashboard for the core booking path.
