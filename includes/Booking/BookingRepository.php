@@ -219,7 +219,7 @@ class BookingRepository {
             AND (status != %s OR reserved_until IS NULL OR reserved_until >= %s)
             AND slot_start < %s
             AND slot_end > %s
-            AND resource_id = %d";
+            AND (resource_id = %d OR resource_id IS NULL OR resource_id = 0)";
         $params = array_merge(
             $statuses,
             [BookingStatus::RESERVED_UNCONFIRMED, Time::formatUtc(Time::nowUtc()), $end, $start, $resourceId]
