@@ -61,7 +61,8 @@ final class WaitingListService {
         }
         try {
             $this->repo->expireOffers();
-            $remaining = $this->capacity->remaining($typeId, $resourceId, $start, $end);
+            $remaining = $this->capacity->remaining($typeId, $resourceId, $start, $end)
+                - $this->repo->offeredSeats($typeId, $resourceId, $start, $end);
             if ($remaining < 1) {
                 return 0;
             }
@@ -114,55 +115,41 @@ final class WaitingListService {
 
     public function accept(int $entryId, string $token) {
         [$selector, $verifier] = array_pad(explode('.', $token, 2), 2, '');
-        $entry = $this->repo->acceptIfTokenMatches($entryId, $selector, $verifier);
-        if (!$entry) {
-            return new \WP_Error('wpcb_waitlist_token_invalid', 'This waiting-list offer is invalid or expired.');
+        $fresh = $this->repo->claimOffer($entryId, $selector, $verifier);
+        if (!$fresh) {
+            return new \WP_Error('wpcb_waitlist_token_invalid', 'This waiting-list offer is invalid, expired or already being claimed.');
         }
-        $resourceId = (int)$entry->resource_id;
-        if (!$this->locks->acquire($resourceId, 5)) {
-            return new \WP_Error('wpcb_waitlist_busy', 'This slot is being updated. Please try again.');
+
+        $resourceId = (int)$fresh->resource_id;
+        $slotToken = (new SlotTokenService())->issue(
+            (int)$fresh->booking_type_id,
+            (string)$fresh->slot_start,
+            (string)$fresh->slot_end,
+            $resourceId
+        );
+        $bookingId = (new ReservationService())->reserve($slotToken, (int)$fresh->booking_type_id, [
+            'full_name' => (string)$fresh->full_name,
+            'email' => (string)$fresh->email,
+            'phone' => (string)$fresh->phone,
+            'party_size' => (int)$fresh->party_size,
+            'source' => 'waiting_list',
+            'lang' => 'de',
+        ], ['waiting_list_entry_id' => (int)$fresh->id]);
+
+        if (is_wp_error($bookingId)) {
+            $this->repo->resetClaim($entryId);
+            return $bookingId;
         }
-        try {
-            $fresh = $this->repo->acceptIfTokenMatches($entryId, $selector, $verifier);
-            if (!$fresh || !$this->capacity->canFit(
-                (int)$fresh->booking_type_id,
-                $resourceId,
-                (string)$fresh->slot_start,
-                (string)$fresh->slot_end,
-                (int)$fresh->party_size
-            )) {
-                return new \WP_Error('wpcb_waitlist_capacity_gone', 'The offered capacity is no longer available.');
-            }
-            $slotToken = (new SlotTokenService())->issue(
-                (int)$fresh->booking_type_id,
-                (string)$fresh->slot_start,
-                (string)$fresh->slot_end,
-                $resourceId
-            );
-            $bookingId = (new ReservationService())->reserve($slotToken, (int)$fresh->booking_type_id, [
-                'full_name' => (string)$fresh->full_name,
-                'email' => (string)$fresh->email,
-                'phone' => (string)$fresh->phone,
-                'party_size' => (int)$fresh->party_size,
-                'source' => 'waiting_list',
-                'lang' => 'de',
-            ], ['waiting_list_entry_id' => (int)$fresh->id]);
-            if (is_wp_error($bookingId)) {
-                return $bookingId;
-            }
-            if (!$this->repo->markAccepted($entryId, (int)$bookingId)) {
-                return new \WP_Error('wpcb_waitlist_accept_race', 'The waiting-list offer changed while it was being accepted.');
-            }
-            return (int)$bookingId;
-        } finally {
-            $this->locks->release($resourceId);
+        if (!$this->repo->markAccepted($entryId, (int)$bookingId)) {
+            return new \WP_Error('wpcb_waitlist_accept_race', 'The waiting-list offer changed while it was being accepted.');
         }
+        return (int)$bookingId;
     }
 
     public function expireAndRepromote(): int {
-        $expired = $this->repo->expireOffers();
+        $this->repo->expireOffers();
         $promoted = 0;
-        foreach ($expired as $entry) {
+        foreach ($this->repo->waitingSlots(100) as $entry) {
             if ($this->promoteSlot(
                 (int)$entry->booking_type_id,
                 (int)$entry->resource_id,
