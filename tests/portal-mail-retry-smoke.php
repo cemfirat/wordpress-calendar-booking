@@ -82,6 +82,24 @@ wpcb_portal_mail_assert($job && $job->status === 'pending', 'Portal login retry 
 $payload = json_decode((string)$job->payload_json, true);
 wpcb_portal_mail_assert(($payload['kind'] ?? '') === 'portal_login', 'Portal login retry has a typed descriptor.');
 wpcb_portal_mail_assert(($payload['return_path'] ?? '') === '/customer-portal/', 'Portal retry stores a same-site path only.');
+$GLOBALS['wpcb_portal_mail_mode'] = 'fail';
+wpcb_portal_mail_assert(
+    $mailer->sendPortalLogin($bookingId, home_url('/?pagename=portal-route&private=drop-me')),
+    'Portal login accepts a standard-permalink return route.'
+);
+$routeJob = wpcb_portal_mail_last_job($bookingId);
+$routePayload = json_decode((string)$routeJob->payload_json, true);
+wpcb_portal_mail_assert(
+    ($routePayload['return_path'] ?? '') === '/?pagename=portal-route',
+    'Portal retry preserves only allowlisted WordPress routing query parameters.'
+);
+wpcb_portal_mail_assert(
+    strpos((string)$routeJob->payload_json, 'drop-me') === false,
+    'Portal retry drops unrecognized return query parameters.'
+);
+$wpdb->delete($wpdb->prefix . 'wpcb_sync_jobs', ['id' => (int)$routeJob->id]);
+$wpdb->delete($wpdb->prefix . 'wpcb_deliveries', ['idempotency_key' => (string)($routePayload['delivery_key'] ?? '')]);
+
 foreach (['portal-mail@example.com', $oldToken, 'discard-this', home_url('/')] as $private) {
     wpcb_portal_mail_assert(strpos((string)$job->payload_json, $private) === false, 'Portal retry payload excludes recipient and secret-bearing URL data.');
 }
