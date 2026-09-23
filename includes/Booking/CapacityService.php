@@ -55,7 +55,7 @@ final class CapacityService {
             "SELECT COALESCE(SUM(party_size), 0) FROM {$table}
              WHERE booking_type_id = %d AND resource_id = %d
                AND slot_start = %s AND slot_end = %s
-               AND status IN ('offered','claiming')
+               AND status = 'offered'
                AND offer_expires_at >= %s",
             $typeId, $resourceId, $start, $end, \Wpcb\Support\Time::formatUtc(\Wpcb\Support\Time::nowUtc())
         )));
