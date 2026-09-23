@@ -128,6 +128,93 @@ final class PaymentRepository {
         );
     }
 
+    public function queueRefund(int $paymentId, int $amountMinor): bool {
+        global $wpdb;
+        if ($paymentId < 1 || $amountMinor < 1) {
+            return false;
+        }
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$this->table}
+             SET refund_pending_minor = refund_pending_minor + %d,
+                 status = %s,
+                 updated_at = %s
+             WHERE id = %d
+               AND status IN (%s, %s)
+               AND refunded_minor + refund_pending_minor + %d <= amount_minor",
+            $amountMinor,
+            PaymentStatus::REFUND_PENDING,
+            Time::formatUtc(Time::nowUtc()),
+            $paymentId,
+            PaymentStatus::PAID,
+            PaymentStatus::REFUND_PENDING,
+            $amountMinor
+        ));
+        return $updated === 1;
+    }
+
+    public function completeRefund(int $paymentId, int $amountMinor): bool {
+        global $wpdb;
+        if ($paymentId < 1 || $amountMinor < 1) {
+            return false;
+        }
+        $now = Time::formatUtc(Time::nowUtc());
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$this->table}
+             SET refunded_minor = refunded_minor + %d,
+                 refund_pending_minor = refund_pending_minor - %d,
+                 status = CASE
+                     WHEN refunded_minor + %d >= amount_minor THEN %s
+                     WHEN refund_pending_minor - %d > 0 THEN %s
+                     ELSE %s
+                 END,
+                 refunded_at = CASE
+                     WHEN refunded_minor + %d >= amount_minor THEN %s
+                     ELSE refunded_at
+                 END,
+                 updated_at = %s
+             WHERE id = %d
+               AND status = %s
+               AND refund_pending_minor >= %d
+               AND refunded_minor + %d <= amount_minor",
+            $amountMinor,
+            $amountMinor,
+            $amountMinor,
+            PaymentStatus::REFUNDED,
+            $amountMinor,
+            PaymentStatus::REFUND_PENDING,
+            PaymentStatus::PAID,
+            $amountMinor,
+            $now,
+            $now,
+            $paymentId,
+            PaymentStatus::REFUND_PENDING,
+            $amountMinor,
+            $amountMinor
+        ));
+        return $updated === 1;
+    }
+
+    public function syncRefundTotal(int $paymentId, int $totalRefundedMinor): bool {
+        global $wpdb;
+        $payment = $this->find($paymentId);
+        if (!$payment || $totalRefundedMinor < 0 || $totalRefundedMinor > (int)$payment->amount_minor) {
+            return false;
+        }
+        $currentRefunded = (int)($payment->refunded_minor ?? 0);
+        if ($totalRefundedMinor < $currentRefunded) {
+            return false;
+        }
+        $delta = $totalRefundedMinor - $currentRefunded;
+        $currentPending = (int)($payment->refund_pending_minor ?? 0);
+        if ($delta > $currentPending) {
+            return false;
+        }
+        if ($delta === 0) {
+            return true;
+        }
+        return $this->completeRefund($paymentId, $delta);
+    }
+
     public function setStatus(int $paymentId, string $expected, string $status): bool {
         global $wpdb;
         if (!in_array($expected, PaymentStatus::all(), true) || !in_array($status, PaymentStatus::all(), true)) {
@@ -189,8 +276,9 @@ final class PaymentRepository {
     public function recent(int $limit = 200): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
-            "SELECT id, payment_uuid, booking_id, provider, amount_minor, currency, status,
-                    expires_at, paid_at, refunded_at, created_at, updated_at
+            "SELECT id, payment_uuid, booking_id, provider, amount_minor, refunded_minor,
+                    refund_pending_minor, currency, status, expires_at, paid_at, refunded_at,
+                    created_at, updated_at
              FROM {$this->table} ORDER BY id DESC LIMIT %d",
             max(1, min(500, $limit))
         ));
