@@ -225,9 +225,14 @@ final class RecurringBookingService {
         }
 
         if ($isCancellation) {
+            $allMembers = $this->series->members((int)$booking->series_id, 0);
+            $allCancelled = $allMembers && count(array_filter(
+                $allMembers,
+                static fn($member) => (string)$member->status === BookingStatus::CANCELLED
+            )) === count($allMembers);
             $this->series->markStatus(
                 (int)$booking->series_id,
-                (int)$booking->series_occurrence === 0 ? 'cancelled' : 'partially_cancelled'
+                $allCancelled ? 'cancelled' : 'partially_cancelled'
             );
         } elseif ($event === BookingStateMachine::ADMIN_REJECTED) {
             $this->series->markStatus((int)$booking->series_id, 'rejected');
