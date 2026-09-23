@@ -972,6 +972,8 @@ class Admin {
         echo '<tr><th>' . esc_html__('Nächster Queue-Lauf (UTC)', 'wordpress-calendar-booking') . '</th><td>' . esc_html($health['next_queue_run'] ?: $notScheduled) . '</td></tr>';
         echo '<tr><th>' . esc_html__('Letzter Stundenlauf (UTC)', 'wordpress-calendar-booking') . '</th><td>' . esc_html($health['last_reminder_run'] ?: $never) . '</td></tr>';
         echo '<tr><th>' . esc_html__('Nächster Stundenlauf (UTC)', 'wordpress-calendar-booking') . '</th><td>' . esc_html($health['next_reminder_run'] ?: $notScheduled) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Nächste Datenschutz-Aufbewahrung (UTC)', 'wordpress-calendar-booking') . '</th><td>' . esc_html($health['next_privacy_retention_run'] ?: $notScheduled) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Nächste Portal-Bereinigung (UTC)', 'wordpress-calendar-booking') . '</th><td>' . esc_html($health['next_portal_cleanup_run'] ?: $notScheduled) . '</td></tr>';
         echo '<tr><th>' . esc_html__('Queue pending / running / failed', 'wordpress-calendar-booking') . '</th><td>'
             . (int)$health['counts']['pending'] . ' / '
             . (int)$health['counts']['running'] . ' / '

@@ -2,10 +2,14 @@
 
 ## Reliable scheduled processing
 
-WordPress Calendar Booking uses WP-Cron for two recurring tasks:
+WordPress Calendar Booking uses WP-Cron for four recurring schedules:
 
-- `wpcb_sync_queue` every five minutes for calendar write-back jobs
-- `wpcb_hourly_reminders` hourly for reservation expiry, reminders and token cleanup
+- `wpcb_sync_queue` every five minutes for calendar, webhook and video-meeting queue work
+- `wpcb_hourly_reminders` hourly for payment/reservation expiry, waiting-list maintenance, reminders, token cleanup and delivery-log cleanup
+- `wpcb_privacy_retention` daily for configured personal-data retention/anonymization
+- `wpcb_portal_session_cleanup` daily for expired customer-portal sessions
+
+Demand-driven one-off hooks such as waiting-list offer delivery are scheduled only when work exists and are therefore not expected to be present continuously.
 
 For production sites, do not rely only on page traffic to trigger WP-Cron. Configure a real system cron and let it run WordPress due events.
 
@@ -25,7 +29,7 @@ Adjust the WordPress path and WP-CLI binary path to the server. Run the command 
 
 The plugin's **Kalender & Buchungen → Systemstatus** screen shows the last and next scheduler runs, queue counts, stale leases and warnings. It also provides nonce- and capability-protected manual run buttons for diagnostics.
 
-A scheduler warning should be investigated if the queue has not run for more than 15 minutes, the hourly task has not run for more than two hours, a scheduled hook is missing, failed jobs are present, or a running job has an expired lease.
+A scheduler warning should be investigated if the queue has not run for more than 15 minutes, the hourly task has not run for more than two hours, any of the four recurring schedules is missing, failed jobs are present, or a running job has an expired lease.
 
 
 ## E-mail transport verification
