@@ -127,3 +127,9 @@ Completed.
 - single-occurrence and remaining-series cancellation refunds
 - cumulative refund accounting with over-refund protection
 - idempotent Stripe partial refunds and refund amount previews
+
+### 3.17.1
+- complete recurring-maintenance scheduler health coverage
+- bounded public availability request rate, resource fan-out and returned result cost
+- leased, bounded retry delivery for definite email transport failures without queued customer secrets
+- durable portal, waiting-list and video-ready mail with token rotation and stale/uncertain delivery suppression
