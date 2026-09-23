@@ -325,35 +325,60 @@ class Admin {
         global $wpdb;
         $table = $wpdb->prefix . 'wpcb_booking_types';
         $items = $wpdb->get_results("SELECT * FROM {$table} ORDER BY sort_order ASC, name ASC");
+        $editId = absint($_GET['edit_type'] ?? 0);
+        $editing = $editId > 0
+            ? $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $editId))
+            : null;
+
         $this->formStart();
         echo '<h1>' . esc_html__('Terminarten', 'wordpress-calendar-booking') . '</h1>';
         $this->renderTypesTable($items);
-        $this->renderTypeForm();
+        $this->renderTypeForm($editing);
         $this->formEnd();
     }
+
     public function fields(): void {
         global $wpdb;
         $table = $wpdb->prefix . 'wpcb_form_fields';
         $items = $wpdb->get_results("SELECT * FROM {$table} ORDER BY sort_order ASC, id ASC");
+        $editId = absint($_GET['edit_field'] ?? 0);
+        $editing = $editId > 0
+            ? $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $editId))
+            : null;
+
         $this->formStart();
         echo '<h1>' . esc_html__('Formularfelder', 'wordpress-calendar-booking') . '</h1>';
         $this->renderFieldsTable($items);
-        $this->renderFieldForm();
+        $this->renderFieldForm($editing);
         $this->formEnd();
     }
+
     public function availability(): void {
         global $wpdb;
-        $rules = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}wpcb_availability_rules ORDER BY scope_type ASC, weekday ASC, start_time ASC");
-        $exceptions = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}wpcb_exceptions ORDER BY date_start DESC");
+        $rulesTable = $wpdb->prefix . 'wpcb_availability_rules';
+        $exceptionsTable = $wpdb->prefix . 'wpcb_exceptions';
+        $rules = $wpdb->get_results("SELECT * FROM {$rulesTable} ORDER BY scope_type ASC, weekday ASC, start_time ASC");
+        $exceptions = $wpdb->get_results("SELECT * FROM {$exceptionsTable} ORDER BY date_start DESC");
+
+        $editRuleId = absint($_GET['edit_rule'] ?? 0);
+        $editingRule = $editRuleId > 0
+            ? $wpdb->get_row($wpdb->prepare("SELECT * FROM {$rulesTable} WHERE id = %d", $editRuleId))
+            : null;
+        $editExceptionId = absint($_GET['edit_exception'] ?? 0);
+        $editingException = $editExceptionId > 0
+            ? $wpdb->get_row($wpdb->prepare("SELECT * FROM {$exceptionsTable} WHERE id = %d", $editExceptionId))
+            : null;
+
         $this->formStart();
         echo '<h1>' . esc_html__('Verfügbarkeit', 'wordpress-calendar-booking') . '</h1>';
         $this->renderRulesTable($rules);
-        $this->renderRuleForm();
+        $this->renderRuleForm($editingRule);
         echo '<hr><h2>' . esc_html__('Ausnahmen / Sperren', 'wordpress-calendar-booking') . '</h2>';
         $this->renderExceptionsTable($exceptions);
-        $this->renderExceptionForm();
+        $this->renderExceptionForm($editingException);
         $this->formEnd();
     }
+
     public function bookings(): void {
         $this->formStart();
         echo '<h1>' . esc_html__('Buchungen', 'wordpress-calendar-booking') . '</h1>';
