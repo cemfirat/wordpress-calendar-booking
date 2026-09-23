@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.2.0
+
+- Add the versioned `wpcb/v1` REST API for public booking types/resources/availability and capability-protected booking administration.
+- Add bounded administrator booking pagination and idempotent mutation requests using `Idempotency-Key`.
+- Add configurable outbound lifecycle webhooks for booking created, confirmed, rejected, rescheduled and cancelled events.
+- Sign webhook requests with HMAC-SHA256, encrypted endpoint secrets, stable event/delivery IDs and schema-versioned privacy-safe payloads.
+- Deliver webhooks through the existing leased retry queue and expose redacted delivery history in wp-admin and REST.
+- Add integration coverage for REST permissions, idempotency, signing, delivery history and customer-data isolation.
+
 ## 3.1.0
 
 - Add explicit resources/staff, booking-type assignments and resource-specific availability/exceptions.
