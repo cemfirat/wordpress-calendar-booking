@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.11.0
+
+- Paginate the interactive administrator booking list with bounded 50-row pages.
+- Add filtered booking counts and safe limit/offset repository queries.
+- Batch-load sync metadata and privacy-retention flags for the current page instead of issuing per-row queries.
+- Preserve date, status and booking-type filters across pagination.
+- Keep CSV exports complete and unpaginated.
+
 ## 3.10.0
 
 - Add a capability- and nonce-protected mail transport diagnostic to Systemstatus.
