@@ -120,6 +120,7 @@ class Actions {
                 'notes' => isset($meta['message']) ? (string)$meta['message'] : '',
                 'source' => 'frontend',
                 'lang' => 'de',
+                'party_size' => $partySize,
             ],
             $meta
         );
