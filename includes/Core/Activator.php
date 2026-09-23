@@ -6,6 +6,7 @@ use Wpcb\Support\Time;
 use Wpcb\Support\TimeMigration;
 use Wpcb\Tokens\TokenMigration;
 use Wpcb\Security\SecretMigration;
+use Wpcb\Resources\ResourceMigration;
 
 class Activator {
     public static function activate(): void {
@@ -14,6 +15,7 @@ class Activator {
         SecretMigration::maybeRun();
         TimeMigration::maybeRun();
         self::seed_defaults();
+        ResourceMigration::maybeRun();
         flush_rewrite_rules();
     }
 

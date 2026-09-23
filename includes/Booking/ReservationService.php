@@ -3,35 +3,44 @@ namespace Wpcb\Booking;
 
 use Wpcb\Admin\Settings;
 use Wpcb\Availability\SlotSelectionService;
+use Wpcb\Resources\ResourceLock;
 use Wpcb\Support\Time;
 
 /**
  * Creates the initial booking reservation inside a serialized critical section.
  *
- * The lock is intentionally site-wide for 2.0's single logical resource model.
- * This is conservative but correct. A future resource model can narrow the lock
- * key without changing the reservation invariant.
+ * Reservation writers are serialized per resource so independent staff/resources
+ * can accept bookings concurrently without weakening overlap protection.
  */
 class ReservationService {
     private BookingRepository $bookings;
     private SlotSelectionService $selection;
+    private ResourceLock $locks;
 
-    public function __construct(?BookingRepository $bookings = null, ?SlotSelectionService $selection = null) {
+    public function __construct(
+        ?BookingRepository $bookings = null,
+        ?SlotSelectionService $selection = null,
+        ?ResourceLock $locks = null
+    ) {
         $this->bookings = $bookings ?: new BookingRepository();
         $this->selection = $selection ?: new SlotSelectionService();
+        $this->locks = $locks ?: new ResourceLock();
     }
 
     /**
      * @return int|\WP_Error Booking ID on success.
      */
     public function reserve(string $slotToken, int $expectedTypeId, array $customer, array $meta = []) {
-        if ($expectedTypeId < 1 || !$this->selection->resolve($slotToken, $expectedTypeId)) {
+        $initial = $expectedTypeId > 0
+            ? $this->selection->resolve($slotToken, $expectedTypeId)
+            : null;
+        if (!$initial || empty($initial['resource_id'])) {
             return new \WP_Error('wpcb_slot_unavailable', 'The selected slot is invalid, expired or no longer available.');
         }
 
-        $lockName = $this->lockName();
-        if (!$this->acquireLock($lockName, 5)) {
-            return new \WP_Error('wpcb_reservation_busy', 'The booking system is busy. Please try again.');
+        $resourceId = (int)$initial['resource_id'];
+        if (!$this->locks->acquire($resourceId, 5)) {
+            return new \WP_Error('wpcb_reservation_busy', 'The selected resource is busy. Please try again.');
         }
 
         try {
@@ -47,6 +56,7 @@ class ReservationService {
             $bookingId = $this->bookings->create([
                 'booking_uuid' => wp_generate_uuid4(),
                 'booking_type_id' => (int)$slot['type_id'],
+                'resource_id' => (int)$slot['resource_id'],
                 'slot_start' => (string)$slot['start'],
                 'slot_end' => (string)$slot['end'],
                 'status' => BookingStatus::RESERVED_UNCONFIRMED,
@@ -68,22 +78,7 @@ class ReservationService {
             }
             return $bookingId;
         } finally {
-            $this->releaseLock($lockName);
+            $this->locks->release($resourceId);
         }
-    }
-
-    private function lockName(): string {
-        return 'wpcb_reserve_' . md5(home_url('/'));
-    }
-
-    private function acquireLock(string $name, int $timeoutSeconds): bool {
-        global $wpdb;
-        $result = $wpdb->get_var($wpdb->prepare('SELECT GET_LOCK(%s, %d)', $name, max(0, $timeoutSeconds)));
-        return (int)$result === 1;
-    }
-
-    private function releaseLock(string $name): void {
-        global $wpdb;
-        $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $name));
     }
 }

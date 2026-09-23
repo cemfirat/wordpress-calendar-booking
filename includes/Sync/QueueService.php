@@ -90,7 +90,11 @@ class QueueService {
         }
 
         $jobIds = [];
-        foreach ($this->connections->writeDestinationsForBookingType((int)$booking->booking_type_id) as $connection) {
+        $resourceId = !empty($booking->resource_id) ? (int)$booking->resource_id : 0;
+        $destinations = $resourceId > 0
+            ? $this->connections->writeDestinationsForResource($resourceId, (int)$booking->booking_type_id)
+            : $this->connections->writeDestinationsForBookingType((int)$booking->booking_type_id);
+        foreach ($destinations as $connection) {
             $desiredVersion = hash('sha256', wp_json_encode([
                 'booking_id' => $bookingId,
                 'status' => (string)$booking->status,
@@ -100,6 +104,7 @@ class QueueService {
                 'connection_id' => $connection->id,
                 'provider' => $connection->provider,
                 'remote_calendar_id' => $connection->remoteCalendarId,
+                'resource_id' => $resourceId,
             ]));
 
             $operation = $jobType === 'cancel' ? 'cancel' : 'upsert';

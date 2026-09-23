@@ -16,10 +16,38 @@ final class ConnectionBusyService {
     /**
      * @return array<int,array{start:string,end:string,source?:string,connection_id?:int}>
      */
+    public function busyForResource(
+        int $bookingTypeId,
+        int $resourceId,
+        string $fromUtc,
+        string $toUtc
+    ): array {
+        return $this->busyFromConnections(
+            $this->connections->blockingForResource($resourceId, $bookingTypeId),
+            $fromUtc,
+            $toUtc
+        );
+    }
+
+    /**
+     * @return array<int,array{start:string,end:string,source?:string,connection_id?:int}>
+     */
     public function busyForBookingType(int $bookingTypeId, string $fromUtc, string $toUtc): array {
+        return $this->busyFromConnections(
+            $this->connections->blockingForBookingType($bookingTypeId),
+            $fromUtc,
+            $toUtc
+        );
+    }
+
+    /**
+     * @param CalendarConnection[] $connections
+     * @return array<int,array{start:string,end:string,source?:string,connection_id?:int}>
+     */
+    private function busyFromConnections(array $connections, string $fromUtc, string $toUtc): array {
         $busy = [];
 
-        foreach ($this->connections->blockingForBookingType($bookingTypeId) as $connection) {
+        foreach ($connections as $connection) {
             $provider = $this->providers->get($connection->provider);
             if (!$provider instanceof CalendarSyncProviderInterface
                 || !$this->providers->supports($connection->provider, ProviderCapabilities::BUSY_READ)

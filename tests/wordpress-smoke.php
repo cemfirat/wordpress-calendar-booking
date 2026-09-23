@@ -96,6 +96,8 @@ $tables = array(
 	'bookings',
 	'booking_meta',
 	'booking_types',
+	'resources',
+	'booking_type_resources',
 	'form_fields',
 	'availability_rules',
 	'exceptions',
@@ -104,6 +106,7 @@ $tables = array(
 	'sync_jobs',
 	'calendar_connections',
 	'booking_type_calendar_connections',
+	'resource_calendar_connections',
 	'deliveries',
 	'sync_log',
 );

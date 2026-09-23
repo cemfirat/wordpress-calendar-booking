@@ -6,6 +6,7 @@ use Wpcb\Booking\BookingTypeRepository;
 use Wpcb\Calendar\IcloudProvider;
 use Wpcb\Calendar\PublicBusyPresenter;
 use Wpcb\Calendar\ConnectionBusyService;
+use Wpcb\Resources\ResourceRepository;
 use Wpcb\Support\Time;
 
 class SlotService {
@@ -15,6 +16,7 @@ class SlotService {
     private BookingTypeRepository $types;
     private PublicBusyPresenter $publicBusy;
     private ConnectionBusyService $connectionBusy;
+    private ResourceRepository $resources;
 
     public function __construct() {
         $this->repo = new AvailabilityRepository();
@@ -23,13 +25,74 @@ class SlotService {
         $this->types = new BookingTypeRepository();
         $this->publicBusy = new PublicBusyPresenter();
         $this->connectionBusy = new ConnectionBusyService();
+        $this->resources = new ResourceRepository();
     }
 
+    /**
+     * Public slot list. Private resource topology is collapsed so visitors do
+     * not learn staff/resource names or capacity unless every assigned
+     * resource has an explicitly enabled public label.
+     */
     public function getSlots(int $typeId, int $days = 14, ?int $ignoreBookingId = null): array {
+        if (!$this->types->find($typeId)) {
+            return [];
+        }
+
+        $resources = $this->resources->forBookingType($typeId, true);
+        if (!$resources) {
+            return [];
+        }
+
+        $labels = [];
+        foreach ($resources as $resource) {
+            $labels[(int)$resource->id] = $this->resources->publicLabel($resource);
+        }
+        $exposeResourceLabels = count($resources) > 1
+            && !in_array('', array_values($labels), true);
+
+        $out = [];
+        foreach ($resources as $resource) {
+            $resourceId = (int)$resource->id;
+            foreach ($this->getSlotsForResource($typeId, $resourceId, $days, $ignoreBookingId) as $slot) {
+                if ($exposeResourceLabels) {
+                    $slot['resource_label'] = $labels[$resourceId];
+                    $slot['label'] .= ' — ' . $labels[$resourceId];
+                    $out[$slot['start'] . '|' . $resourceId] = $slot;
+                    continue;
+                }
+
+                // One generic slot per start hides private resource count/name.
+                if (!isset($out[$slot['start']])) {
+                    $out[$slot['start']] = $slot;
+                }
+            }
+        }
+
+        $out = array_values($out);
+        usort($out, static function (array $a, array $b): int {
+            $byStart = strcmp((string)$a['start'], (string)$b['start']);
+            return $byStart !== 0
+                ? $byStart
+                : ((int)($a['resource_id'] ?? 0) <=> (int)($b['resource_id'] ?? 0));
+        });
+        return $out;
+    }
+
+    public function getSlotsForResource(
+        int $typeId,
+        int $resourceId,
+        int $days = 14,
+        ?int $ignoreBookingId = null
+    ): array {
         $type = $this->types->find($typeId);
-        if (!$type) return [];
-        $rules = $this->repo->rulesForType($typeId);
-        if (!$rules) return [];
+        if (!$type || !$this->resources->isAssignedToBookingType($resourceId, $typeId)) {
+            return [];
+        }
+
+        $rules = $this->repo->rulesForTypeAndResource($typeId, $resourceId);
+        if (!$rules) {
+            return [];
+        }
 
         $days = max(1, $days);
         $nowUtc = Time::nowUtc();
@@ -40,20 +103,23 @@ class SlotService {
 
         $calendarEvents = array_merge(
             $this->calendar->events($from, $to),
-            $this->connectionBusy->busyForBookingType($typeId, $from, $to)
+            $this->connectionBusy->busyForResource($typeId, $resourceId, $from, $to)
         );
-        $exceptions = $this->repo->exceptions($from, $to, $typeId);
+        $exceptions = $this->repo->exceptions($from, $to, $typeId, $resourceId);
         $out = [];
 
         foreach ($rules as $rule) {
             $limit = min($days, (int)$rule->max_days_in_advance);
             for ($i = 0; $i <= $limit; $i++) {
                 $day = $nowLocal->setTime(0, 0, 0)->modify('+' . $i . ' days');
-                if ((int)$day->format('N') !== (int)$rule->weekday) continue;
+                if ((int)$day->format('N') !== (int)$rule->weekday) {
+                    continue;
+                }
                 $out = array_merge(
                     $out,
                     $this->buildDaySlots(
                         $type,
+                        $resourceId,
                         $rule,
                         $day->format('Y-m-d'),
                         $calendarEvents,
@@ -64,7 +130,7 @@ class SlotService {
             }
         }
 
-        usort($out, static fn($a, $b) => strcmp((string)$a['start'], (string)$b['start']));
+        usort($out, static fn(array $a, array $b): int => strcmp((string)$a['start'], (string)$b['start']));
         $unique = [];
         foreach ($out as $slot) {
             $unique[$slot['start']] = $slot;
@@ -111,7 +177,7 @@ class SlotService {
             }
         }
         foreach ($itemsByDay as &$items) {
-            usort($items, static fn($a, $b) => strcmp((string)$a['start'], (string)$b['start']));
+            usort($items, static fn(array $a, array $b): int => strcmp((string)$a['start'], (string)$b['start']));
         }
         unset($items);
 
@@ -139,7 +205,13 @@ class SlotService {
         ];
     }
 
-    public function isCanonicalSlot(int $typeId, string $start, string $end, ?int $ignoreBookingId = null): bool {
+    public function isCanonicalSlot(
+        int $typeId,
+        string $start,
+        string $end,
+        ?int $ignoreBookingId = null,
+        ?int $resourceId = null
+    ): bool {
         $startUtc = Time::parseUtc($start);
         $endUtc = Time::parseUtc($end);
         if (!$startUtc || !$endUtc || $endUtc <= $startUtc) {
@@ -153,26 +225,54 @@ class SlotService {
             return false;
         }
 
-        $slots = $this->getSlots($typeId, $daysFromToday + 1, $ignoreBookingId);
+        $slots = $resourceId
+            ? $this->getSlotsForResource($typeId, $resourceId, $daysFromToday + 1, $ignoreBookingId)
+            : $this->getSlots($typeId, $daysFromToday + 1, $ignoreBookingId);
+
         foreach ($slots as $slot) {
-            if (($slot['start'] ?? null) === $start && ($slot['end'] ?? null) === $end) {
+            if (($slot['start'] ?? null) === $start
+                && ($slot['end'] ?? null) === $end
+                && (!$resourceId || (int)($slot['resource_id'] ?? 0) === $resourceId)
+            ) {
                 return true;
             }
         }
         return false;
     }
 
-    public function slotAvailable(int $typeId, string $start, string $end, ?int $ignoreId = null): bool {
+    public function slotAvailable(
+        int $typeId,
+        string $start,
+        string $end,
+        ?int $ignoreId = null,
+        ?int $resourceId = null
+    ): bool {
         $type = $this->types->find($typeId);
-        if (!$type || !Time::parseUtc($start) || !Time::parseUtc($end)) return false;
+        if (!$type || !Time::parseUtc($start) || !Time::parseUtc($end)) {
+            return false;
+        }
+
+        if (!$resourceId) {
+            foreach ($this->resources->forBookingType($typeId, true) as $resource) {
+                if ($this->slotAvailable($typeId, $start, $end, $ignoreId, (int)$resource->id)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        if (!$this->resources->isAssignedToBookingType($resourceId, $typeId)) {
+            return false;
+        }
 
         $bufferBefore = (int)$type->buffer_before_minutes;
         $bufferAfter = (int)$type->buffer_after_minutes;
         $bufferedStart = Time::addMinutes($start, -$bufferBefore);
         $bufferedEnd = Time::addMinutes($end, $bufferAfter);
-        if (!$bufferedStart || !$bufferedEnd) return false;
+        if (!$bufferedStart || !$bufferedEnd) {
+            return false;
+        }
 
-        if ($this->bookings->hasConflict($bufferedStart, $bufferedEnd, $ignoreId)) {
+        if ($this->bookings->hasConflict($bufferedStart, $bufferedEnd, $ignoreId, $resourceId)) {
             return false;
         }
 
@@ -182,7 +282,7 @@ class SlotService {
         if ($calendarFrom && $calendarTo) {
             $events = array_merge(
                 $this->calendar->events($calendarFrom, $calendarTo),
-                $this->connectionBusy->busyForBookingType($typeId, $calendarFrom, $calendarTo)
+                $this->connectionBusy->busyForResource($typeId, $resourceId, $calendarFrom, $calendarTo)
             );
         }
         return !$this->isBlockedByCalendar($start, $end, $bufferBefore, $bufferAfter, $events);
@@ -190,6 +290,7 @@ class SlotService {
 
     private function buildDaySlots(
         object $type,
+        int $resourceId,
         object $rule,
         string $date,
         array $calendarEvents,
@@ -216,9 +317,6 @@ class SlotService {
                 continue;
             }
 
-            // A slot that crosses a DST transition can have a different elapsed
-            // duration than its wall-clock duration. Reject it rather than
-            // surprising either party.
             if (($localEnd->getTimestamp() - $localStart->getTimestamp()) !== ($duration * 60)) {
                 continue;
             }
@@ -228,11 +326,25 @@ class SlotService {
 
             $slotStart = Time::formatUtc($localStart);
             $slotEnd = Time::formatUtc($localEnd);
-            if ($this->isBlockedByExceptions($slotStart, $slotEnd, $exceptions)) continue;
-            if ($this->isBlockedByBookings($slotStart, $slotEnd, $bufferBefore, $bufferAfter, $ignoreBookingId)) continue;
-            if ($this->isBlockedByCalendar($slotStart, $slotEnd, $bufferBefore, $bufferAfter, $calendarEvents)) continue;
+            if ($this->isBlockedByExceptions($slotStart, $slotEnd, $exceptions)) {
+                continue;
+            }
+            if ($this->isBlockedByBookings(
+                $slotStart,
+                $slotEnd,
+                $bufferBefore,
+                $bufferAfter,
+                $ignoreBookingId,
+                $resourceId
+            )) {
+                continue;
+            }
+            if ($this->isBlockedByCalendar($slotStart, $slotEnd, $bufferBefore, $bufferAfter, $calendarEvents)) {
+                continue;
+            }
 
             $free[] = [
+                'resource_id' => $resourceId,
                 'start' => $slotStart,
                 'end' => $slotEnd,
                 'label' => $localStart->format('d.m.Y H:i') . ' ' . Time::bookingTimezoneName(),
@@ -248,13 +360,14 @@ class SlotService {
         string $end,
         int $bufferBefore,
         int $bufferAfter,
-        ?int $ignoreBookingId = null
+        ?int $ignoreBookingId = null,
+        ?int $resourceId = null
     ): bool {
         $bufferedStart = Time::addMinutes($start, -$bufferBefore);
         $bufferedEnd = Time::addMinutes($end, $bufferAfter);
         return !$bufferedStart || !$bufferedEnd
             ? true
-            : $this->bookings->hasConflict($bufferedStart, $bufferedEnd, $ignoreBookingId);
+            : $this->bookings->hasConflict($bufferedStart, $bufferedEnd, $ignoreBookingId, $resourceId);
     }
 
     private function isBlockedByCalendar(
@@ -266,7 +379,9 @@ class SlotService {
     ): bool {
         $startUtc = Time::parseUtc((string)Time::addMinutes($start, -$bufferBefore));
         $endUtc = Time::parseUtc((string)Time::addMinutes($end, $bufferAfter));
-        if (!$startUtc || !$endUtc) return true;
+        if (!$startUtc || !$endUtc) {
+            return true;
+        }
 
         foreach ($events as $event) {
             $eventStart = Time::parseUtc((string)($event['start'] ?? ''));
@@ -281,7 +396,9 @@ class SlotService {
     private function isBlockedByExceptions(string $start, string $end, array $exceptions): bool {
         $slotStart = Time::parseUtc($start);
         $slotEnd = Time::parseUtc($end);
-        if (!$slotStart || !$slotEnd) return true;
+        if (!$slotStart || !$slotEnd) {
+            return true;
+        }
 
         foreach ($exceptions as $exception) {
             $exceptionStart = Time::parseUtc((string)$exception->date_start);

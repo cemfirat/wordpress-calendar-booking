@@ -21,7 +21,8 @@ $slot = $slots[0];
 $token = (new Wpcb\Tokens\SlotTokenService())->issue(
     (int)$type->id,
     (string)$slot['start'],
-    (string)$slot['end']
+    (string)$slot['end'],
+    (int)$slot['resource_id']
 );
 
 echo (int)$type->id . '|' . $token;

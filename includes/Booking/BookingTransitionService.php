@@ -2,6 +2,7 @@
 namespace Wpcb\Booking;
 
 use Wpcb\Availability\SlotService;
+use Wpcb\Resources\ResourceLock;
 use Wpcb\Support\Time;
 
 /**
@@ -13,15 +14,18 @@ final class BookingTransitionService {
     private BookingRepository $bookings;
     private BookingStateMachine $machine;
     private SlotService $slots;
+    private ResourceLock $locks;
 
     public function __construct(
         ?BookingRepository $bookings = null,
         ?BookingStateMachine $machine = null,
-        ?SlotService $slots = null
+        ?SlotService $slots = null,
+        ?ResourceLock $locks = null
     ) {
         $this->bookings = $bookings ?: new BookingRepository();
         $this->machine = $machine ?: new BookingStateMachine();
         $this->slots = $slots ?: new SlotService();
+        $this->locks = $locks ?: new ResourceLock();
     }
 
     /**
@@ -48,7 +52,8 @@ final class BookingTransitionService {
                 (int)$booking->booking_type_id,
                 (string)$booking->slot_start,
                 (string)$booking->slot_end,
-                $bookingId
+                $bookingId,
+                !empty($booking->resource_id) ? (int)$booking->resource_id : null
             )
         ) {
             return new \WP_Error('wpcb_slot_unavailable', 'The booked slot is no longer available.');
@@ -109,7 +114,8 @@ final class BookingTransitionService {
         string $newStart,
         string $newEnd,
         string $actor = 'user',
-        string $note = 'Booking rescheduled'
+        string $note = 'Booking rescheduled',
+        ?int $newResourceId = null
     ) {
         $booking = $this->bookings->find($bookingId);
         if (!$booking) {
@@ -127,17 +133,52 @@ final class BookingTransitionService {
             return new \WP_Error('wpcb_slot_invalid', 'The replacement slot is invalid.');
         }
 
-        $updated = $this->bookings->updateWhenStatus(
-            $bookingId,
-            $status,
-            [
-                'slot_start' => $newStart,
-                'slot_end' => $newEnd,
-                'updated_at_user' => Time::formatUtc(Time::nowUtc()),
-            ]
-        );
-        if (!$updated) {
-            return new \WP_Error('wpcb_event_race', 'The booking changed while it was being rescheduled.');
+        $currentResourceId = !empty($booking->resource_id) ? (int)$booking->resource_id : null;
+        $targetResourceId = $newResourceId ?: (int)($currentResourceId ?? 0);
+        if ($targetResourceId < 1) {
+            return new \WP_Error('wpcb_resource_missing', 'The replacement resource is invalid.');
+        }
+
+        if (!$this->locks->acquire($targetResourceId, 5)) {
+            return new \WP_Error('wpcb_reservation_busy', 'The selected resource is busy. Please try again.');
+        }
+
+        try {
+            $freshBeforeMove = $this->bookings->find($bookingId);
+            if (!$freshBeforeMove
+                || (string)$freshBeforeMove->status !== $status
+                || (string)$freshBeforeMove->slot_start !== (string)$booking->slot_start
+                || (string)$freshBeforeMove->slot_end !== (string)$booking->slot_end
+                || (int)($freshBeforeMove->resource_id ?? 0) !== (int)($currentResourceId ?? 0)
+            ) {
+                return new \WP_Error('wpcb_event_race', 'The booking changed while it was being rescheduled.');
+            }
+
+            if (!$this->slots->slotAvailable(
+                (int)$booking->booking_type_id,
+                $newStart,
+                $newEnd,
+                $bookingId,
+                $targetResourceId
+            )) {
+                return new \WP_Error('wpcb_slot_unavailable', 'The replacement slot is no longer available.');
+            }
+
+            $updated = $this->bookings->moveWhenPositionMatches(
+                $bookingId,
+                $status,
+                $currentResourceId,
+                (string)$booking->slot_start,
+                (string)$booking->slot_end,
+                $targetResourceId,
+                $newStart,
+                $newEnd
+            );
+            if (!$updated) {
+                return new \WP_Error('wpcb_event_race', 'The booking changed while it was being rescheduled.');
+            }
+        } finally {
+            $this->locks->release($targetResourceId);
         }
 
         $this->bookings->logEvent($bookingId, $status, self::RESCHEDULED, $actor, $note);

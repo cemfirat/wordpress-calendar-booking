@@ -20,9 +20,10 @@ wpcb_release_assert(false !== has_action('admin_post_nopriv_wpcb_booking_action'
 
 global $wpdb;
 foreach ([
-    'bookings', 'booking_meta', 'booking_types', 'form_fields', 'availability_rules',
-    'exceptions', 'tokens', 'booking_status_log', 'sync_jobs', 'deliveries',
-    'calendar_connections', 'booking_type_calendar_connections', 'sync_log',
+    'bookings', 'booking_meta', 'booking_types', 'resources', 'booking_type_resources',
+    'form_fields', 'availability_rules', 'exceptions', 'tokens', 'booking_status_log',
+    'sync_jobs', 'deliveries', 'calendar_connections', 'booking_type_calendar_connections',
+    'resource_calendar_connections', 'sync_log',
 ] as $suffix) {
     $table = $wpdb->prefix . 'wpcb_' . $suffix;
     wpcb_release_assert($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table, 'Fresh release created table ' . $table . '.');
@@ -33,5 +34,8 @@ wpcb_release_assert((int)get_option('wpcb_token_storage_version', 0) === Wpcb\To
 wpcb_release_assert((int)get_option('wpcb_secret_storage_version', 0) === Wpcb\Security\SecretMigration::currentVersion(), 'Fresh install secret storage migration is current.');
 wpcb_release_assert((int)get_option('wpcb_time_storage_version', 0) >= 2, 'Fresh install UTC storage migration is current.');
 wpcb_release_assert((int)get_option('wpcb_booking_status_version', 0) >= 2, 'Fresh install booking lifecycle migration is current.');
+wpcb_release_assert((int)get_option('wpcb_resource_model_version', 0) === Wpcb\Resources\ResourceMigration::currentVersion(), 'Fresh install resource model migration is current.');
+$defaultResourceId = (int)get_option('wpcb_default_resource_id', 0);
+wpcb_release_assert($defaultResourceId > 0 && (new Wpcb\Resources\ResourceRepository())->find($defaultResourceId) !== null, 'Fresh install creates a default resource.');
 
 WP_CLI::success('Fresh release ZIP installation passed.');

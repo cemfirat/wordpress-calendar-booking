@@ -7,12 +7,14 @@ use Wpcb\Support\Time;
 final class CalendarConnectionRepository {
     private string $table;
     private string $mappingTable;
+    private string $resourceMappingTable;
     private SecretBox $secrets;
 
     public function __construct(?SecretBox $secrets = null) {
         global $wpdb;
         $this->table = $wpdb->prefix . 'wpcb_calendar_connections';
         $this->mappingTable = $wpdb->prefix . 'wpcb_booking_type_calendar_connections';
+        $this->resourceMappingTable = $wpdb->prefix . 'wpcb_resource_calendar_connections';
         $this->secrets = $secrets ?: new SecretBox();
     }
 
@@ -136,6 +138,7 @@ final class CalendarConnectionRepository {
     public function delete(int $connectionId): void {
         global $wpdb;
         $wpdb->delete($this->mappingTable, ['connection_id' => $connectionId]);
+        $wpdb->delete($this->resourceMappingTable, ['connection_id' => $connectionId]);
         $wpdb->delete($this->table, ['id' => $connectionId]);
     }
 
@@ -252,6 +255,89 @@ final class CalendarConnectionRepository {
                 $this->forBookingType($bookingTypeId),
                 static fn(array $row): bool => $row['receives_bookings']
             )
+        ));
+    }
+
+    /**
+     * Replace the selected calendar connections for one resource.
+     *
+     * Each row: connection_id, blocks_availability, receives_bookings.
+     */
+    public function setForResource(int $resourceId, array $connections): void {
+        global $wpdb;
+        if ($resourceId < 1) {
+            return;
+        }
+
+        $wpdb->delete($this->resourceMappingTable, ['resource_id' => $resourceId]);
+        $now = Time::formatUtc(Time::nowUtc());
+        foreach ($connections as $selection) {
+            $connectionId = (int)($selection['connection_id'] ?? 0);
+            if ($connectionId < 1 || !$this->find($connectionId)) {
+                continue;
+            }
+            $wpdb->insert($this->resourceMappingTable, [
+                'resource_id' => $resourceId,
+                'connection_id' => $connectionId,
+                'blocks_availability' => !empty($selection['blocks_availability']) ? 1 : 0,
+                'receives_bookings' => !empty($selection['receives_bookings']) ? 1 : 0,
+                'created_at' => $now,
+                'updated_at' => $now,
+            ]);
+        }
+    }
+
+    /**
+     * @return array<int,array{connection:CalendarConnection,blocks_availability:bool,receives_bookings:bool}>
+     */
+    public function forResource(int $resourceId, bool $activeOnly = true): array {
+        global $wpdb;
+        $sql = "SELECT c.id, c.provider, c.name, c.remote_calendar_id, c.blocks_availability,
+                       c.receives_bookings, c.is_active, c.health_status, c.last_success_at,
+                       c.last_error_at, c.last_error_message, c.created_at, c.updated_at,
+                       m.blocks_availability AS mapping_blocks_availability,
+                       m.receives_bookings AS mapping_receives_bookings
+                FROM {$this->resourceMappingTable} m
+                INNER JOIN {$this->table} c ON c.id = m.connection_id
+                WHERE m.resource_id = %d";
+        if ($activeOnly) {
+            $sql .= ' AND c.is_active = 1';
+        }
+        $sql .= ' ORDER BY c.name ASC, c.id ASC';
+
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $resourceId));
+        $out = [];
+        foreach ($rows as $row) {
+            $out[] = [
+                'connection' => CalendarConnection::fromRow($row),
+                'blocks_availability' => (bool)$row->mapping_blocks_availability,
+                'receives_bookings' => (bool)$row->mapping_receives_bookings,
+            ];
+        }
+        return $out;
+    }
+
+    /** @return CalendarConnection[] */
+    public function blockingForResource(int $resourceId, ?int $fallbackBookingTypeId = null): array {
+        $rows = $this->forResource($resourceId);
+        if (!$rows && $fallbackBookingTypeId) {
+            return $this->blockingForBookingType($fallbackBookingTypeId);
+        }
+        return array_values(array_map(
+            static fn(array $row): CalendarConnection => $row['connection'],
+            array_filter($rows, static fn(array $row): bool => $row['blocks_availability'])
+        ));
+    }
+
+    /** @return CalendarConnection[] */
+    public function writeDestinationsForResource(int $resourceId, ?int $fallbackBookingTypeId = null): array {
+        $rows = $this->forResource($resourceId);
+        if (!$rows && $fallbackBookingTypeId) {
+            return $this->writeDestinationsForBookingType($fallbackBookingTypeId);
+        }
+        return array_values(array_map(
+            static fn(array $row): CalendarConnection => $row['connection'],
+            array_filter($rows, static fn(array $row): bool => $row['receives_bookings'])
         ));
     }
 
