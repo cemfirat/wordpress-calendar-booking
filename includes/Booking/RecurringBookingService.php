@@ -197,12 +197,6 @@ final class RecurringBookingService {
             $type = $this->types->find((int)$booking->booking_type_id);
             $allowPaidSeriesCancellation = $type
                 && (string)($type->payment_mode ?? 'free') === 'required';
-            if ($allowPaidSeriesCancellation && (int)($booking->series_occurrence ?? -1) !== 0) {
-                return new \WP_Error(
-                    'wpcb_paid_series_partial_refund_unsupported',
-                    'Paid recurring bookings can currently be cancelled only as the complete series from the first occurrence.'
-                );
-            }
             $validation = (new PaymentService())->validateSeriesCancellation(
                 $bookingId,
                 $allowPaidSeriesCancellation
