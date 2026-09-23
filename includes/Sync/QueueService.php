@@ -7,6 +7,7 @@ use Wpcb\Calendar\CalendarConnectionRepository;
 use Wpcb\Calendar\ProviderSyncService;
 use Wpcb\Webhooks\WebhookDispatcher;
 use Wpcb\VideoMeetings\VideoMeetingJobRunner;
+use Wpcb\Mail\EmailRetryJobRunner;
 
 class QueueService {
     private JobRepository $jobs;
@@ -16,6 +17,7 @@ class QueueService {
     private ProviderSyncService $providerSync;
     private WebhookDispatcher $webhooks;
     private VideoMeetingJobRunner $videoMeetings;
+    private EmailRetryJobRunner $emailRetries;
 
     public function __construct() {
         $this->jobs = new JobRepository();
@@ -25,6 +27,7 @@ class QueueService {
         $this->providerSync = new ProviderSyncService();
         $this->webhooks = new WebhookDispatcher();
         $this->videoMeetings = new VideoMeetingJobRunner();
+        $this->emailRetries = new EmailRetryJobRunner();
     }
 
     public function boot(): void {
@@ -192,6 +195,8 @@ class QueueService {
                 return $this->providerSync->run('cancel', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
             case 'webhook_delivery':
                 return $this->webhooks->dispatch($payload, (int)$job->booking_id);
+            case EmailRetryJobRunner::JOB_TYPE:
+                return $this->emailRetries->run($payload, (int)$job->booking_id);
             case 'video_create':
                 return $this->videoMeetings->run('create', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
             case 'video_update':
