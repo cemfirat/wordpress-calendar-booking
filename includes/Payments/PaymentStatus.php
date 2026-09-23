@@ -9,6 +9,17 @@ final class PaymentStatus {
     public const REFUND_PENDING = 'refund_pending';
     public const REFUNDED = 'refunded';
 
+    public static function customerLabel(string $status): string {
+        return [
+            self::PENDING => 'Zahlung ausstehend',
+            self::PAID => 'Bezahlt',
+            self::FAILED => 'Zahlung fehlgeschlagen',
+            self::EXPIRED => 'Zahlung abgelaufen',
+            self::REFUND_PENDING => 'Erstattung wird verarbeitet',
+            self::REFUNDED => 'Erstattet',
+        ][$status] ?? 'Unbekannt';
+    }
+
     public static function all(): array {
         return [
             self::PENDING,
