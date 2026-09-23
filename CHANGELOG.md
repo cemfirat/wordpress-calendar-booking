@@ -2,7 +2,7 @@
 
 ## 3.0.0
 
-- Normalize all historical CEMB identifiers to the WordPress Calendar Booking naming scheme before first production deployment.
+- Normalize all historical abbreviated identifiers to the WordPress Calendar Booking naming scheme before first production deployment.
 - Rename the canonical plugin entry point to `wordpress-calendar-booking.php`.
 - Use `Wpcb` / `wpcb_` for internal PHP and WordPress identifiers and `wordpress-calendar-booking` as the text domain.
 - Rename shortcodes, hooks, options, database tables, block namespace, CSS/JS identifiers and test fixtures consistently.
