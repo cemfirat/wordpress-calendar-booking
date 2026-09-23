@@ -36,8 +36,14 @@ final class StripeAdapter implements PaymentAdapterInterface {
             'line_items[0][quantity]' => '1',
             'metadata[payment_uuid]' => $paymentUuid,
             'payment_intent_data[metadata][payment_uuid]' => $paymentUuid,
-            'success_url' => add_query_arg('wpcb_payment', 'success', home_url('/')),
-            'cancel_url' => add_query_arg('wpcb_payment', 'cancelled', home_url('/')),
+            'success_url' => add_query_arg([
+                'wpcb_payment_return' => 'success',
+                'wpcb_payment_uuid' => $paymentUuid,
+            ], home_url('/')),
+            'cancel_url' => add_query_arg([
+                'wpcb_payment_return' => 'cancelled',
+                'wpcb_payment_uuid' => $paymentUuid,
+            ], home_url('/')),
         ];
 
         $result = $this->request('POST', '/v1/checkout/sessions', $body, $secret);
