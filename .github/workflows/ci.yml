@@ -426,10 +426,88 @@ jobs:
           wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
           wp eval-file "$GITHUB_WORKSPACE/tests/legacy-upgrade-assert.php" --path="$WP_ROOT"
 
+  uninstall_release:
+    name: Packaged uninstall policy
+    needs: [package]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Install WordPress and packaged plugin
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCB-Uninstall --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+      - name: Verify default uninstall preserves durable data
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp eval '
+            $s=(array)get_option("wpcb_settings",[]);
+            $s["delete_data_on_uninstall"]=0;
+            update_option("wpcb_settings",$s);
+            set_transient("wpcb_uninstall_fixture","cache",HOUR_IN_SECONDS);
+            wp_schedule_single_event(time()+3600,"wpcb_waitlist_send_offer",[999999]);
+            global $wpdb;
+            $now=gmdate("Y-m-d H:i:s");
+            $wpdb->insert($wpdb->prefix."wpcb_booking_types",[
+              "name"=>"Uninstall fixture","slug"=>"uninstall-fixture","description"=>"",
+              "duration_minutes"=>30,"buffer_before_minutes"=>0,"buffer_after_minutes"=>0,
+              "capacity"=>1,"show_remaining_capacity"=>0,"payment_mode"=>"free","price_minor"=>0,
+              "currency"=>"EUR","is_active"=>1,"is_public"=>0,"sort_order"=>0,
+              "created_at"=>$now,"updated_at"=>$now
+            ]);
+          ' --path="$WP_ROOT"
+          wp plugin uninstall wordpress-calendar-booking --deactivate --path="$WP_ROOT"
+          test "$(wp db query "SHOW TABLES LIKE 'wp_wpcb_booking_types'" --skip-column-names --path="$WP_ROOT")" = "wp_wpcb_booking_types"
+          test "$(wp option get wpcb_settings --format=json --path="$WP_ROOT" >/dev/null 2>&1; echo $?)" -eq 0
+          test "$(wp eval 'echo get_transient("wpcb_uninstall_fixture")===false ? "clean" : "left";' --path="$WP_ROOT")" = "clean"
+          test "$(wp eval '$c=_get_cron_array(); $found=false; foreach((array)$c as $events){ if(isset($events["wpcb_waitlist_send_offer"])){$found=true;}} echo $found?"left":"clean";' --path="$WP_ROOT")" = "clean"
+      - name: Verify explicit destructive uninstall removes plugin-owned data
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+          wp eval '
+            $s=(array)get_option("wpcb_settings",[]);
+            $s["delete_data_on_uninstall"]=1;
+            update_option("wpcb_settings",$s);
+          ' --path="$WP_ROOT"
+          wp plugin uninstall wordpress-calendar-booking --deactivate --path="$WP_ROOT"
+          table_count="$(wp db query "SHOW TABLES LIKE 'wp_wpcb_%'" --skip-column-names --path="$WP_ROOT" | wc -l | tr -d ' ')"
+          test "$table_count" -eq 0
+          option_count="$(wp db query "SELECT COUNT(*) FROM wp_options WHERE option_name LIKE 'wpcb\\_%'" --skip-column-names --path="$WP_ROOT")"
+          test "$option_count" -eq 0
+
   release:
     name: Publish stable release
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: [php, dependency_audit, wordpress, fresh_release, legacy_upgrade, browser_release]
+    needs: [php, dependency_audit, wordpress, fresh_release, legacy_upgrade, browser_release, uninstall_release]
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -516,11 +594,11 @@ jobs:
           import os, pathlib
           p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/wordpress-calendar-booking.php"
           text = p.read_text()
-          text = text.replace(" * Version: 3.7.0", " * Version: 3.6.0")
-          text = text.replace("define('WPCB_VERSION', '3.7.0');", "define('WPCB_VERSION', '3.6.0');")
+          text = text.replace(" * Version: 3.8.0", " * Version: 3.7.0")
+          text = text.replace("define('WPCB_VERSION', '3.8.0');", "define('WPCB_VERSION', '3.7.0');")
           p.write_text(text)
           PY
-          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-3.6.0.zip" wordpress-calendar-booking)
+          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-3.7.0.zip" wordpress-calendar-booking)
       - name: Install synthetic old version
         run: |
           set -euo pipefail
@@ -528,9 +606,9 @@ jobs:
           wp core download --path="$WP_ROOT" --version=latest
           wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
           wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBUpdater --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
-          wp plugin install "$RUNNER_TEMP/calendar-booking-3.6.0.zip" --activate --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.6.0"
-      - name: Discover real public v3.7.0 release
+          wp plugin install "$RUNNER_TEMP/calendar-booking-3.7.0.zip" --activate --path="$WP_ROOT"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.7.0"
+      - name: Discover real public v3.8.0 release
         run: |
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
@@ -547,7 +625,7 @@ jobs:
                   echo $updates->response[$basename]->new_version;
               }
             ' --path="$WP_ROOT")"
-            if [ "$version" = "3.7.0" ]; then
+            if [ "$version" = "3.8.0" ]; then
               found=1
               break
             fi
@@ -559,6 +637,6 @@ jobs:
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
           wp plugin update wordpress-calendar-booking --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.7.0"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.8.0"
           wp plugin is-active wordpress-calendar-booking --path="$WP_ROOT"
-          echo "PASS: synthetic 3.6.0 updated through the public GitHub release to 3.7.0."
+          echo "PASS: synthetic 3.7.0 updated through the public GitHub release to 3.8.0."

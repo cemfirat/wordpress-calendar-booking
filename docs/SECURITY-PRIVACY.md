@@ -56,3 +56,11 @@ Automatic retention is opt-in and disabled by default. Administrators configure 
 ## Logs
 
 Do not log secrets, OAuth tokens, calendar credentials or unnecessary message bodies. Operational logs should prefer identifiers, provider/status/error class and timestamps.
+
+## Uninstall and data retention
+
+Uninstalling the plugin preserves durable booking, customer, payment, audit and configuration data by default. Uninstall always removes disposable WordPress Calendar Booking cron events, caches and rate-limit transients.
+
+Administrators can explicitly enable **Daten bei Deinstallation** in the plugin settings before uninstalling. With that opt-in enabled, uninstall permanently removes the site's plugin-owned `wpcb_*` database tables and `wpcb_*` options. On multisite, the decision is evaluated per site so a site's data is removed only when that site explicitly opted in.
+
+The destructive uninstall option is not a substitute for privacy erasure or retention. WordPress privacy exporter/eraser integrations and the configurable retention/anonymization policy remain the normal tools for handling individual personal-data lifecycle requests.

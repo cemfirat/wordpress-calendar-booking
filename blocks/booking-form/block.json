@@ -1,7 +1,7 @@
 {
   "apiVersion": 3,
   "name": "wpcb/booking-form",
-  "version": "3.6.0",
+  "version": "3.8.0",
   "title": "Booking Form",
   "category": "widgets",
   "icon": "calendar-alt",

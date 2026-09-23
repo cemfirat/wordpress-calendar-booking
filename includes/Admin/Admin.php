@@ -73,6 +73,7 @@ class Admin {
                     'change_min_hours' => absint($_POST['change_min_hours'] ?? 2),
                     'retention_enabled' => empty($_POST['retention_enabled']) ? 0 : 1,
                     'retention_days' => max(1, absint($_POST['retention_days'] ?? 365)),
+                    'delete_data_on_uninstall' => empty($_POST['delete_data_on_uninstall']) ? 0 : 1,
                     'visit_address' => sanitize_textarea_field(wp_unslash($_POST['visit_address'] ?? '')),
                     'own_phone' => sanitize_text_field(wp_unslash($_POST['own_phone'] ?? '')),
                     'icloud_sync_enabled' => empty($_POST['icloud_sync_enabled']) ? 0 : 1,
@@ -303,6 +304,7 @@ class Admin {
         $this->row('Storno bis X Stunden vorher', '<input type="number" name="cancel_min_hours" value="' . esc_attr($s['cancel_min_hours']) . '">');
         $this->row('Änderung bis X Stunden vorher', '<input type="number" name="change_min_hours" value="' . esc_attr($s['change_min_hours']) . '">');
         $this->row('Datenschutz-Aufbewahrung', '<label><input type="checkbox" name="retention_enabled" value="1" ' . checked($s['retention_enabled'], 1, false) . '> automatische Anonymisierung aktivieren</label><br><input type="number" min="1" name="retention_days" value="' . esc_attr($s['retention_days']) . '"> Tage nach Terminende<p class="description">Standardmäßig deaktiviert. Persönliche Buchungsdaten werden anonymisiert, nicht der Termin-/Statusdatensatz gelöscht. Buchungen mit Aufbewahrungs-Markierung werden übersprungen.</p>');
+        $this->row('Daten bei Deinstallation', '<label><input type="checkbox" name="delete_data_on_uninstall" value="1" ' . checked($s['delete_data_on_uninstall'], 1, false) . '> alle WordPress Calendar Booking-Daten beim Löschen des Plugins endgültig entfernen</label><p class="description"><strong>Achtung:</strong> Standardmäßig bleiben Buchungen, Kunden-, Zahlungs-, Kalender- und Konfigurationsdaten bei einer Deinstallation erhalten. Diese Option löscht beim Deinstallieren alle <code>wpcb_*</code>-Tabellen und -Optionen unwiderruflich. Für normale Datenschutzlöschung die WordPress-Datenschutzwerkzeuge bzw. Aufbewahrung verwenden.</p>');
         $this->row('Honeypot', '<label><input type="checkbox" name="honeypot_enabled" value="1" ' . checked($s['honeypot_enabled'], 1, false) . '> aktiv</label>');
         $this->row('Timing-Schutz', '<label><input type="checkbox" name="timing_enabled" value="1" ' . checked($s['timing_enabled'], 1, false) . '> aktiv</label><br><input type="number" name="min_form_seconds" value="' . esc_attr($s['min_form_seconds']) . '"> Sekunden Minimum');
         $this->row('Rate Limit', '<label><input type="checkbox" name="rate_limit_enabled" value="1" ' . checked($s['rate_limit_enabled'], 1, false) . '> aktiv</label><br><input type="number" name="rate_limit_requests" value="' . esc_attr($s['rate_limit_requests']) . '"> Anfragen in <input type="number" name="rate_limit_window_minutes" value="' . esc_attr($s['rate_limit_window_minutes']) . '"> Minuten');
