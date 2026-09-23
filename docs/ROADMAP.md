@@ -86,6 +86,8 @@ Completed.
 
 
 ### 3.11
+- bounded/paginated administrator booking list
+- batch metadata loading and filtered booking counts
 - complete admin CRUD for booking types, form fields, availability rules and exceptions
 - historical booking-type deletion guards
 - cleanup of unused booking-type configuration mappings
