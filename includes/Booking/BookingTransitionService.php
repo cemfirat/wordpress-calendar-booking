@@ -51,6 +51,7 @@ final class BookingTransitionService {
         if (in_array($event, [
             BookingStateMachine::EMAIL_CONFIRMED_APPROVAL,
             BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC,
+            BookingStateMachine::ADMIN_APPROVED,
         ], true) && !(new PaymentService())->canConfirm($bookingId)) {
             return new \WP_Error('wpcb_payment_required', 'Payment must be completed before this booking can be confirmed.');
         }
