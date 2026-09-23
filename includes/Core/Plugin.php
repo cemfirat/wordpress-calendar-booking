@@ -3,6 +3,7 @@ namespace Wpcb\Core;
 
 use Wpcb\Admin\Admin;
 use Wpcb\Admin\BookingAuditPage;
+use Wpcb\Admin\ResourceAdminPage;
 use Wpcb\Database\SchemaMigration;
 use Wpcb\Resources\ResourceMigration;
 use Wpcb\Frontend\Shortcodes;
@@ -33,6 +34,7 @@ class Plugin {
         (new BookingTransitionEffects())->boot();
         (new Admin())->boot();
         (new BookingAuditPage())->boot();
+        (new ResourceAdminPage())->boot();
         (new GoogleOAuthController())->boot();
         (new MicrosoftOAuthController())->boot();
         (new CalDavController())->boot();
