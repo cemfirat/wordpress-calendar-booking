@@ -21,6 +21,7 @@ class Activator {
 
     public static function deactivate(): void {
         wp_clear_scheduled_hook('wpcb_portal_session_cleanup');
+        wp_clear_scheduled_hook('wpcb_waiting_list_maintenance');
         flush_rewrite_rules();
     }
 
