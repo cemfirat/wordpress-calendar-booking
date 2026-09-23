@@ -61,8 +61,7 @@ final class WaitingListService {
         }
         try {
             $this->repo->expireOffers();
-            $remaining = $this->capacity->remaining($typeId, $resourceId, $start, $end)
-                - $this->repo->offeredSeats($typeId, $resourceId, $start, $end);
+            $remaining = $this->capacity->remaining($typeId, $resourceId, $start, $end);
             if ($remaining < 1) {
                 return 0;
             }
