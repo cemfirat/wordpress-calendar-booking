@@ -209,6 +209,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/scheduler-health-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run notification delivery smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/notification-delivery-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run retryable email delivery smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/email-retry-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run mail diagnostics smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/mail-diagnostics-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run Gutenberg blocks smoke test

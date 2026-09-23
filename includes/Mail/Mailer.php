@@ -24,18 +24,73 @@ class Mailer {
         array $links = [],
         bool $attachIcs = false
     ): bool {
+        return $this->sendTemplateTracked(
+            $idempotencyKey,
+            $key,
+            $booking,
+            $meta,
+            $links,
+            $attachIcs,
+            true
+        );
+    }
+
+    public function retryTemplateOnce(
+        string $idempotencyKey,
+        string $key,
+        array $booking,
+        array $meta,
+        array $links = [],
+        bool $attachIcs = false
+    ): bool {
+        return $this->sendTemplateTracked(
+            $idempotencyKey,
+            $key,
+            $booking,
+            $meta,
+            $links,
+            $attachIcs,
+            false
+        );
+    }
+
+    public function sendInternalOnce(string $idempotencyKey, array $booking, array $meta): bool {
+        return $this->sendInternalTracked($idempotencyKey, $booking, $meta, true);
+    }
+
+    public function retryInternalOnce(string $idempotencyKey, array $booking, array $meta): bool {
+        return $this->sendInternalTracked($idempotencyKey, $booking, $meta, false);
+    }
+
+    private function sendTemplateTracked(
+        string $idempotencyKey,
+        string $key,
+        array $booking,
+        array $meta,
+        array $links,
+        bool $attachIcs,
+        bool $enqueueRetry
+    ): bool {
         $bookingId = (int)($booking['id'] ?? 0);
         if ($bookingId < 1 || $idempotencyKey === '') {
             return false;
         }
 
         $deliveries = new DeliveryRepository();
-        $delivery = $deliveries->begin($bookingId, $idempotencyKey, 'email', 'template:' . $key, 'customer', 'wp_mail');
+        $delivery = $deliveries->begin(
+            $bookingId,
+            $idempotencyKey,
+            'email',
+            'template:' . $key,
+            'customer',
+            'wp_mail'
+        );
         if (empty($delivery['should_run'])) {
-            return in_array((string)($delivery['status'] ?? ''), ['sending', 'sent'], true);
+            return in_array((string)($delivery['status'] ?? ''), ['sending', 'sent', 'uncertain'], true);
         }
         if (!$deliveries->markSending((int)$delivery['id'])) {
-            return true;
+            $current = $deliveries->findByKey($idempotencyKey);
+            return $current && in_array((string)$current->status, ['sending', 'sent', 'uncertain'], true);
         }
 
         try {
@@ -44,15 +99,45 @@ class Mailer {
                 $deliveries->markSent((int)$delivery['id']);
                 return true;
             }
-            $deliveries->markFailed((int)$delivery['id'], 'wp_mail returned false before accepting the message.', 'wp_mail_false');
+
+            $deliveries->markFailed(
+                (int)$delivery['id'],
+                'wp_mail returned false before accepting the message.',
+                'wp_mail_false'
+            );
+            if ($enqueueRetry) {
+                $queued = (new EmailRetryJobRunner())->enqueueTemplate(
+                    $bookingId,
+                    $idempotencyKey,
+                    $key,
+                    $attachIcs,
+                    (string)($booking['status'] ?? '')
+                );
+                if ($queued < 1) {
+                    $deliveries->markFailed(
+                        (int)$delivery['id'],
+                        'wp_mail returned false and the retry job could not be queued.',
+                        'mail_retry_queue_failed'
+                    );
+                }
+            }
             return false;
         } catch (\Throwable $error) {
-            $deliveries->markFailed((int)$delivery['id'], $error->getMessage(), 'mail_exception');
+            $deliveries->markUncertain(
+                (int)$delivery['id'],
+                $error->getMessage(),
+                'mail_transport_uncertain'
+            );
             return false;
         }
     }
 
-    public function sendInternalOnce(string $idempotencyKey, array $booking, array $meta): bool {
+    private function sendInternalTracked(
+        string $idempotencyKey,
+        array $booking,
+        array $meta,
+        bool $enqueueRetry
+    ): bool {
         $bookingId = (int)($booking['id'] ?? 0);
         $settings = Settings::get();
         if (empty($settings['notifications_enabled']) || empty($settings['notification_emails'])) {
@@ -63,12 +148,20 @@ class Mailer {
         }
 
         $deliveries = new DeliveryRepository();
-        $delivery = $deliveries->begin($bookingId, $idempotencyKey, 'email', 'internal', 'admin', 'wp_mail');
+        $delivery = $deliveries->begin(
+            $bookingId,
+            $idempotencyKey,
+            'email',
+            'internal',
+            'admin',
+            'wp_mail'
+        );
         if (empty($delivery['should_run'])) {
-            return in_array((string)($delivery['status'] ?? ''), ['sending', 'sent'], true);
+            return in_array((string)($delivery['status'] ?? ''), ['sending', 'sent', 'uncertain'], true);
         }
         if (!$deliveries->markSending((int)$delivery['id'])) {
-            return true;
+            $current = $deliveries->findByKey($idempotencyKey);
+            return $current && in_array((string)$current->status, ['sending', 'sent', 'uncertain'], true);
         }
 
         try {
@@ -77,10 +170,33 @@ class Mailer {
                 $deliveries->markSent((int)$delivery['id']);
                 return true;
             }
-            $deliveries->markFailed((int)$delivery['id'], 'wp_mail returned false before accepting the internal message.', 'wp_mail_false');
+
+            $deliveries->markFailed(
+                (int)$delivery['id'],
+                'wp_mail returned false before accepting the internal message.',
+                'wp_mail_false'
+            );
+            if ($enqueueRetry) {
+                $queued = (new EmailRetryJobRunner())->enqueueInternal(
+                    $bookingId,
+                    $idempotencyKey,
+                    (string)($booking['status'] ?? '')
+                );
+                if ($queued < 1) {
+                    $deliveries->markFailed(
+                        (int)$delivery['id'],
+                        'wp_mail returned false and the internal retry job could not be queued.',
+                        'mail_retry_queue_failed'
+                    );
+                }
+            }
             return false;
         } catch (\Throwable $error) {
-            $deliveries->markFailed((int)$delivery['id'], $error->getMessage(), 'mail_exception');
+            $deliveries->markUncertain(
+                (int)$delivery['id'],
+                $error->getMessage(),
+                'mail_transport_uncertain'
+            );
             return false;
         }
     }
@@ -128,11 +244,13 @@ class Mailer {
             file_put_contents($path, $ics);
             $attachments[] = $path;
         }
-        $sent = wp_mail($booking['email'], $subject, $body, $headers, $attachments);
-        foreach ($attachments as $file) {
-            @unlink($file);
+        try {
+            return wp_mail($booking['email'], $subject, $body, $headers, $attachments);
+        } finally {
+            foreach ($attachments as $file) {
+                @unlink($file);
+            }
         }
-        return $sent;
     }
 
     public function sendInternal(array $booking, array $meta): bool {
