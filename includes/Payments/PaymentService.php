@@ -108,7 +108,7 @@ final class PaymentService {
         if (!$type || (string)($type->payment_mode ?? 'free') !== 'required') {
             return true;
         }
-        if (!$wholeSeries || (int)($booking->series_occurrence ?? -1) !== 0) {
+        if (!$wholeSeries) {
             return new \WP_Error(
                 'wpcb_paid_series_partial_refund_unsupported',
                 'Paid recurring bookings can currently be cancelled only as the complete series from the first occurrence.'
