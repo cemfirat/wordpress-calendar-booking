@@ -47,6 +47,7 @@ $cleanup = static function () use ($wpdb, $prefix, $testEmail, $testSlug): void 
         }
     }
 
+    $wpdb->query("DELETE FROM {$prefix}customer_sessions");
     delete_option('wpcb_e2e_mailbox');
 };
 
