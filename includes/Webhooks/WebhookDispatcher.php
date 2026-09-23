@@ -38,7 +38,7 @@ final class WebhookDispatcher {
         $timestamp = (string)time();
         $signature = hash_hmac('sha256', $timestamp . '.' . $body, $secret);
 
-        $response = wp_remote_post((string)$endpoint->url, [
+        $response = wp_safe_remote_post((string)$endpoint->url, [
             'timeout' => 8,
             'redirection' => 0,
             'headers' => [
