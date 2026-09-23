@@ -5,6 +5,7 @@ use Wpcb\Booking\BookingRepository;
 use Wpcb\Admin\Settings;
 use Wpcb\Calendar\CalendarConnectionRepository;
 use Wpcb\Calendar\ProviderSyncService;
+use Wpcb\Webhooks\WebhookDispatcher;
 
 class QueueService {
     private JobRepository $jobs;
@@ -12,6 +13,7 @@ class QueueService {
     private BookingRepository $bookings;
     private CalendarConnectionRepository $connections;
     private ProviderSyncService $providerSync;
+    private WebhookDispatcher $webhooks;
 
     public function __construct() {
         $this->jobs = new JobRepository();
@@ -19,6 +21,7 @@ class QueueService {
         $this->bookings = new BookingRepository();
         $this->connections = new CalendarConnectionRepository();
         $this->providerSync = new ProviderSyncService();
+        $this->webhooks = new WebhookDispatcher();
     }
 
     public function boot(): void {
@@ -184,6 +187,8 @@ class QueueService {
                 return $this->providerSync->run('update', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
             case 'provider_cancel':
                 return $this->providerSync->run('cancel', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
+            case 'webhook_delivery':
+                return $this->webhooks->dispatch($payload, (int)$job->booking_id);
             case 'create':
             case 'update':
                 return $this->sync->syncBooking((int)$job->booking_id);
