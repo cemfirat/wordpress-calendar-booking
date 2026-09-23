@@ -30,6 +30,8 @@ use Wpcb\Admin\PaymentAdminPage;
 use Wpcb\Admin\WaitingListAdminPage;
 use Wpcb\WaitingList\WaitingListController;
 use Wpcb\WaitingList\WaitingListPrivacy;
+use Wpcb\VideoMeetings\VideoMeetingService;
+use Wpcb\Admin\VideoMeetingAdminPage;
 
 class Plugin {
     public function boot(): void {
@@ -59,6 +61,8 @@ class Plugin {
         (new WaitingListAdminPage())->boot();
         (new WaitingListController())->boot();
         (new WaitingListPrivacy())->boot();
+        (new VideoMeetingService())->boot();
+        (new VideoMeetingAdminPage())->boot();
         (new Shortcodes())->boot();
         (new Actions())->boot();
         (new QueueService())->boot();
