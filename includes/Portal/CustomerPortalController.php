@@ -73,8 +73,8 @@ final class CustomerPortalController {
             echo '<div class="uk-alert-primary" uk-alert><p>' . esc_html($this->noticeText($notice)) . '</p></div>';
         }
         echo '<div class="uk-flex uk-flex-between uk-flex-middle uk-margin-bottom">';
-        echo '<div><h2 class="uk-margin-remove">Meine Buchungen</h2><div class="uk-text-meta">' . esc_html($email) . '</div></div>';
-        echo $this->postForm('wpcb_portal_logout', $returnUrl, $session, '<button class="uk-button uk-button-default" type="submit">Abmelden</button>');
+        echo '<div><h2 class="uk-margin-remove">' . esc_html__('Meine Buchungen', 'wordpress-calendar-booking') . '</h2><div class="uk-text-meta">' . esc_html($email) . '</div></div>';
+        echo $this->postForm('wpcb_portal_logout', $returnUrl, $session, '<button class="uk-button uk-button-default" type="submit">' . esc_html__('Abmelden', 'wordpress-calendar-booking') . '</button>');
         echo '</div>';
 
         if ($detailId > 0) {
@@ -82,7 +82,7 @@ final class CustomerPortalController {
             if ($booking) {
                 echo $this->bookingDetail($booking, $returnUrl, $session);
             } else {
-                echo '<div class="uk-alert-warning" uk-alert><p>Buchung nicht gefunden.</p></div>';
+                echo '<div class="uk-alert-warning" uk-alert><p>' . esc_html__('Buchung nicht gefunden.', 'wordpress-calendar-booking') . '</p></div>';
             }
             echo '</div>';
             return (string)ob_get_clean();
@@ -90,7 +90,7 @@ final class CustomerPortalController {
 
         $rows = $this->bookings->forEmail($email, 100);
         if (!$rows) {
-            echo '<p>Für diese E-Mail-Adresse sind keine Buchungen vorhanden.</p></div>';
+            echo '<p>' . esc_html__('Für diese E-Mail-Adresse sind keine Buchungen vorhanden.', 'wordpress-calendar-booking') . '</p></div>';
             return (string)ob_get_clean();
         }
 
@@ -106,8 +106,8 @@ final class CustomerPortalController {
             }
         }
 
-        echo $this->bookingList('Bevorstehend', $upcoming, $returnUrl);
-        echo $this->bookingList('Vergangen / beendet', $past, $returnUrl);
+        echo $this->bookingList(__('Bevorstehend', 'wordpress-calendar-booking'), $upcoming, $returnUrl);
+        echo $this->bookingList(__('Vergangen / beendet', 'wordpress-calendar-booking'), $past, $returnUrl);
         echo '</div>';
         return (string)ob_get_clean();
     }
@@ -127,17 +127,17 @@ final class CustomerPortalController {
         nocache_headers();
         echo '<!doctype html><html><head><meta charset="' . esc_attr(get_bloginfo('charset')) . '"><meta name="viewport" content="width=device-width,initial-scale=1"><title>WordPress Calendar Booking</title></head><body>';
         echo '<main style="max-width:640px;margin:4rem auto;padding:1rem;font-family:system-ui,sans-serif">';
-        echo '<h1>' . ($action === 'login' ? 'Kundenportal öffnen' : 'E-Mail-Adresse bestätigen') . '</h1>';
+        echo '<h1>' . esc_html($action === 'login' ? __('Kundenportal öffnen', 'wordpress-calendar-booking') : __('E-Mail-Adresse bestätigen', 'wordpress-calendar-booking')) . '</h1>';
 
         if (($inspection['state'] ?? '') !== 'valid') {
-            echo '<p>Dieser Link ist ungültig, abgelaufen oder wurde bereits verwendet.</p>';
+            echo '<p>' . esc_html__('Dieser Link ist ungültig, abgelaufen oder wurde bereits verwendet.', 'wordpress-calendar-booking') . '</p>';
         } else {
-            echo '<p>Bitte bestätigen Sie diese Aktion ausdrücklich.</p>';
+            echo '<p>' . esc_html__('Bitte bestätigen Sie diese Aktion ausdrücklich.', 'wordpress-calendar-booking') . '</p>';
             echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
             echo '<input type="hidden" name="action" value="' . esc_attr($action === 'login' ? 'wpcb_portal_login' : 'wpcb_portal_email_change') . '">';
             echo '<input type="hidden" name="wpcb_token" value="' . esc_attr($token) . '">';
             echo '<input type="hidden" name="return_url" value="' . esc_attr($returnUrl) . '">';
-            echo '<button type="submit" style="padding:.7rem 1rem">Bestätigen</button>';
+            echo '<button type="submit" style="padding:.7rem 1rem">' . esc_html__('Bestätigen', 'wordpress-calendar-booking') . '</button>';
             echo '</form>';
         }
         echo '</main></body></html>';
@@ -160,8 +160,8 @@ final class CustomerPortalController {
                     ], home_url('/'));
                     wp_mail(
                         $email,
-                        'Kundenportal – Anmeldelink',
-                        "Öffnen Sie Ihr Kundenportal über diesen Link:\n\n" . $url . "\n\nDer Link ist 30 Minuten gültig und kann nur einmal verwendet werden."
+                        __('Kundenportal – Anmeldelink', 'wordpress-calendar-booking'),
+                        sprintf(__("Öffnen Sie Ihr Kundenportal über diesen Link:\n\n%s\n\nDer Link ist 30 Minuten gültig und kann nur einmal verwendet werden.", 'wordpress-calendar-booking'), $url)
                     );
                 } catch (\Throwable $e) {
                     // Deliberately keep the response indistinguishable from unknown addresses.
@@ -179,7 +179,7 @@ final class CustomerPortalController {
         $result = $this->tokens->consume($token, 'portal_login', function ($row) {
             $booking = $this->bookings->find((int)$row->booking_id);
             if (!$booking || sanitize_email((string)$booking->email) === '') {
-                return new \WP_Error('wpcb_portal_booking_missing', 'Booking no longer exists.');
+                return new \WP_Error('wpcb_portal_booking_missing', __('Booking no longer exists.', 'wordpress-calendar-booking'));
             }
             return strtolower(sanitize_email((string)$booking->email));
         });
@@ -301,8 +301,8 @@ final class CustomerPortalController {
                 ], home_url('/'));
                 wp_mail(
                     $newEmail,
-                    'Neue E-Mail-Adresse bestätigen',
-                    "Bestätigen Sie Ihre neue E-Mail-Adresse über diesen Link:\n\n" . $url . "\n\nDer Link ist 60 Minuten gültig und kann nur einmal verwendet werden."
+                    __('Neue E-Mail-Adresse bestätigen', 'wordpress-calendar-booking'),
+                    sprintf(__("Bestätigen Sie Ihre neue E-Mail-Adresse über diesen Link:\n\n%s\n\nDer Link ist 60 Minuten gültig und kann nur einmal verwendet werden.", 'wordpress-calendar-booking'), $url)
                 );
                 $this->redirect($returnUrl, 'email_verification_sent');
             } catch (\Throwable $e) {
@@ -322,12 +322,12 @@ final class CustomerPortalController {
         $result = $this->tokens->consume($token, 'portal_email_change', function ($row) use (&$oldEmail) {
             $booking = $this->bookings->find((int)$row->booking_id);
             if (!$booking) {
-                return new \WP_Error('wpcb_portal_booking_missing', 'Booking no longer exists.');
+                return new \WP_Error('wpcb_portal_booking_missing', __('Booking no longer exists.', 'wordpress-calendar-booking'));
             }
             $meta = $this->bookings->getMeta((int)$booking->id);
             $newEmail = strtolower(sanitize_email((string)($meta['portal_pending_email'] ?? '')));
             if ($newEmail === '') {
-                return new \WP_Error('wpcb_portal_email_missing', 'No pending email change exists.');
+                return new \WP_Error('wpcb_portal_email_missing', __('No pending email change exists.', 'wordpress-calendar-booking'));
             }
 
             $oldEmail = strtolower(sanitize_email((string)$booking->email));
@@ -354,7 +354,7 @@ final class CustomerPortalController {
     private function bookingList(string $title, array $rows, string $returnUrl): string {
         $html = '<h3>' . esc_html($title) . '</h3>';
         if (!$rows) {
-            return $html . '<p class="uk-text-muted">Keine Buchungen.</p>';
+            return $html . '<p class="uk-text-muted">' . esc_html__('Keine Buchungen.', 'wordpress-calendar-booking') . '</p>';
         }
 
         $types = new BookingTypeRepository();
@@ -363,9 +363,9 @@ final class CustomerPortalController {
             $type = $types->find((int)$booking->booking_type_id);
             $url = add_query_arg('wpcb_booking', (int)$booking->id, $returnUrl);
             $html .= '<div><a class="uk-card uk-card-default uk-card-body uk-display-block" href="' . esc_url($url) . '">';
-            $html .= '<strong>' . esc_html($type ? (string)$type->name : ('Buchung #' . (int)$booking->id)) . '</strong>';
+            $html .= '<strong>' . esc_html($type ? (string)$type->name : sprintf(__('Buchung #%d', 'wordpress-calendar-booking'), (int)$booking->id)) . '</strong>';
             $html .= '<div>' . esc_html(Time::display((string)$booking->slot_start, 'd.m.Y H:i')) . '</div>';
-            $html .= '<div class="uk-text-meta">' . esc_html((string)$booking->status) . ' · ' . max(1, (int)$booking->party_size) . ' Person(en)</div>';
+            $html .= '<div class="uk-text-meta">' . esc_html((string)$booking->status) . ' · ' . max(1, (int)$booking->party_size) . ' ' . esc_html__('Person(en)', 'wordpress-calendar-booking') . '</div>';
             $html .= '</a></div>';
         }
         return $html . '</div>';
@@ -374,17 +374,17 @@ final class CustomerPortalController {
     private function bookingDetail(object $booking, string $returnUrl, array $session): string {
         $type = (new BookingTypeRepository())->find((int)$booking->booking_type_id);
         $back = remove_query_arg('wpcb_booking', $returnUrl);
-        $html = '<p><a href="' . esc_url($back) . '">← Alle Buchungen</a></p>';
+        $html = '<p><a href="' . esc_url($back) . '">← ' . esc_html__('Alle Buchungen', 'wordpress-calendar-booking') . '</a></p>';
         $html .= '<div class="uk-card uk-card-default uk-card-body">';
-        $html .= '<h3>' . esc_html($type ? (string)$type->name : ('Buchung #' . (int)$booking->id)) . '</h3>';
+        $html .= '<h3>' . esc_html($type ? (string)$type->name : sprintf(__('Buchung #%d', 'wordpress-calendar-booking'), (int)$booking->id)) . '</h3>';
         $html .= '<dl class="uk-description-list">';
-        $html .= '<dt>Termin</dt><dd>' . esc_html(Time::display((string)$booking->slot_start, 'd.m.Y H:i')) . ' – ' . esc_html(Time::display((string)$booking->slot_end, 'H:i')) . '</dd>';
-        $html .= '<dt>Status</dt><dd>' . esc_html((string)$booking->status) . '</dd>';
-        $html .= '<dt>Teilnehmer</dt><dd>' . max(1, (int)$booking->party_size) . '</dd>';
+        $html .= '<dt>' . esc_html__('Termin', 'wordpress-calendar-booking') . '</dt><dd>' . esc_html(Time::display((string)$booking->slot_start, 'd.m.Y H:i')) . ' – ' . esc_html(Time::display((string)$booking->slot_end, 'H:i')) . '</dd>';
+        $html .= '<dt>' . esc_html__('Status', 'wordpress-calendar-booking') . '</dt><dd>' . esc_html((string)$booking->status) . '</dd>';
+        $html .= '<dt>' . esc_html__('Teilnehmer', 'wordpress-calendar-booking') . '</dt><dd>' . max(1, (int)$booking->party_size) . '</dd>';
         $payment = (new PaymentRepository())->forBooking((int)$booking->id);
         if ($payment) {
             $amount = number_format(((int)$payment->amount_minor) / 100, 2, ',', '.');
-            $html .= '<dt>Zahlung</dt><dd>' . esc_html($amount . ' ' . (string)$payment->currency . ' · ' . (string)$payment->status) . '</dd>';
+            $html .= '<dt>' . esc_html__('Zahlung', 'wordpress-calendar-booking') . '</dt><dd>' . esc_html($amount . ' ' . (string)$payment->currency . ' · ' . (string)$payment->status) . '</dd>';
         }
         $html .= '</dl>';
 
@@ -396,36 +396,36 @@ final class CustomerPortalController {
                 max(1, (int)$booking->party_size)
             );
             $fields = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '">';
-            $fields .= '<select class="uk-select" name="slot" required><option value="">Neuen Termin wählen</option>';
+            $fields .= '<select class="uk-select" name="slot" required><option value="">' . esc_html__('Neuen Termin wählen', 'wordpress-calendar-booking') . '</option>';
             foreach ($slots as $slot) {
                 $fields .= '<option value="' . esc_attr((int)$slot['resource_id'] . '|' . $slot['start'] . '|' . $slot['end']) . '">' . esc_html((string)$slot['label']) . '</option>';
             }
-            $fields .= '</select><button class="uk-button uk-button-primary uk-margin-small-top" type="submit">Termin verschieben</button>';
-            $html .= '<h4>Termin ändern</h4>' . $this->postForm('wpcb_portal_reschedule', $returnUrl, $session, $fields);
+            $fields .= '</select><button class="uk-button uk-button-primary uk-margin-small-top" type="submit">' . esc_html__('Termin verschieben', 'wordpress-calendar-booking') . '</button>';
+            $html .= '<h4>' . esc_html__('Termin ändern', 'wordpress-calendar-booking') . '</h4>' . $this->postForm('wpcb_portal_reschedule', $returnUrl, $session, $fields);
 
             $cancelFields = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '"><button class="uk-button uk-button-danger" type="submit">Buchung stornieren</button>';
             $html .= '<div class="uk-margin-top">' . $this->postForm('wpcb_portal_cancel', $returnUrl, $session, $cancelFields) . '</div>';
         }
 
         $contact = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '">';
-        $contact .= '<div class="uk-margin-small"><input class="uk-input" name="full_name" value="' . esc_attr((string)$booking->full_name) . '" placeholder="Name"></div>';
-        $contact .= '<div class="uk-margin-small"><input class="uk-input" name="email" type="email" required value="' . esc_attr((string)$booking->email) . '" placeholder="E-Mail"></div>';
-        $contact .= '<div class="uk-margin-small"><input class="uk-input" name="phone" value="' . esc_attr((string)$booking->phone) . '" placeholder="Telefon"></div>';
-        $contact .= '<button class="uk-button uk-button-default" type="submit">Kontaktdaten speichern</button>';
-        $html .= '<h4 class="uk-margin-top">Kontaktdaten</h4>' . $this->postForm('wpcb_portal_contact', $returnUrl, $session, $contact);
+        $contact .= '<div class="uk-margin-small"><input class="uk-input" name="full_name" value="' . esc_attr((string)$booking->full_name) . '" placeholder="' . esc_attr__('Name', 'wordpress-calendar-booking') . '"></div>';
+        $contact .= '<div class="uk-margin-small"><input class="uk-input" name="email" type="email" required value="' . esc_attr((string)$booking->email) . '" placeholder="' . esc_attr__('E-Mail', 'wordpress-calendar-booking') . '"></div>';
+        $contact .= '<div class="uk-margin-small"><input class="uk-input" name="phone" value="' . esc_attr((string)$booking->phone) . '" placeholder="' . esc_attr__('Telefon', 'wordpress-calendar-booking') . '"></div>';
+        $contact .= '<button class="uk-button uk-button-default" type="submit">' . esc_html__('Kontaktdaten speichern', 'wordpress-calendar-booking') . '</button>';
+        $html .= '<h4 class="uk-margin-top">' . esc_html__('Kontaktdaten', 'wordpress-calendar-booking') . '</h4>' . $this->postForm('wpcb_portal_contact', $returnUrl, $session, $contact);
 
         return $html . '</div>';
     }
 
     private function loginForm(string $returnUrl): string {
         return '<div class="wpcb-portal-login uk-card uk-card-default uk-card-body">'
-            . '<h2>Kundenportal</h2><p>Geben Sie die E-Mail-Adresse Ihrer Buchung ein. Wenn Buchungen vorhanden sind, erhalten Sie einen einmal verwendbaren Anmeldelink.</p>'
+            . '<h2>' . esc_html__('Kundenportal', 'wordpress-calendar-booking') . '</h2><p>' . esc_html__('Geben Sie die E-Mail-Adresse Ihrer Buchung ein. Wenn Buchungen vorhanden sind, erhalten Sie einen einmal verwendbaren Anmeldelink.', 'wordpress-calendar-booking') . '</p>'
             . '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
             . '<input type="hidden" name="action" value="wpcb_portal_request">'
             . '<input type="hidden" name="return_url" value="' . esc_attr($returnUrl) . '">'
-            . '<label class="uk-form-label" for="wpcb-portal-email">E-Mail-Adresse</label>'
+            . '<label class="uk-form-label" for="wpcb-portal-email">' . esc_html__('E-Mail-Adresse', 'wordpress-calendar-booking') . '</label>'
             . '<input id="wpcb-portal-email" class="uk-input" type="email" name="email" required autocomplete="email">'
-            . '<button class="uk-button uk-button-primary uk-margin-small-top" type="submit">Anmeldelink senden</button>'
+            . '<button class="uk-button uk-button-primary uk-margin-small-top" type="submit">' . esc_html__('Anmeldelink senden', 'wordpress-calendar-booking') . '</button>'
             . '</form></div>';
     }
 
@@ -455,7 +455,7 @@ final class CustomerPortalController {
     private function requireSession(): array {
         $session = $this->currentSession();
         if (!$session) {
-            wp_die('Nicht angemeldet.', 403);
+            wp_die(esc_html__('Nicht angemeldet.', 'wordpress-calendar-booking'), 403);
         }
         return $session;
     }
@@ -463,7 +463,7 @@ final class CustomerPortalController {
     private function requireCsrf(array $session): void {
         $provided = sanitize_text_field(wp_unslash($_POST['wpcb_portal_csrf'] ?? ''));
         if ($provided === '' || !hash_equals((string)$session['csrf'], $provided)) {
-            wp_die('Sicherheitsprüfung fehlgeschlagen.', 403);
+            wp_die(esc_html__('Sicherheitsprüfung fehlgeschlagen.', 'wordpress-calendar-booking'), 403);
         }
     }
 
@@ -520,17 +520,17 @@ final class CustomerPortalController {
 
     private function noticeText(string $notice): string {
         return [
-            'login_sent' => 'Wenn Buchungen vorhanden sind, wurde ein Anmeldelink versendet.',
-            'login_invalid' => 'Der Anmeldelink ist ungültig oder abgelaufen.',
-            'logged_in' => 'Sie sind angemeldet.',
-            'logged_out' => 'Sie wurden abgemeldet.',
-            'cancelled' => 'Die Buchung wurde storniert.',
-            'rescheduled' => 'Der Termin wurde verschoben.',
-            'contact_updated' => 'Die Kontaktdaten wurden gespeichert.',
-            'email_verification_sent' => 'Bitte bestätigen Sie die neue E-Mail-Adresse über den zugesandten Link.',
-            'email_changed' => 'Die neue E-Mail-Adresse wurde bestätigt.',
-            'not_allowed' => 'Diese Buchung kann mit dieser Sitzung nicht verwaltet werden.',
-            'action_failed' => 'Die Aktion konnte nicht ausgeführt werden.',
+            'login_sent' => __('Wenn Buchungen vorhanden sind, wurde ein Anmeldelink versendet.', 'wordpress-calendar-booking'),
+            'login_invalid' => __('Der Anmeldelink ist ungültig oder abgelaufen.', 'wordpress-calendar-booking'),
+            'logged_in' => __('Sie sind angemeldet.', 'wordpress-calendar-booking'),
+            'logged_out' => __('Sie wurden abgemeldet.', 'wordpress-calendar-booking'),
+            'cancelled' => __('Die Buchung wurde storniert.', 'wordpress-calendar-booking'),
+            'rescheduled' => __('Der Termin wurde verschoben.', 'wordpress-calendar-booking'),
+            'contact_updated' => __('Die Kontaktdaten wurden gespeichert.', 'wordpress-calendar-booking'),
+            'email_verification_sent' => __('Bitte bestätigen Sie die neue E-Mail-Adresse über den zugesandten Link.', 'wordpress-calendar-booking'),
+            'email_changed' => __('Die neue E-Mail-Adresse wurde bestätigt.', 'wordpress-calendar-booking'),
+            'not_allowed' => __('Diese Buchung kann mit dieser Sitzung nicht verwaltet werden.', 'wordpress-calendar-booking'),
+            'action_failed' => __('Die Aktion konnte nicht ausgeführt werden.', 'wordpress-calendar-booking'),
         ][$notice] ?? '';
     }
 }
