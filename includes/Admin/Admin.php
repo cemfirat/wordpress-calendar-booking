@@ -273,8 +273,32 @@ class Admin {
         $this->formStart();
         $repo = new BookingRepository();
         $bookings = $repo->all(['limit' => 10]);
+        $readiness = (new SetupReadiness())->snapshot();
+
         echo '<h1>' . esc_html__('Kalender & Buchungen', 'wordpress-calendar-booking') . '</h1>';
+        echo '<h2>' . esc_html__('Einrichtung & Bereitschaft', 'wordpress-calendar-booking') . '</h2>';
+
+        if (!empty($readiness['ready'])) {
+            echo '<div class="notice notice-success inline"><p><strong>' . esc_html__('Bereit für Buchungen.', 'wordpress-calendar-booking') . '</strong> ' . esc_html__('Die erforderlichen Core-Einstellungen sind vollständig.', 'wordpress-calendar-booking') . '</p></div>';
+        } else {
+            echo '<div class="notice notice-warning inline"><p><strong>' . esc_html__('Einrichtung unvollständig.', 'wordpress-calendar-booking') . '</strong> ' . esc_html__('Arbeite die offenen Punkte ab, bevor du die Buchungsseite veröffentlichst.', 'wordpress-calendar-booking') . '</p></div>';
+        }
+
+        echo '<table class="widefat striped"><thead><tr><th>' . esc_html__('Status', 'wordpress-calendar-booking') . '</th><th>' . esc_html__('Schritt', 'wordpress-calendar-booking') . '</th><th>' . esc_html__('Hinweis', 'wordpress-calendar-booking') . '</th><th>' . esc_html__('Aktion', 'wordpress-calendar-booking') . '</th></tr></thead><tbody>';
+        foreach ((array)($readiness['items'] ?? []) as $item) {
+            $ready = !empty($item['ready']);
+            echo '<tr>';
+            echo '<td><strong>' . esc_html($ready ? __('OK', 'wordpress-calendar-booking') : __('Offen', 'wordpress-calendar-booking')) . '</strong></td>';
+            echo '<td>' . esc_html((string)$item['label']) . '</td>';
+            echo '<td>' . esc_html((string)$item['detail']) . '</td>';
+            echo '<td><a class="button' . ($ready ? '' : ' button-primary') . '" href="' . esc_url((string)$item['url']) . '">' . esc_html($ready ? __('Prüfen', 'wordpress-calendar-booking') : __('Einrichten', 'wordpress-calendar-booking')) . '</a></td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table>';
+
+        echo '<p>' . esc_html__('Optionale Kalender-, Zahlungs-, Webhook- und Video-Meeting-Verbindungen blockieren die Core-Bereitschaft nicht.', 'wordpress-calendar-booking') . '</p>';
         echo '<p>' . esc_html__('Shortcodes:', 'wordpress-calendar-booking') . ' <code>[wpcb_booking_form]</code>, <code>[wpcb_calendar]</code> ' . esc_html__('und', 'wordpress-calendar-booking') . ' <code>[wpcb_booking_calendar]</code></p>';
+
         echo '<h2>' . esc_html__('Neueste Buchungen', 'wordpress-calendar-booking') . '</h2>';
         echo '<table class="widefat"><thead><tr>';
         foreach ([__('Name','wordpress-calendar-booking'), __('E-Mail','wordpress-calendar-booking'), __('Termin','wordpress-calendar-booking'), __('Status','wordpress-calendar-booking')] as $heading) {
