@@ -174,29 +174,25 @@ final class PaymentRepository {
             ? PaymentStatus::REFUNDED
             : ($nextPending > 0 ? PaymentStatus::REFUND_PENDING : PaymentStatus::PAID);
         $now = Time::formatUtc(Time::nowUtc());
-
-        $updated = $wpdb->query($wpdb->prepare(
-            "UPDATE {$this->table}
-             SET refunded_minor = %d,
-                 refund_pending_minor = %d,
-                 status = %s,
-                 refunded_at = %s,
-                 updated_at = %s
-             WHERE id = %d
-               AND status = %s
-               AND refunded_minor = %d
-               AND refund_pending_minor = %d",
-            $nextRefunded,
-            $nextPending,
-            $nextStatus,
-            $nextStatus === PaymentStatus::REFUNDED ? $now : (string)($payment->refunded_at ?? ''),
-            $now,
-            $paymentId,
-            PaymentStatus::REFUND_PENDING,
-            $refunded,
-            $pending
-        ));
-        return $updated === 1;
+        $fields = [
+            'refunded_minor' => $nextRefunded,
+            'refund_pending_minor' => $nextPending,
+            'status' => $nextStatus,
+            'updated_at' => $now,
+        ];
+        if ($nextStatus === PaymentStatus::REFUNDED) {
+            $fields['refunded_at'] = $now;
+        }
+        return 1 === $wpdb->update(
+            $this->table,
+            $fields,
+            [
+                'id' => $paymentId,
+                'status' => PaymentStatus::REFUND_PENDING,
+                'refunded_minor' => $refunded,
+                'refund_pending_minor' => $pending,
+            ]
+        );
     }
 
     public function syncRefundTotal(int $paymentId, int $totalRefundedMinor): bool {
