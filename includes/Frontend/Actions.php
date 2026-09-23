@@ -55,7 +55,8 @@ class Actions {
         if (!$typeId) {
             wp_send_json_error(['message' => 'Terminart fehlt.'], 400);
         }
-        $slots = (new SlotService())->getSlots($typeId, 21);
+        $partySize = max(1, min(10000, absint($_REQUEST['party_size'] ?? 1)));
+        $slots = (new SlotService())->getSlots($typeId, 21, null, $partySize);
         $tokens = new SlotTokenService();
         $data = array_map(static function ($slot) use ($typeId, $tokens) {
             return [
