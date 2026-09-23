@@ -152,9 +152,7 @@ test('canonical release ZIP passes the complete booking lifecycle in a browser',
         ]);
 
         await adminPage.goto(baseUrl + '/wp-admin/admin.php?page=wpcb_types', { waitUntil: 'domcontentloaded' });
-        const typeForm = adminPage.locator('form').filter({
-            has: adminPage.locator('input[name="wpcb_admin_action"][value="save_type"]'),
-        });
+        const typeForm = adminPage.locator('form:has(input[name="wpcb_admin_action"][value="save_type"])');
         await typeForm.locator('input[name="name"]').fill('Browser E2E');
         await typeForm.locator('input[name="slug"]').fill('browser-e2e');
         await typeForm.locator('textarea[name="description"]').fill('Release acceptance booking type');
@@ -162,15 +160,13 @@ test('canonical release ZIP passes the complete booking lifecycle in a browser',
         await typeForm.locator('input[name="buffer_after_minutes"]').fill('0');
         await Promise.all([
             adminPage.waitForNavigation(),
-            typeForm.locator('button[type="submit"]').click(),
+            typeForm.getByRole('button', { name: 'Speichern' }).click(),
         ]);
         await expect(adminPage.getByRole('cell', { name: 'Browser E2E' })).toBeVisible();
 
         // Administrator also creates availability for that booking type.
         await adminPage.goto(baseUrl + '/wp-admin/admin.php?page=wpcb_availability', { waitUntil: 'domcontentloaded' });
-        const ruleForm = adminPage.locator('form').filter({
-            has: adminPage.locator('input[name="wpcb_admin_action"][value="save_rule"]'),
-        });
+        const ruleForm = adminPage.locator('form:has(input[name="wpcb_admin_action"][value="save_rule"])');
         const rulesBefore = await adminPage.locator('table').first().locator('tbody tr').count();
         await ruleForm.locator('select[name="scope_type"]').selectOption('booking_type');
         await ruleForm.locator('select[name="scope_id"]').selectOption({ label: 'Browser E2E' });
@@ -183,7 +179,7 @@ test('canonical release ZIP passes the complete booking lifecycle in a browser',
         await ruleForm.locator('input[name="max_days_in_advance"]').fill('30');
         await Promise.all([
             adminPage.waitForNavigation(),
-            ruleForm.locator('button[type="submit"]').click(),
+            ruleForm.getByRole('button', { name: 'Speichern' }).click(),
         ]);
         await expect.poll(
             () => adminPage.locator('table').first().locator('tbody tr').count()
@@ -258,9 +254,7 @@ test('canonical release ZIP passes the complete booking lifecycle in a browser',
         await adminPage.goto(baseUrl + '/wp-admin/admin.php?page=wpcb_bookings', { waitUntil: 'domcontentloaded' });
         const bookingRow = adminPage.locator('tbody tr').filter({ hasText: testEmail });
         await expect(bookingRow).toBeVisible();
-        const statusForm = bookingRow.locator('form').filter({
-            has: bookingRow.locator('input[name="wpcb_admin_action"][value="booking_status"]'),
-        });
+        const statusForm = bookingRow.locator('form:has(input[name="wpcb_admin_action"][value="booking_status"])');
         await statusForm.locator('select[name="event"]').selectOption('admin_approved');
         const approveButton = statusForm.getByRole('button', { name: 'Ausführen' });
         await approveButton.focus();
