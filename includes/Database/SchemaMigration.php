@@ -6,7 +6,7 @@ namespace Wpcb\Database;
  */
 final class SchemaMigration {
     private const OPTION = 'wpcb_schema_version';
-    private const VERSION = 7;
+    private const VERSION = 8;
 
     public static function maybeRun(): void {
         if ((int)get_option(self::OPTION, 0) >= self::VERSION) {
