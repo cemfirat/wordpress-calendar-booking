@@ -1,8 +1,8 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
 final class CalDavController {
-    private const DISCOVERY_PREFIX = 'cemb_caldav_discovery_';
+    private const DISCOVERY_PREFIX = 'wpcb_caldav_discovery_';
 
     private CalendarConnectionRepository $connections;
 
@@ -11,11 +11,11 @@ final class CalDavController {
     }
 
     public function boot(): void {
-        add_filter('cemb_calendar_providers', [$this, 'registerProvider']);
+        add_filter('wpcb_calendar_providers', [$this, 'registerProvider']);
         add_action('admin_menu', [$this, 'menu']);
-        add_action('admin_post_cemb_caldav_discover', [$this, 'discover']);
-        add_action('admin_post_cemb_caldav_save', [$this, 'save']);
-        add_action('admin_post_cemb_caldav_delete', [$this, 'delete']);
+        add_action('admin_post_wpcb_caldav_discover', [$this, 'discover']);
+        add_action('admin_post_wpcb_caldav_save', [$this, 'save']);
+        add_action('admin_post_wpcb_caldav_delete', [$this, 'delete']);
     }
 
     public function registerProvider(array $providers): array {
@@ -25,11 +25,11 @@ final class CalDavController {
 
     public function menu(): void {
         add_submenu_page(
-            'cemb_dashboard',
+            'wpcb_dashboard',
             'CalDAV / iCloud',
             'CalDAV / iCloud',
             'manage_options',
-            'cemb_caldav_connections',
+            'wpcb_caldav_connections',
             [$this, 'page']
         );
     }
@@ -48,25 +48,25 @@ final class CalDavController {
         ?>
         <div class="wrap">
             <h1>CalDAV / iCloud</h1>
-            <?php if (isset($_GET['cemb_caldav_notice'])): ?>
-                <div class="notice notice-success"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['cemb_caldav_notice']))); ?></p></div>
+            <?php if (isset($_GET['wpcb_caldav_notice'])): ?>
+                <div class="notice notice-success"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['wpcb_caldav_notice']))); ?></p></div>
             <?php endif; ?>
-            <?php if (isset($_GET['cemb_caldav_error'])): ?>
-                <div class="notice notice-error"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['cemb_caldav_error']))); ?></p></div>
+            <?php if (isset($_GET['wpcb_caldav_error'])): ?>
+                <div class="notice notice-error"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['wpcb_caldav_error']))); ?></p></div>
             <?php endif; ?>
 
             <h2>Discover calendars</h2>
             <p>Use a standards-based CalDAV endpoint. For iCloud use <code>https://caldav.icloud.com/</code>, your Apple Account email and an app-specific password when direct Apple authorization is not available.</p>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                <?php wp_nonce_field('cemb_caldav_discover'); ?>
-                <input type="hidden" name="action" value="cemb_caldav_discover">
+                <?php wp_nonce_field('wpcb_caldav_discover'); ?>
+                <input type="hidden" name="action" value="wpcb_caldav_discover">
                 <table class="form-table" role="presentation">
-                    <tr><th><label for="cemb_caldav_endpoint">Endpoint</label></th>
-                    <td><input class="large-text" id="cemb_caldav_endpoint" name="endpoint" value="https://caldav.icloud.com/" required></td></tr>
-                    <tr><th><label for="cemb_caldav_username">Username</label></th>
-                    <td><input class="regular-text" id="cemb_caldav_username" name="username" autocomplete="username" required></td></tr>
-                    <tr><th><label for="cemb_caldav_password">Password</label></th>
-                    <td><input class="regular-text" type="password" id="cemb_caldav_password" name="password" autocomplete="new-password" required></td></tr>
+                    <tr><th><label for="wpcb_caldav_endpoint">Endpoint</label></th>
+                    <td><input class="large-text" id="wpcb_caldav_endpoint" name="endpoint" value="https://caldav.icloud.com/" required></td></tr>
+                    <tr><th><label for="wpcb_caldav_username">Username</label></th>
+                    <td><input class="regular-text" id="wpcb_caldav_username" name="username" autocomplete="username" required></td></tr>
+                    <tr><th><label for="wpcb_caldav_password">Password</label></th>
+                    <td><input class="regular-text" type="password" id="wpcb_caldav_password" name="password" autocomplete="new-password" required></td></tr>
                 </table>
                 <?php submit_button('Discover calendars', 'secondary'); ?>
             </form>
@@ -83,21 +83,21 @@ final class CalDavController {
             <hr>
             <h2>Add CalDAV connection</h2>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                <?php wp_nonce_field('cemb_caldav_save'); ?>
-                <input type="hidden" name="action" value="cemb_caldav_save">
+                <?php wp_nonce_field('wpcb_caldav_save'); ?>
+                <input type="hidden" name="action" value="wpcb_caldav_save">
                 <table class="form-table" role="presentation">
-                    <tr><th><label for="cemb_caldav_name">Connection name</label></th>
-                    <td><input class="regular-text" id="cemb_caldav_name" name="connection_name" value="iCloud Calendar" required></td></tr>
-                    <tr><th><label for="cemb_caldav_preset">Preset</label></th>
-                    <td><select id="cemb_caldav_preset" name="preset"><option value="generic">Generic CalDAV</option><option value="icloud">iCloud</option></select></td></tr>
-                    <tr><th><label for="cemb_caldav_save_endpoint">Endpoint</label></th>
-                    <td><input class="large-text" id="cemb_caldav_save_endpoint" name="endpoint" value="https://caldav.icloud.com/" required></td></tr>
-                    <tr><th><label for="cemb_caldav_calendar_url">Calendar URL</label></th>
-                    <td><input class="large-text" id="cemb_caldav_calendar_url" name="calendar_url" required><p class="description">Paste a discovered calendar collection URL.</p></td></tr>
-                    <tr><th><label for="cemb_caldav_save_username">Username</label></th>
-                    <td><input class="regular-text" id="cemb_caldav_save_username" name="username" autocomplete="username" required></td></tr>
-                    <tr><th><label for="cemb_caldav_save_password">Password</label></th>
-                    <td><input class="regular-text" type="password" id="cemb_caldav_save_password" name="password" autocomplete="new-password" required></td></tr>
+                    <tr><th><label for="wpcb_caldav_name">Connection name</label></th>
+                    <td><input class="regular-text" id="wpcb_caldav_name" name="connection_name" value="iCloud Calendar" required></td></tr>
+                    <tr><th><label for="wpcb_caldav_preset">Preset</label></th>
+                    <td><select id="wpcb_caldav_preset" name="preset"><option value="generic">Generic CalDAV</option><option value="icloud">iCloud</option></select></td></tr>
+                    <tr><th><label for="wpcb_caldav_save_endpoint">Endpoint</label></th>
+                    <td><input class="large-text" id="wpcb_caldav_save_endpoint" name="endpoint" value="https://caldav.icloud.com/" required></td></tr>
+                    <tr><th><label for="wpcb_caldav_calendar_url">Calendar URL</label></th>
+                    <td><input class="large-text" id="wpcb_caldav_calendar_url" name="calendar_url" required><p class="description">Paste a discovered calendar collection URL.</p></td></tr>
+                    <tr><th><label for="wpcb_caldav_save_username">Username</label></th>
+                    <td><input class="regular-text" id="wpcb_caldav_save_username" name="username" autocomplete="username" required></td></tr>
+                    <tr><th><label for="wpcb_caldav_save_password">Password</label></th>
+                    <td><input class="regular-text" type="password" id="wpcb_caldav_save_password" name="password" autocomplete="new-password" required></td></tr>
                     <tr><th>Capabilities</th><td>
                         <label><input type="checkbox" name="blocks_availability" value="1" checked> Block availability</label><br>
                         <label><input type="checkbox" name="receives_bookings" value="1"> Write confirmed bookings</label>
@@ -119,8 +119,8 @@ final class CalDavController {
                         <td><code><?php echo esc_html((string)($config['calendar_url'] ?? $connection->remoteCalendarId)); ?></code></td>
                         <td><?php echo esc_html($connection->healthStatus); ?></td>
                         <td><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                            <?php wp_nonce_field('cemb_caldav_delete_' . $connection->id); ?>
-                            <input type="hidden" name="action" value="cemb_caldav_delete">
+                            <?php wp_nonce_field('wpcb_caldav_delete_' . $connection->id); ?>
+                            <input type="hidden" name="action" value="wpcb_caldav_delete">
                             <input type="hidden" name="connection_id" value="<?php echo (int)$connection->id; ?>">
                             <?php submit_button('Disconnect', 'secondary', 'submit', false); ?>
                         </form></td>
@@ -134,7 +134,7 @@ final class CalDavController {
 
     public function discover(): void {
         $this->requireAdmin();
-        check_admin_referer('cemb_caldav_discover');
+        check_admin_referer('wpcb_caldav_discover');
 
         $endpoint = esc_url_raw((string)wp_unslash($_POST['endpoint'] ?? ''));
         $username = sanitize_text_field(wp_unslash($_POST['username'] ?? ''));
@@ -156,7 +156,7 @@ final class CalDavController {
 
     public function save(): void {
         $this->requireAdmin();
-        check_admin_referer('cemb_caldav_save');
+        check_admin_referer('wpcb_caldav_save');
 
         $preset = sanitize_key(wp_unslash($_POST['preset'] ?? 'generic'));
         if (!in_array($preset, ['generic', 'icloud'], true)) {
@@ -202,7 +202,7 @@ final class CalDavController {
     public function delete(): void {
         $this->requireAdmin();
         $connectionId = absint($_POST['connection_id'] ?? 0);
-        check_admin_referer('cemb_caldav_delete_' . $connectionId);
+        check_admin_referer('wpcb_caldav_delete_' . $connectionId);
         $connection = $this->connections->find($connectionId);
         if (!$connection || $connection->provider !== 'caldav') {
             $this->redirectError('CalDAV connection was not found.');
@@ -219,16 +219,16 @@ final class CalDavController {
 
     private function redirectNotice(string $message): void {
         wp_safe_redirect(add_query_arg([
-            'page' => 'cemb_caldav_connections',
-            'cemb_caldav_notice' => $message,
+            'page' => 'wpcb_caldav_connections',
+            'wpcb_caldav_notice' => $message,
         ], admin_url('admin.php')));
         exit;
     }
 
     private function redirectError(string $message): void {
         wp_safe_redirect(add_query_arg([
-            'page' => 'cemb_caldav_connections',
-            'cemb_caldav_error' => $message,
+            'page' => 'wpcb_caldav_connections',
+            'wpcb_caldav_error' => $message,
         ], admin_url('admin.php')));
         exit;
     }

@@ -7,11 +7,11 @@
 
   function updateConditional(form){
     if(!form) return;
-    var typeSelect = q('[data-cemb-type-select]', form);
+    var typeSelect = q('[data-wpcb-type-select]', form);
     var typeText = typeSelect && typeSelect.selectedIndex >= 0 ? typeSelect.options[typeSelect.selectedIndex].text : '';
     var whoCalls = q('[name="who_calls"]', form);
-    var phoneField = closest(q('[name="phone"]', form), '.cemb-field');
-    var locationField = closest(q('[name="location"]', form), '.cemb-field');
+    var phoneField = closest(q('[name="phone"]', form), '.wpcb-field');
+    var locationField = closest(q('[name="location"]', form), '.wpcb-field');
     var location = q('[name="location"]', form);
     var ownPhone = q('[name="own_phone_value"]', form) ? q('[name="own_phone_value"]', form).value : '';
     var visitAddress = q('[name="visit_address_value"]', form) ? q('[name="visit_address_value"]', form).value : '';
@@ -27,7 +27,7 @@
       }
     }
     if(whoCalls){
-      var wrapper = closest(whoCalls, '.cemb-field');
+      var wrapper = closest(whoCalls, '.wpcb-field');
       if(wrapper) wrapper.style.display = isPhoneType(typeText) ? '' : 'none';
     }
     if(phoneField){
@@ -49,12 +49,12 @@
   }
 
   function focusDialog(modal){
-    var target = q('[data-cemb-modal-panel]', modal) || q('[data-cemb-close-modal]', modal);
+    var target = q('[data-wpcb-modal-panel]', modal) || q('[data-wpcb-close-modal]', modal);
     if(target && target.focus) target.focus();
   }
 
   function showModal(modal, trigger){
-    if(trigger) modal.__cembTrigger = trigger;
+    if(trigger) modal.__wpcbTrigger = trigger;
     if(window.UIkit && UIkit.modal){
       modal.removeAttribute('hidden');
       var inst = UIkit.modal(modal);
@@ -63,31 +63,31 @@
       return;
     }
     modal.hidden = false;
-    document.documentElement.classList.add('cemb-modal-open');
+    document.documentElement.classList.add('wpcb-modal-open');
     focusDialog(modal);
   }
 
   function hideModal(modal){
-    var trigger = modal.__cembTrigger;
+    var trigger = modal.__wpcbTrigger;
     if(window.UIkit && UIkit.modal){
       var inst = UIkit.modal(modal);
       inst.hide();
     } else {
       modal.hidden = true;
-      document.documentElement.classList.remove('cemb-modal-open');
+      document.documentElement.classList.remove('wpcb-modal-open');
     }
     if(trigger && trigger.focus) window.setTimeout(function(){ trigger.focus(); }, 0);
   }
 
   function fillSlots(form, typeId, preselect){
-    var select = q('[data-cemb-slot-select]', form);
+    var select = q('[data-wpcb-slot-select]', form);
     if(!select) return;
     select.innerHTML = '<option value="">Lade freie Zeiten ...</option>';
     var body = new URLSearchParams();
-    body.set('action','cemb_get_slots');
-    body.set('nonce', (window.cembFrontend && cembFrontend.nonce) || '');
+    body.set('action','wpcb_get_slots');
+    body.set('nonce', (window.wpcbFrontend && wpcbFrontend.nonce) || '');
     body.set('type_id', typeId || '');
-    fetch((window.cembFrontend && cembFrontend.ajaxUrl) || '/wp-admin/admin-ajax.php', {
+    fetch((window.wpcbFrontend && wpcbFrontend.ajaxUrl) || '/wp-admin/admin-ajax.php', {
       method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'},
       body: body.toString()
@@ -115,35 +115,35 @@
   }
 
   document.addEventListener('change', function(e){
-    var form = closest(e.target, '[data-cemb-booking-form]');
+    var form = closest(e.target, '[data-wpcb-booking-form]');
     if(!form) return;
-    if(e.target.matches('[data-cemb-type-select]')){
+    if(e.target.matches('[data-wpcb-type-select]')){
       fillSlots(form, e.target.value, '');
     }
     updateConditional(form);
   });
 
   document.addEventListener('click', function(e){
-    var open = closest(e.target, '[data-cemb-open-toolbar-modal]');
+    var open = closest(e.target, '[data-wpcb-open-toolbar-modal]');
     if(open){
       e.preventDefault();
-      var wrap = closest(open, '[data-cemb-booking-calendar]') || document;
-      var modal = q('[data-cemb-modal]', wrap);
+      var wrap = closest(open, '[data-wpcb-booking-calendar]') || document;
+      var modal = q('[data-wpcb-modal]', wrap);
       if(!modal) return;
       showModal(modal, open);
       return;
     }
-    var close = closest(e.target, '[data-cemb-close-modal]');
+    var close = closest(e.target, '[data-wpcb-close-modal]');
     if(close){
       e.preventDefault();
-      var modal2 = closest(close, '[data-cemb-modal]');
+      var modal2 = closest(close, '[data-wpcb-modal]');
       if(modal2) hideModal(modal2);
     }
   });
 
   document.addEventListener('keydown', function(e){
     if(e.key !== 'Escape') return;
-    var modal = q('[data-cemb-modal]:not([hidden])');
+    var modal = q('[data-wpcb-modal]:not([hidden])');
     if(modal){
       e.preventDefault();
       hideModal(modal);
@@ -151,7 +151,7 @@
   });
 
   document.addEventListener('DOMContentLoaded', function(){
-    qa('[data-cemb-booking-form]').forEach(function(form){
+    qa('[data-wpcb-booking-form]').forEach(function(form){
       updateConditional(form);
     });
   });

@@ -1,8 +1,8 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
 final class MicrosoftOAuthController {
-    private const STATE_PREFIX = 'cemb_ms_oauth_state_';
+    private const STATE_PREFIX = 'wpcb_ms_oauth_state_';
     private const AUTHORIZE_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/authorize';
     private const TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
     private const PERSONAL_TENANT_ID = '9188040d-6c67-4c5b-b112-36a304b66dad';
@@ -19,12 +19,12 @@ final class MicrosoftOAuthController {
     }
 
     public function boot(): void {
-        add_filter('cemb_calendar_providers', [$this, 'registerProvider']);
+        add_filter('wpcb_calendar_providers', [$this, 'registerProvider']);
         add_action('admin_menu', [$this, 'menu']);
-        add_action('admin_post_cemb_microsoft_save_oauth', [$this, 'saveOAuthConfig']);
-        add_action('admin_post_cemb_microsoft_connect', [$this, 'startConnect']);
-        add_action('admin_post_cemb_microsoft_oauth_callback', [$this, 'callback']);
-        add_action('admin_post_cemb_microsoft_disconnect', [$this, 'disconnect']);
+        add_action('admin_post_wpcb_microsoft_save_oauth', [$this, 'saveOAuthConfig']);
+        add_action('admin_post_wpcb_microsoft_connect', [$this, 'startConnect']);
+        add_action('admin_post_wpcb_microsoft_oauth_callback', [$this, 'callback']);
+        add_action('admin_post_wpcb_microsoft_disconnect', [$this, 'disconnect']);
     }
 
     public function registerProvider(array $providers): array {
@@ -34,11 +34,11 @@ final class MicrosoftOAuthController {
 
     public function menu(): void {
         add_submenu_page(
-            'cemb_dashboard',
+            'wpcb_dashboard',
             'Microsoft Calendar',
             'Microsoft Calendar',
             'manage_options',
-            'cemb_microsoft_connections',
+            'wpcb_microsoft_connections',
             [$this, 'page']
         );
     }
@@ -54,24 +54,24 @@ final class MicrosoftOAuthController {
         ?>
         <div class="wrap">
             <h1>Microsoft 365 / Outlook</h1>
-            <?php if (isset($_GET['cemb_microsoft_notice'])): ?>
-                <div class="notice notice-success"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['cemb_microsoft_notice']))); ?></p></div>
+            <?php if (isset($_GET['wpcb_microsoft_notice'])): ?>
+                <div class="notice notice-success"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['wpcb_microsoft_notice']))); ?></p></div>
             <?php endif; ?>
-            <?php if (isset($_GET['cemb_microsoft_error'])): ?>
-                <div class="notice notice-error"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['cemb_microsoft_error']))); ?></p></div>
+            <?php if (isset($_GET['wpcb_microsoft_error'])): ?>
+                <div class="notice notice-error"><p><?php echo esc_html(sanitize_text_field(wp_unslash($_GET['wpcb_microsoft_error']))); ?></p></div>
             <?php endif; ?>
 
             <h2>Microsoft Entra app registration</h2>
             <p>Register this Web redirect URI in the Microsoft identity platform:</p>
             <p><code><?php echo esc_html($this->config->redirectUri()); ?></code></p>
             <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                <?php wp_nonce_field('cemb_microsoft_save_oauth'); ?>
-                <input type="hidden" name="action" value="cemb_microsoft_save_oauth">
+                <?php wp_nonce_field('wpcb_microsoft_save_oauth'); ?>
+                <input type="hidden" name="action" value="wpcb_microsoft_save_oauth">
                 <table class="form-table" role="presentation">
-                    <tr><th><label for="cemb_ms_client_id">Client ID</label></th>
-                    <td><input class="regular-text" id="cemb_ms_client_id" name="client_id" value="<?php echo esc_attr($this->config->clientId()); ?>" autocomplete="off"></td></tr>
-                    <tr><th><label for="cemb_ms_client_secret">Client secret</label></th>
-                    <td><input class="regular-text" type="password" id="cemb_ms_client_secret" name="client_secret" value="" autocomplete="new-password"><p class="description">Leave blank to keep the encrypted secret. Constants CEMB_MICROSOFT_CLIENT_ID / CEMB_MICROSOFT_CLIENT_SECRET override these fields.</p></td></tr>
+                    <tr><th><label for="wpcb_ms_client_id">Client ID</label></th>
+                    <td><input class="regular-text" id="wpcb_ms_client_id" name="client_id" value="<?php echo esc_attr($this->config->clientId()); ?>" autocomplete="off"></td></tr>
+                    <tr><th><label for="wpcb_ms_client_secret">Client secret</label></th>
+                    <td><input class="regular-text" type="password" id="wpcb_ms_client_secret" name="client_secret" value="" autocomplete="new-password"><p class="description">Leave blank to keep the encrypted secret. Constants WPCB_MICROSOFT_CLIENT_ID / WPCB_MICROSOFT_CLIENT_SECRET override these fields.</p></td></tr>
                 </table>
                 <?php submit_button('Save Microsoft OAuth settings'); ?>
             </form>
@@ -82,13 +82,13 @@ final class MicrosoftOAuthController {
                 <p>Save the Microsoft OAuth client ID and secret first.</p>
             <?php else: ?>
                 <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                    <?php wp_nonce_field('cemb_microsoft_connect'); ?>
-                    <input type="hidden" name="action" value="cemb_microsoft_connect">
+                    <?php wp_nonce_field('wpcb_microsoft_connect'); ?>
+                    <input type="hidden" name="action" value="wpcb_microsoft_connect">
                     <table class="form-table" role="presentation">
-                        <tr><th><label for="cemb_ms_name">Connection name</label></th>
-                        <td><input class="regular-text" id="cemb_ms_name" name="connection_name" value="Microsoft Calendar" required></td></tr>
-                        <tr><th><label for="cemb_ms_calendar">Calendar ID</label></th>
-                        <td><input class="regular-text" id="cemb_ms_calendar" name="remote_calendar_id" value="primary" required><p class="description">Use <code>primary</code> for the signed-in default calendar. A specific Graph calendar ID uses calendarView availability.</p></td></tr>
+                        <tr><th><label for="wpcb_ms_name">Connection name</label></th>
+                        <td><input class="regular-text" id="wpcb_ms_name" name="connection_name" value="Microsoft Calendar" required></td></tr>
+                        <tr><th><label for="wpcb_ms_calendar">Calendar ID</label></th>
+                        <td><input class="regular-text" id="wpcb_ms_calendar" name="remote_calendar_id" value="primary" required><p class="description">Use <code>primary</code> for the signed-in default calendar. A specific Graph calendar ID uses calendarView availability.</p></td></tr>
                         <tr><th>Capabilities</th><td>
                             <label><input type="checkbox" name="blocks_availability" value="1" checked> Block availability</label><br>
                             <label><input type="checkbox" name="receives_bookings" value="1"> Write confirmed bookings</label>
@@ -111,8 +111,8 @@ final class MicrosoftOAuthController {
                         <td><?php echo esc_html(trim(($connection->blocksAvailability ? 'Busy ' : '') . ($connection->receivesBookings ? 'Write-back' : ''))); ?></td>
                         <td><?php echo esc_html($connection->healthStatus); ?></td>
                         <td><form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>">
-                            <?php wp_nonce_field('cemb_microsoft_disconnect_' . $connection->id); ?>
-                            <input type="hidden" name="action" value="cemb_microsoft_disconnect">
+                            <?php wp_nonce_field('wpcb_microsoft_disconnect_' . $connection->id); ?>
+                            <input type="hidden" name="action" value="wpcb_microsoft_disconnect">
                             <input type="hidden" name="connection_id" value="<?php echo (int)$connection->id; ?>">
                             <?php submit_button('Disconnect', 'secondary', 'submit', false); ?>
                         </form></td>
@@ -127,7 +127,7 @@ final class MicrosoftOAuthController {
 
     public function saveOAuthConfig(): void {
         $this->requireAdmin();
-        check_admin_referer('cemb_microsoft_save_oauth');
+        check_admin_referer('wpcb_microsoft_save_oauth');
         $result = $this->config->save(
             sanitize_text_field(wp_unslash($_POST['client_id'] ?? '')),
             (string)wp_unslash($_POST['client_secret'] ?? '')
@@ -140,7 +140,7 @@ final class MicrosoftOAuthController {
 
     public function startConnect(): void {
         $this->requireAdmin();
-        check_admin_referer('cemb_microsoft_connect');
+        check_admin_referer('wpcb_microsoft_connect');
 
         if (!$this->config->configured()) {
             $this->redirectError('Microsoft OAuth client is not configured.');
@@ -241,7 +241,7 @@ final class MicrosoftOAuthController {
     public function disconnect(): void {
         $this->requireAdmin();
         $connectionId = absint($_POST['connection_id'] ?? 0);
-        check_admin_referer('cemb_microsoft_disconnect_' . $connectionId);
+        check_admin_referer('wpcb_microsoft_disconnect_' . $connectionId);
         $connection = $this->connections->find($connectionId);
         if (!$connection || $connection->provider !== 'microsoft') {
             $this->redirectError('Microsoft Calendar connection was not found.');
@@ -306,16 +306,16 @@ final class MicrosoftOAuthController {
 
     private function redirectNotice(string $message): void {
         wp_safe_redirect(add_query_arg([
-            'page' => 'cemb_microsoft_connections',
-            'cemb_microsoft_notice' => $message,
+            'page' => 'wpcb_microsoft_connections',
+            'wpcb_microsoft_notice' => $message,
         ], admin_url('admin.php')));
         exit;
     }
 
     private function redirectError(string $message): void {
         wp_safe_redirect(add_query_arg([
-            'page' => 'cemb_microsoft_connections',
-            'cemb_microsoft_error' => $message,
+            'page' => 'wpcb_microsoft_connections',
+            'wpcb_microsoft_error' => $message,
         ], admin_url('admin.php')));
         exit;
     }

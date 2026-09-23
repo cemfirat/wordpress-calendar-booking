@@ -1,22 +1,22 @@
 <?php
-namespace Cemb\Frontend;
+namespace Wpcb\Frontend;
 
-use Cemb\Security\Guard;
-use Cemb\Forms\FieldRepository;
-use Cemb\Booking\BookingRepository;
-use Cemb\Booking\BookingStatus;
-use Cemb\Booking\BookingStateMachine;
-use Cemb\Booking\BookingTransitionService;
-use Cemb\Booking\ReservationService;
-use Cemb\Tokens\TokenService;
-use Cemb\Tokens\SlotTokenService;
-use Cemb\Mail\Mailer;
-use Cemb\Availability\SlotService;
-use Cemb\Availability\SlotSelectionService;
-use Cemb\Admin\Settings;
-use Cemb\Booking\BookingTypeRepository;
-use Cemb\Support\BookingFormatter;
-use Cemb\Support\Time;
+use Wpcb\Security\Guard;
+use Wpcb\Forms\FieldRepository;
+use Wpcb\Booking\BookingRepository;
+use Wpcb\Booking\BookingStatus;
+use Wpcb\Booking\BookingStateMachine;
+use Wpcb\Booking\BookingTransitionService;
+use Wpcb\Booking\ReservationService;
+use Wpcb\Tokens\TokenService;
+use Wpcb\Tokens\SlotTokenService;
+use Wpcb\Mail\Mailer;
+use Wpcb\Availability\SlotService;
+use Wpcb\Availability\SlotSelectionService;
+use Wpcb\Admin\Settings;
+use Wpcb\Booking\BookingTypeRepository;
+use Wpcb\Support\BookingFormatter;
+use Wpcb\Support\Time;
 
 class Actions {
     private BookingFormatter $formatter;
@@ -26,31 +26,31 @@ class Actions {
     }
 
     public function boot(): void {
-        add_action('admin_post_nopriv_cemb_submit_booking', [$this, 'submitBooking']);
-        add_action('admin_post_cemb_submit_booking', [$this, 'submitBooking']);
-        add_action('admin_post_nopriv_cemb_booking_action', [$this, 'handleActionPost']);
-        add_action('admin_post_cemb_booking_action', [$this, 'handleActionPost']);
+        add_action('admin_post_nopriv_wpcb_submit_booking', [$this, 'submitBooking']);
+        add_action('admin_post_wpcb_submit_booking', [$this, 'submitBooking']);
+        add_action('admin_post_nopriv_wpcb_booking_action', [$this, 'handleActionPost']);
+        add_action('admin_post_wpcb_booking_action', [$this, 'handleActionPost']);
         add_action('template_redirect', [$this, 'renderLinkAction'], 0);
         add_filter('query_vars', [$this, 'queryVars']);
-        add_action('wp_ajax_cemb_get_slots', [$this, 'ajaxSlots']);
-        add_action('wp_ajax_nopriv_cemb_get_slots', [$this, 'ajaxSlots']);
-        add_action('cemb_hourly_reminders', [$this, 'expireReservations'], 5);
-        add_action('cemb_hourly_reminders', [$this, 'sendReminders'], 10);
-        add_action('cemb_hourly_reminders', [$this, 'cleanupTokens'], 20);
-        add_action('cemb_hourly_reminders', [$this, 'cleanupDeliveryLog'], 30);
-        if (!wp_next_scheduled('cemb_hourly_reminders')) {
-            wp_schedule_event(time() + 300, 'hourly', 'cemb_hourly_reminders');
+        add_action('wp_ajax_wpcb_get_slots', [$this, 'ajaxSlots']);
+        add_action('wp_ajax_nopriv_wpcb_get_slots', [$this, 'ajaxSlots']);
+        add_action('wpcb_hourly_reminders', [$this, 'expireReservations'], 5);
+        add_action('wpcb_hourly_reminders', [$this, 'sendReminders'], 10);
+        add_action('wpcb_hourly_reminders', [$this, 'cleanupTokens'], 20);
+        add_action('wpcb_hourly_reminders', [$this, 'cleanupDeliveryLog'], 30);
+        if (!wp_next_scheduled('wpcb_hourly_reminders')) {
+            wp_schedule_event(time() + 300, 'hourly', 'wpcb_hourly_reminders');
         }
     }
 
     public function queryVars(array $vars): array {
-        $vars[] = 'cemb_action';
-        $vars[] = 'cemb_token';
+        $vars[] = 'wpcb_action';
+        $vars[] = 'wpcb_token';
         return $vars;
     }
 
     public function ajaxSlots(): void {
-        check_ajax_referer('cemb_frontend', 'nonce');
+        check_ajax_referer('wpcb_frontend', 'nonce');
         $typeId = absint($_REQUEST['type_id'] ?? 0);
         if (!$typeId) {
             wp_send_json_error(['message' => 'Terminart fehlt.'], 400);
@@ -130,7 +130,7 @@ class Actions {
         $mailer = new Mailer();
         $mailer->sendTemplateOnce('mail:user:' . $bookingId . ':doi', 'doi', $booking, $meta, $links, false);
         $mailer->sendInternalOnce('mail:internal:' . $bookingId . ':reserved', $booking, $meta);
-        wp_safe_redirect(add_query_arg('cemb_notice', rawurlencode('Bitte bestätige deine E-Mail über den Link in der Nachricht.'), wp_get_referer() ?: home_url('/')));
+        wp_safe_redirect(add_query_arg('wpcb_notice', rawurlencode('Bitte bestätige deine E-Mail über den Link in der Nachricht.'), wp_get_referer() ?: home_url('/')));
         exit;
     }
 
@@ -142,8 +142,8 @@ class Actions {
             return;
         }
 
-        $action = sanitize_key((string)get_query_var('cemb_action'));
-        $token = sanitize_text_field((string)get_query_var('cemb_token'));
+        $action = sanitize_key((string)get_query_var('wpcb_action'));
+        $token = sanitize_text_field((string)get_query_var('wpcb_token'));
         $tokenType = $this->tokenTypeForAction($action);
         if (!$tokenType || $token === '') {
             return;
@@ -187,14 +187,14 @@ class Actions {
             wp_die('Method not allowed.', 'Method not allowed', ['response' => 405]);
         }
 
-        $action = sanitize_key(wp_unslash($_POST['cemb_link_action'] ?? ''));
-        $token = sanitize_text_field(wp_unslash($_POST['cemb_token'] ?? ''));
+        $action = sanitize_key(wp_unslash($_POST['wpcb_link_action'] ?? ''));
+        $token = sanitize_text_field(wp_unslash($_POST['wpcb_token'] ?? ''));
         $tokenType = $this->tokenTypeForAction($action);
         if (!$tokenType || $token === '') {
             wp_die('Ungültige Termin-Aktion.', 'Ungültige Anfrage', ['response' => 400]);
         }
 
-        $nonce = sanitize_text_field(wp_unslash($_POST['cemb_action_nonce'] ?? ''));
+        $nonce = sanitize_text_field(wp_unslash($_POST['wpcb_action_nonce'] ?? ''));
         if (!wp_verify_nonce($nonce, $this->nonceAction($action, $token))) {
             wp_die(
                 'Die Sicherheitsprüfung ist fehlgeschlagen. Es wurde nichts geändert.',
@@ -228,7 +228,7 @@ class Actions {
         $repo = new BookingRepository();
         $booking = $repo->find((int)$tokenRow->booking_id);
         if (!$booking) {
-            return new \WP_Error('cemb_booking_missing', 'Buchung nicht gefunden.');
+            return new \WP_Error('wpcb_booking_missing', 'Buchung nicht gefunden.');
         }
 
         $settings = Settings::get();
@@ -251,7 +251,7 @@ class Actions {
             $cutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['cancel_min_hours']) . ' hours');
             $start = Time::parseUtc((string)$booking->slot_start);
             if (!$start || $start < $cutoff) {
-                return new \WP_Error('cemb_cancel_too_late', 'Stornierung ist für diesen Termin nicht mehr möglich.');
+                return new \WP_Error('wpcb_cancel_too_late', 'Stornierung ist für diesen Termin nicht mehr möglich.');
             }
 
             return $transitions->apply(
@@ -266,7 +266,7 @@ class Actions {
             $cutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['change_min_hours']) . ' hours');
             $start = Time::parseUtc((string)$booking->slot_start);
             if (!$start || $start < $cutoff) {
-                return new \WP_Error('cemb_update_too_late', 'Änderung ist für diesen Termin nicht mehr möglich.');
+                return new \WP_Error('wpcb_update_too_late', 'Änderung ist für diesen Termin nicht mehr möglich.');
             }
 
             $newSlotToken = sanitize_text_field(wp_unslash($_POST['new_slot_token'] ?? ''));
@@ -276,7 +276,7 @@ class Actions {
                 (int)$booking->id
             );
             if (!$selection) {
-                return new \WP_Error('cemb_slot_unavailable', 'Der neue Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
+                return new \WP_Error('wpcb_slot_unavailable', 'Der neue Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
             }
 
             return $transitions->reschedule(
@@ -288,7 +288,7 @@ class Actions {
             );
         }
 
-        return new \WP_Error('cemb_action_unknown', 'Unbekannte Termin-Aktion.');
+        return new \WP_Error('wpcb_action_unknown', 'Unbekannte Termin-Aktion.');
     }
 
     private function renderValidAction(string $action, string $token, object $booking): void {
@@ -356,8 +356,8 @@ class Actions {
 
             $form = $this->actionFormStart($action, $token)
                 . '<p>Aktuell: <strong>' . esc_html($date . ' ' . $time) . '</strong></p>'
-                . '<label class="uk-form-label" for="cemb-new-slot">Neuer Termin</label>'
-                . '<div class="uk-form-controls"><select class="uk-select" id="cemb-new-slot" name="new_slot_token" required>'
+                . '<label class="uk-form-label" for="wpcb-new-slot">Neuer Termin</label>'
+                . '<div class="uk-form-controls"><select class="uk-select" id="wpcb-new-slot" name="new_slot_token" required>'
                 . '<option value="">Bitte wählen</option>' . $options . '</select></div>'
                 . '<p><button class="uk-button uk-button-primary" type="submit">Termin ändern</button></p></form>';
             $this->renderActionScreen('Termin ändern', 'Die Änderung wird erst nach dem Absenden gespeichert.', $form);
@@ -368,19 +368,19 @@ class Actions {
 
     private function actionFormStart(string $action, string $token): string {
         $nonce = wp_create_nonce($this->nonceAction($action, $token));
-        return '<form class="cemb-public-action-form uk-form-stacked" method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
-            . '<input type="hidden" name="action" value="cemb_booking_action">'
-            . '<input type="hidden" name="cemb_link_action" value="' . esc_attr($action) . '">'
-            . '<input type="hidden" name="cemb_token" value="' . esc_attr($token) . '">'
-            . '<input type="hidden" name="cemb_action_nonce" value="' . esc_attr($nonce) . '">';
+        return '<form class="wpcb-public-action-form uk-form-stacked" method="post" action="' . esc_url(admin_url('admin-post.php')) . '">'
+            . '<input type="hidden" name="action" value="wpcb_booking_action">'
+            . '<input type="hidden" name="wpcb_link_action" value="' . esc_attr($action) . '">'
+            . '<input type="hidden" name="wpcb_token" value="' . esc_attr($token) . '">'
+            . '<input type="hidden" name="wpcb_action_nonce" value="' . esc_attr($nonce) . '">';
     }
 
     private function renderActionScreen(string $title, string $message, string $form = ''): void {
         status_header(200);
         nocache_headers();
-        wp_enqueue_style('cemb-frontend', CEMB_URL . 'assets/css/frontend.css', [], CEMB_VERSION);
+        wp_enqueue_style('wpcb-frontend', WPCB_URL . 'assets/css/frontend.css', [], WPCB_VERSION);
         get_header();
-        echo '<main class="cemb-public-action uk-section"><div class="uk-container uk-container-small">';
+        echo '<main class="wpcb-public-action uk-section"><div class="uk-container uk-container-small">';
         echo '<div class="uk-card uk-card-default uk-card-body">';
         echo '<h1 class="uk-card-title">' . esc_html($title) . '</h1>';
         echo '<p>' . esc_html($message) . '</p>';
@@ -399,12 +399,12 @@ class Actions {
     }
 
     private function nonceAction(string $action, string $token): string {
-        return 'cemb_booking_action|' . $action . '|' . hash('sha256', $token);
+        return 'wpcb_booking_action|' . $action . '|' . hash('sha256', $token);
     }
 
     private function linkUrl(string $action, string $token): string {
         return add_query_arg(
-            ['cemb_action' => $action, 'cemb_token' => rawurlencode($token)],
+            ['wpcb_action' => $action, 'wpcb_token' => rawurlencode($token)],
             home_url('/')
         );
     }
@@ -450,13 +450,13 @@ class Actions {
 
     public function cleanupDeliveryLog(): void {
         $settings = Settings::get();
-        (new \Cemb\Reliability\DeliveryRepository())->cleanup(
+        (new \Wpcb\Reliability\DeliveryRepository())->cleanup(
             max(1, (int)($settings['delivery_log_retention_days'] ?? 90))
         );
     }
 
     public function sendReminders(): void {
-        update_option('cemb_hourly_reminders_last_run', Time::formatUtc(Time::nowUtc()), false);
+        update_option('wpcb_hourly_reminders_last_run', Time::formatUtc(Time::nowUtc()), false);
         $settings = Settings::get();
         if (empty($settings['reminders_enabled'])) return;
         $repo = new BookingRepository();

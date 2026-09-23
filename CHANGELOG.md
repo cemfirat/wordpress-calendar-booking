@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.0.0
+
+- Normalize all historical CEMB identifiers to the WordPress Calendar Booking naming scheme before first production deployment.
+- Rename the canonical plugin entry point to `wordpress-calendar-booking.php`.
+- Use `Wpcb` / `wpcb_` for internal PHP and WordPress identifiers and `wordpress-calendar-booking` as the text domain.
+- Rename shortcodes, hooks, options, database tables, block namespace, CSS/JS identifiers and test fixtures consistently.
+- No legacy alias or data migration layer is shipped because the plugin has not been deployed.
+
 ## 2.0.0
 
 - First stable public release of the rewritten WordPress Calendar Booking plugin.

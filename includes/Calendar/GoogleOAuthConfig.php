@@ -1,11 +1,11 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
-use Cemb\Security\SecretBox;
+use Wpcb\Security\SecretBox;
 
 final class GoogleOAuthConfig {
-    private const CLIENT_ID_OPTION = 'cemb_google_oauth_client_id';
-    private const CLIENT_SECRET_OPTION = 'cemb_google_oauth_client_secret_enc';
+    private const CLIENT_ID_OPTION = 'wpcb_google_oauth_client_id';
+    private const CLIENT_SECRET_OPTION = 'wpcb_google_oauth_client_secret_enc';
 
     private SecretBox $secrets;
 
@@ -14,15 +14,15 @@ final class GoogleOAuthConfig {
     }
 
     public function clientId(): string {
-        if (defined('CEMB_GOOGLE_CLIENT_ID') && CEMB_GOOGLE_CLIENT_ID) {
-            return trim((string)CEMB_GOOGLE_CLIENT_ID);
+        if (defined('WPCB_GOOGLE_CLIENT_ID') && WPCB_GOOGLE_CLIENT_ID) {
+            return trim((string)WPCB_GOOGLE_CLIENT_ID);
         }
         return trim((string)get_option(self::CLIENT_ID_OPTION, ''));
     }
 
     public function clientSecret(): string {
-        if (defined('CEMB_GOOGLE_CLIENT_SECRET') && CEMB_GOOGLE_CLIENT_SECRET) {
-            return trim((string)CEMB_GOOGLE_CLIENT_SECRET);
+        if (defined('WPCB_GOOGLE_CLIENT_SECRET') && WPCB_GOOGLE_CLIENT_SECRET) {
+            return trim((string)WPCB_GOOGLE_CLIENT_SECRET);
         }
 
         $encoded = (string)get_option(self::CLIENT_SECRET_OPTION, '');
@@ -37,7 +37,7 @@ final class GoogleOAuthConfig {
     public function save(string $clientId, string $clientSecret) {
         $clientId = trim($clientId);
         if ($clientId === '') {
-            return new \WP_Error('cemb_google_client_id', 'Google OAuth client ID is required.');
+            return new \WP_Error('wpcb_google_client_id', 'Google OAuth client ID is required.');
         }
 
         update_option(self::CLIENT_ID_OPTION, sanitize_text_field($clientId), false);
@@ -58,7 +58,7 @@ final class GoogleOAuthConfig {
     }
 
     public function redirectUri(): string {
-        return admin_url('admin-post.php?action=cemb_google_oauth_callback');
+        return admin_url('admin-post.php?action=wpcb_google_oauth_callback');
     }
 
     /** @return string[] */

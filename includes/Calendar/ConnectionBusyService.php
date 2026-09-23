@@ -1,5 +1,5 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
 final class ConnectionBusyService {
     private CalendarConnectionRepository $connections;

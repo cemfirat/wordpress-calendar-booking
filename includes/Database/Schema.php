@@ -1,12 +1,12 @@
 <?php
-namespace Cemb\Database;
+namespace Wpcb\Database;
 
 class Schema {
     public static function install(): void {
         global $wpdb;
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
         $charset = $wpdb->get_charset_collate();
-        $prefix = $wpdb->prefix . 'cemb_';
+        $prefix = $wpdb->prefix . 'wpcb_';
 
         $sql = [];
         $sql[] = "CREATE TABLE {$prefix}bookings (

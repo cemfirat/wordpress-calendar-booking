@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
-use Cemb\Support\Time;
+use Wpcb\Support\Time;
 
 /**
  * Converts private calendar/booking intervals into a public busy-only view model.
@@ -26,7 +26,7 @@ class PublicBusyPresenter {
     }
 
     public function busyLabel(): string {
-        return (string)apply_filters('cemb_public_busy_label', __('Besetzt', 'cemb'));
+        return (string)apply_filters('wpcb_public_busy_label', __('Besetzt', 'wordpress-calendar-booking'));
     }
 
     private function item(string $start, string $end): array {
@@ -37,7 +37,7 @@ class PublicBusyPresenter {
             'title' => $label,
             'label' => ($start !== '' ? Time::display($start, 'H:i') . ' ' : '') . $label,
             'type_id' => 0,
-            'class' => 'cemb-event-busy',
+            'class' => 'wpcb-event-busy',
             'source' => 'busy',
         ];
     }

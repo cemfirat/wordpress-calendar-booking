@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Tokens;
+namespace Wpcb\Tokens;
 
-use Cemb\Support\Time;
+use Wpcb\Support\Time;
 
 /**
  * Issues and verifies short-lived, tamper-evident booking slot tokens.
@@ -86,7 +86,7 @@ class SlotTokenService {
     }
 
     private function key(): string {
-        return wp_salt('auth') . '|cemb-slot-token-v1';
+        return wp_salt('auth') . '|wpcb-slot-token-v1';
     }
 
     private function base64UrlEncode(string $value): string {

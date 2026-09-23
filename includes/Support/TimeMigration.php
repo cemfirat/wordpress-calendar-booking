@@ -1,11 +1,11 @@
 <?php
-namespace Cemb\Support;
+namespace Wpcb\Support;
 
 /**
  * One-time migration from the imported 1.x local DATETIME convention to UTC.
  */
 final class TimeMigration {
-    private const OPTION = 'cemb_time_storage_version';
+    private const OPTION = 'wpcb_time_storage_version';
     private const VERSION = 2;
 
     public static function maybeRun(): void {
@@ -14,7 +14,7 @@ final class TimeMigration {
         }
 
         global $wpdb;
-        $prefix = $wpdb->prefix . 'cemb_';
+        $prefix = $wpdb->prefix . 'wpcb_';
 
         self::migrateTable(
             $prefix . 'bookings',

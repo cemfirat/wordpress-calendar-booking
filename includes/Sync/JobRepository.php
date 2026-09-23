@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Sync;
+namespace Wpcb\Sync;
 
-use Cemb\Support\Time;
+use Wpcb\Support\Time;
 
 class JobRepository {
     private string $jobsTable;
@@ -10,8 +10,8 @@ class JobRepository {
 
     public function __construct() {
         global $wpdb;
-        $this->jobsTable = $wpdb->prefix . 'cemb_sync_jobs';
-        $this->logTable = $wpdb->prefix . 'cemb_sync_log';
+        $this->jobsTable = $wpdb->prefix . 'wpcb_sync_jobs';
+        $this->logTable = $wpdb->prefix . 'wpcb_sync_log';
     }
 
     public function enqueue(string $jobType, int $bookingId, array $payload = [], string $idempotencyKey = ''): int {

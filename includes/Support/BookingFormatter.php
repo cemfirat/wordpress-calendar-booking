@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Support;
+namespace Wpcb\Support;
 
-use Cemb\Booking\BookingTypeRepository;
+use Wpcb\Booking\BookingTypeRepository;
 
 class BookingFormatter {
     public function summary(array $booking, array $meta): string {
@@ -53,12 +53,12 @@ class BookingFormatter {
 
     public function typeColorClass(int $typeId): string {
         $palette = [
-            'cemb-type-color-1',
-            'cemb-type-color-2',
-            'cemb-type-color-3',
-            'cemb-type-color-4',
-            'cemb-type-color-5',
-            'cemb-type-color-6',
+            'wpcb-type-color-1',
+            'wpcb-type-color-2',
+            'wpcb-type-color-3',
+            'wpcb-type-color-4',
+            'wpcb-type-color-5',
+            'wpcb-type-color-6',
         ];
         return $palette[max(0, ($typeId - 1) % count($palette))];
     }

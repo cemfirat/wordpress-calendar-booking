@@ -1,10 +1,10 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
-use Cemb\Admin\Settings;
-use Cemb\Booking\BookingRepository;
-use Cemb\Support\BookingFormatter;
-use Cemb\Support\Time;
+use Wpcb\Admin\Settings;
+use Wpcb\Booking\BookingRepository;
+use Wpcb\Support\BookingFormatter;
+use Wpcb\Support\Time;
 
 final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
     private const TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -42,7 +42,7 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
         $from = Time::parseUtc($fromUtc);
         $to = Time::parseUtc($toUtc);
         if (!$from || !$to || $to <= $from) {
-            return new \WP_Error('cemb_google_range', 'Invalid Google Calendar busy-time range.');
+            return new \WP_Error('wpcb_google_range', 'Invalid Google Calendar busy-time range.');
         }
 
         $response = $this->apiRequest(
@@ -112,7 +112,7 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
 
         $eventId = sanitize_text_field((string)($response['id'] ?? ''));
         if ($eventId === '') {
-            return new \WP_Error('cemb_google_event_id', 'Google Calendar did not return an event identifier.');
+            return new \WP_Error('wpcb_google_event_id', 'Google Calendar did not return an event identifier.');
         }
         $this->connections->setHealthSuccess($connection->id, 'write');
         return ['ok' => true, 'event_id' => $eventId];
@@ -125,7 +125,7 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
         }
         $eventId = trim($eventId);
         if ($eventId === '') {
-            return new \WP_Error('cemb_google_event_missing', 'Google Calendar event identifier is missing.');
+            return new \WP_Error('wpcb_google_event_missing', 'Google Calendar event identifier is missing.');
         }
 
         $calendarId = rawurlencode($connection->remoteCalendarId !== '' ? $connection->remoteCalendarId : 'primary');
@@ -183,7 +183,7 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
         $start = Time::parseUtc((string)($booking['slot_start'] ?? ''));
         $end = Time::parseUtc((string)($booking['slot_end'] ?? ''));
         if (!$start || !$end || $end <= $start) {
-            return new \WP_Error('cemb_google_event_time', 'Booking contains invalid UTC event times.');
+            return new \WP_Error('wpcb_google_event_time', 'Booking contains invalid UTC event times.');
         }
 
         $formatter = new BookingFormatter();
@@ -196,7 +196,7 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
             'end' => ['dateTime' => $end->format(DATE_RFC3339)],
             'extendedProperties' => [
                 'private' => [
-                    'cemb_booking_uuid' => (string)($booking['booking_uuid'] ?? ''),
+                    'wpcb_booking_uuid' => (string)($booking['booking_uuid'] ?? ''),
                 ],
             ],
         ];
@@ -212,7 +212,7 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
         $decoded = $body !== '' ? json_decode($body, true) : [];
         if ($body !== '' && !is_array($decoded)) {
             $this->connections->setHealthError($connection->id, 'Google Calendar returned invalid JSON.');
-            return new \WP_Error('cemb_google_json', 'Google Calendar returned an unreadable response.');
+            return new \WP_Error('wpcb_google_json', 'Google Calendar returned an unreadable response.');
         }
 
         $this->connections->setHealthSuccess($connection->id);
@@ -243,16 +243,16 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
         $response = wp_remote_request($url, $args);
         if (is_wp_error($response)) {
             $this->connections->setHealthError($connection->id, 'Google Calendar request failed.');
-            return new \WP_Error('cemb_google_http', 'Google Calendar request failed. Please retry or reconnect.');
+            return new \WP_Error('wpcb_google_http', 'Google Calendar request failed. Please retry or reconnect.');
         }
 
         $code = (int)wp_remote_retrieve_response_code($response);
         if ($code < 200 || $code >= 300) {
             $this->connections->setHealthError($connection->id, 'Google Calendar returned HTTP ' . $code . '.');
             if ($code === 401 || $code === 403) {
-                return new \WP_Error('cemb_google_reauth', 'Google Calendar authorization is no longer valid. Reconnect the calendar.');
+                return new \WP_Error('wpcb_google_reauth', 'Google Calendar authorization is no longer valid. Reconnect the calendar.');
             }
-            return new \WP_Error('cemb_google_api', 'Google Calendar request failed with HTTP ' . $code . '.');
+            return new \WP_Error('wpcb_google_api', 'Google Calendar request failed with HTTP ' . $code . '.');
         }
 
         if ($method === 'DELETE') {
@@ -264,7 +264,7 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
     private function accessToken(CalendarConnection $connection) {
         $credentials = $this->connections->credentials($connection->id);
         if (!is_array($credentials)) {
-            return new \WP_Error('cemb_google_credentials', 'Google Calendar credentials cannot be decrypted. Reconnect the calendar.');
+            return new \WP_Error('wpcb_google_credentials', 'Google Calendar credentials cannot be decrypted. Reconnect the calendar.');
         }
 
         $access = (string)($credentials['access_token'] ?? '');
@@ -275,7 +275,7 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
 
         $refresh = (string)($credentials['refresh_token'] ?? '');
         if ($refresh === '' || !$this->oauth->configured()) {
-            return new \WP_Error('cemb_google_reauth', 'Google Calendar needs to be reconnected.');
+            return new \WP_Error('wpcb_google_reauth', 'Google Calendar needs to be reconnected.');
         }
 
         $response = wp_remote_post(self::TOKEN_URL, [
@@ -289,12 +289,12 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
             ],
         ]);
         if (is_wp_error($response) || (int)wp_remote_retrieve_response_code($response) !== 200) {
-            return new \WP_Error('cemb_google_reauth', 'Google Calendar token refresh failed. Reconnect the calendar.');
+            return new \WP_Error('wpcb_google_reauth', 'Google Calendar token refresh failed. Reconnect the calendar.');
         }
 
         $body = json_decode((string)wp_remote_retrieve_body($response), true);
         if (!is_array($body) || empty($body['access_token'])) {
-            return new \WP_Error('cemb_google_reauth', 'Google Calendar token refresh returned an invalid response.');
+            return new \WP_Error('wpcb_google_reauth', 'Google Calendar token refresh returned an invalid response.');
         }
 
         $credentials['access_token'] = (string)$body['access_token'];

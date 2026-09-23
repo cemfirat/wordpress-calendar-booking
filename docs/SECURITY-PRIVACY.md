@@ -2,7 +2,7 @@
 
 ## Public output
 
-The public frontend reveals availability only. External calendar summaries, locations, attendees, descriptions and internal customer names, email addresses, phone numbers, subjects and free-text messages never enter the public calendar view model. Public intervals use a generic busy label. Themes may change only that generic label through `cemb_public_busy_label`; the filter receives no private calendar/customer payload.
+The public frontend reveals availability only. External calendar summaries, locations, attendees, descriptions and internal customer names, email addresses, phone numbers, subjects and free-text messages never enter the public calendar view model. Public intervals use a generic busy label. Themes may change only that generic label through `wpcb_public_busy_label`; the filter receives no private calendar/customer payload.
 
 ## Booking requests
 
@@ -28,7 +28,7 @@ Legacy pre-selector tokens cannot be converted because their raw secrets were ne
 
 ## Calendar secrets
 
-Provider passwords, OAuth refresh tokens and future provider secrets use the shared versioned `Cemb\\Security\\SecretBox` envelope.
+Provider passwords, OAuth refresh tokens and future provider secrets use the shared versioned `Wpcb\\Security\\SecretBox` envelope.
 
 - preferred backend: libsodium `secretbox`
 - fallback backend: OpenSSL AES-256-GCM

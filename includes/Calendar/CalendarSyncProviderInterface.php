@@ -1,5 +1,5 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
 interface CalendarSyncProviderInterface extends CalendarProviderInterface {
     /** @return array<int,array{start:string,end:string}>|\WP_Error */

@@ -3,14 +3,14 @@ if (!defined('ABSPATH')) {
     exit(1);
 }
 
-function cemb_ms_assert($condition, string $message): void {
+function wpcb_ms_assert($condition, string $message): void {
     if (!$condition) {
         throw new RuntimeException($message);
     }
     WP_CLI::log('PASS: ' . $message);
 }
 
-$repo = new Cemb\Calendar\CalendarConnectionRepository();
+$repo = new Wpcb\Calendar\CalendarConnectionRepository();
 
 $workId = $repo->create(
     [
@@ -30,7 +30,7 @@ $workId = $repo->create(
         'account_address' => 'work@example.com',
     ]
 );
-cemb_ms_assert(!is_wp_error($workId) && $workId > 0, 'Create work/school Microsoft connection fixture.');
+wpcb_ms_assert(!is_wp_error($workId) && $workId > 0, 'Create work/school Microsoft connection fixture.');
 
 $personalId = $repo->create(
     [
@@ -50,7 +50,7 @@ $personalId = $repo->create(
         'account_address' => 'person@example.com',
     ]
 );
-cemb_ms_assert(!is_wp_error($personalId) && $personalId > 0, 'Create personal Microsoft connection fixture.');
+wpcb_ms_assert(!is_wp_error($personalId) && $personalId > 0, 'Create personal Microsoft connection fixture.');
 
 $calls = [];
 $filter = static function ($pre, $args, $url) use (&$calls) {
@@ -137,18 +137,18 @@ $filter = static function ($pre, $args, $url) use (&$calls) {
 };
 add_filter('pre_http_request', $filter, 10, 3);
 
-$provider = new Cemb\Calendar\MicrosoftGraphProvider($repo, new Cemb\Calendar\MicrosoftOAuthConfig());
+$provider = new Wpcb\Calendar\MicrosoftGraphProvider($repo, new Wpcb\Calendar\MicrosoftOAuthConfig());
 $work = $repo->find((int)$workId);
 $personal = $repo->find((int)$personalId);
 
 $workBusy = $provider->busyBetween('2026-11-01 00:00:00', '2026-11-05 00:00:00', $work);
-cemb_ms_assert(is_array($workBusy) && count($workBusy) === 1, 'Work/school availability uses Graph and returns one busy interval.');
-cemb_ms_assert($workBusy[0]['source'] === 'microsoft_schedule', 'Work/school primary calendar uses getSchedule.');
-cemb_ms_assert($workBusy[0]['start'] === '2026-11-02 09:00:00', 'getSchedule interval remains canonical UTC.');
+wpcb_ms_assert(is_array($workBusy) && count($workBusy) === 1, 'Work/school availability uses Graph and returns one busy interval.');
+wpcb_ms_assert($workBusy[0]['source'] === 'microsoft_schedule', 'Work/school primary calendar uses getSchedule.');
+wpcb_ms_assert($workBusy[0]['start'] === '2026-11-02 09:00:00', 'getSchedule interval remains canonical UTC.');
 
 $personalBusy = $provider->busyBetween('2026-11-01 00:00:00', '2026-11-05 00:00:00', $personal);
-cemb_ms_assert(is_array($personalBusy) && count($personalBusy) === 1, 'Personal Microsoft account returns one busy interval.');
-cemb_ms_assert($personalBusy[0]['source'] === 'microsoft_calendar_view', 'Personal Microsoft account uses calendarView fallback.');
+wpcb_ms_assert(is_array($personalBusy) && count($personalBusy) === 1, 'Personal Microsoft account returns one busy interval.');
+wpcb_ms_assert($personalBusy[0]['source'] === 'microsoft_calendar_view', 'Personal Microsoft account uses calendarView fallback.');
 
 $booking = [
     'booking_uuid' => 'microsoft-ci-booking',
@@ -158,13 +158,13 @@ $booking = [
     'notes' => 'CI',
 ];
 $created = $provider->createEvent($booking, ['subject' => 'Microsoft CI'], $work);
-cemb_ms_assert(is_array($created) && ($created['event_id'] ?? '') === 'event-ci', 'Microsoft event create returns the Graph event ID.');
+wpcb_ms_assert(is_array($created) && ($created['event_id'] ?? '') === 'event-ci', 'Microsoft event create returns the Graph event ID.');
 
 $updated = $provider->updateEvent($booking, ['subject' => 'Microsoft CI updated'], $work, 'event-ci');
-cemb_ms_assert(is_array($updated) && !empty($updated['ok']), 'Microsoft event update succeeds.');
+wpcb_ms_assert(is_array($updated) && !empty($updated['ok']), 'Microsoft event update succeeds.');
 
 $cancelled = $provider->cancelEvent($work, 'event-ci');
-cemb_ms_assert(is_array($cancelled) && !empty($cancelled['ok']), 'Microsoft event delete/cancel succeeds.');
+wpcb_ms_assert(is_array($cancelled) && !empty($cancelled['ok']), 'Microsoft event delete/cancel succeeds.');
 
 $calledSchedule = false;
 $calledCalendarView = false;
@@ -172,7 +172,7 @@ foreach ($calls as $call) {
     $calledSchedule = $calledSchedule || str_contains($call['url'], '/getSchedule');
     $calledCalendarView = $calledCalendarView || str_contains($call['url'], '/calendarView?');
 }
-cemb_ms_assert($calledSchedule && $calledCalendarView, 'Both Microsoft availability strategies are exercised.');
+wpcb_ms_assert($calledSchedule && $calledCalendarView, 'Both Microsoft availability strategies are exercised.');
 
 remove_filter('pre_http_request', $filter, 10);
 $repo->delete((int)$workId);

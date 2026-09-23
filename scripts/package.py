@@ -13,7 +13,7 @@ import zipfile
 
 ROOT = pathlib.Path(__file__).resolve().parents[1]
 PLUGIN_DIR = "wordpress-calendar-booking"
-MAIN = ROOT / "cemb-calendar-booking.php"
+MAIN = ROOT / "wordpress-calendar-booking.php"
 README = ROOT / "readme.txt"
 LICENSE = ROOT / "LICENSE"
 
@@ -38,7 +38,7 @@ EXCLUDED_FILES = {
 EXCLUDED_SUFFIXES = {".log", ".pyc"}
 
 RUNTIME_REQUIRED = [
-    "cemb-calendar-booking.php",
+    "wordpress-calendar-booking.php",
     "LICENSE",
     "readme.txt",
     "README.md",
@@ -59,8 +59,8 @@ def metadata() -> tuple[str, str, str]:
     if not version_match or not wp_match or not php_match:
         raise SystemExit("Missing release metadata in plugin header.")
     version = version_match.group(1)
-    if f"define('CEMB_VERSION', '{version}');" not in text:
-        raise SystemExit("CEMB_VERSION does not match plugin header.")
+    if f"define('WPCB_VERSION', '{version}');" not in text:
+        raise SystemExit("WPCB_VERSION does not match plugin header.")
     readme = README.read_text(encoding="utf-8")
     if f"Stable tag: {version}\n" not in readme:
         raise SystemExit("readme.txt Stable tag does not match plugin version.")

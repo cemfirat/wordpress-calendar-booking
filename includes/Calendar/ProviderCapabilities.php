@@ -1,5 +1,5 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
 final class ProviderCapabilities {
     public const BUSY_READ = 'busy_read';

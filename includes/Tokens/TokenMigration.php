@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Tokens;
+namespace Wpcb\Tokens;
 
-use Cemb\Support\Time;
+use Wpcb\Support\Time;
 
 /**
  * Migrates one-time token storage to indexed selector/verifier records.
@@ -11,7 +11,7 @@ use Cemb\Support\Time;
  * migration removes, so pending legacy links are intentionally revoked.
  */
 final class TokenMigration {
-    private const OPTION = 'cemb_token_storage_version';
+    private const OPTION = 'wpcb_token_storage_version';
     private const VERSION = 2;
 
     public static function maybeRun(): void {
@@ -20,7 +20,7 @@ final class TokenMigration {
         }
 
         global $wpdb;
-        $table = $wpdb->prefix . 'cemb_tokens';
+        $table = $wpdb->prefix . 'wpcb_tokens';
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
         if ($exists !== $table) {
             return;
@@ -47,7 +47,7 @@ final class TokenMigration {
         );
 
         update_option(self::OPTION, self::VERSION, false);
-        update_option('cemb_legacy_tokens_revoked', max(0, (int)$revoked), false);
+        update_option('wpcb_legacy_tokens_revoked', max(0, (int)$revoked), false);
     }
 
     public static function currentVersion(): int {

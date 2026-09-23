@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Booking;
+namespace Wpcb\Booking;
 
-use Cemb\Support\Time;
+use Wpcb\Support\Time;
 
 class BookingRepository {
     private string $table;
@@ -10,9 +10,9 @@ class BookingRepository {
 
     public function __construct() {
         global $wpdb;
-        $this->table = $wpdb->prefix . 'cemb_bookings';
-        $this->metaTable = $wpdb->prefix . 'cemb_booking_meta';
-        $this->logTable = $wpdb->prefix . 'cemb_booking_status_log';
+        $this->table = $wpdb->prefix . 'wpcb_bookings';
+        $this->metaTable = $wpdb->prefix . 'wpcb_booking_meta';
+        $this->logTable = $wpdb->prefix . 'wpcb_booking_status_log';
     }
 
     public function create(array $data, array $meta = []): int {

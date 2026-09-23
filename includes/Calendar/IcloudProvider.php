@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
-use Cemb\Admin\Settings;
+use Wpcb\Admin\Settings;
 
 class IcloudProvider {
     public function events(string $from, string $to): array {
@@ -13,13 +13,13 @@ class IcloudProvider {
 
         $events = [];
         foreach ($urls as $url) {
-            $cacheKey = 'cemb_ical_' . md5($url);
+            $cacheKey = 'wpcb_ical_' . md5($url);
             $body = get_transient($cacheKey);
             if ($body === false) {
                 $response = wp_remote_get($url, [
                     'timeout' => 20,
                     'redirection' => 5,
-                    'user-agent' => 'CEMB/' . CEMB_VERSION,
+                    'user-agent' => 'WPCB/' . WPCB_VERSION,
                 ]);
                 if (is_wp_error($response)) {
                     continue;
@@ -50,7 +50,7 @@ class IcloudProvider {
 
     public function clearCache(): void {
         foreach (Settings::publicCalendarUrls() as $url) {
-            delete_transient('cemb_ical_' . md5($url));
+            delete_transient('wpcb_ical_' . md5($url));
         }
     }
 }

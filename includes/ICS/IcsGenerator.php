@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\ICS;
+namespace Wpcb\ICS;
 
-use Cemb\Support\Time;
+use Wpcb\Support\Time;
 
 class IcsGenerator {
     public function generate(array $booking, array $meta, string $title, string $location = '', string $uid = ''): string {
@@ -10,7 +10,7 @@ class IcsGenerator {
         $dtstart = gmdate('Ymd\THis\Z', strtotime((string)$booking['slot_start']));
         $dtend = gmdate('Ymd\THis\Z', strtotime((string)$booking['slot_end']));
         $description = (string)($meta['message'] ?? ($booking['notes'] ?? ''));
-        return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//CEMB//Calendar Booking//DE\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nBEGIN:VEVENT\r\nUID:" . $this->escape($uid) . "\r\nDTSTAMP:{$dtstamp}\r\nDTSTART:{$dtstart}\r\nDTEND:{$dtend}\r\nSUMMARY:" . $this->escape($title) . "\r\nDESCRIPTION:" . $this->escape($description) . "\r\nLOCATION:" . $this->escape($location) . "\r\nSTATUS:CONFIRMED\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        return "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nPRODID:-//WPCB//Calendar Booking//DE\r\nCALSCALE:GREGORIAN\r\nMETHOD:PUBLISH\r\nBEGIN:VEVENT\r\nUID:" . $this->escape($uid) . "\r\nDTSTAMP:{$dtstamp}\r\nDTSTART:{$dtstart}\r\nDTEND:{$dtend}\r\nSUMMARY:" . $this->escape($title) . "\r\nDESCRIPTION:" . $this->escape($description) . "\r\nLOCATION:" . $this->escape($location) . "\r\nSTATUS:CONFIRMED\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
     }
 
     private function escape(string $value): string {

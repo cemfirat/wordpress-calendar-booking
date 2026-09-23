@@ -4,8 +4,8 @@
 
 WordPress Calendar Booking uses WP-Cron for two recurring tasks:
 
-- `cemb_sync_queue` every five minutes for calendar write-back jobs
-- `cemb_hourly_reminders` hourly for reservation expiry, reminders and token cleanup
+- `wpcb_sync_queue` every five minutes for calendar write-back jobs
+- `wpcb_hourly_reminders` hourly for reservation expiry, reminders and token cleanup
 
 For production sites, do not rely only on page traffic to trigger WP-Cron. Configure a real system cron and let it run WordPress due events.
 

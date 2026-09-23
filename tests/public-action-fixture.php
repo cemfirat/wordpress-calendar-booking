@@ -6,31 +6,31 @@ if (!defined('ABSPATH')) {
     exit(1);
 }
 
-use Cemb\Admin\Settings;
-use Cemb\Availability\SlotService;
-use Cemb\Booking\BookingRepository;
-use Cemb\Booking\BookingStateMachine;
-use Cemb\Booking\BookingTransitionService;
-use Cemb\Booking\BookingTypeRepository;
-use Cemb\Booking\ReservationService;
-use Cemb\Support\Time;
-use Cemb\Tokens\SlotTokenService;
-use Cemb\Tokens\TokenService;
+use Wpcb\Admin\Settings;
+use Wpcb\Availability\SlotService;
+use Wpcb\Booking\BookingRepository;
+use Wpcb\Booking\BookingStateMachine;
+use Wpcb\Booking\BookingTransitionService;
+use Wpcb\Booking\BookingTypeRepository;
+use Wpcb\Booking\ReservationService;
+use Wpcb\Support\Time;
+use Wpcb\Tokens\SlotTokenService;
+use Wpcb\Tokens\TokenService;
 
 global $wpdb;
-$action = (string)getenv('CEMB_PUBLIC_FIXTURE_ACTION');
+$action = (string)getenv('WPCB_PUBLIC_FIXTURE_ACTION');
 
-function cemb_fixture_settings(): void {
+function wpcb_fixture_settings(): void {
     $settings = Settings::get();
     $settings['mode'] = 'automatic';
     $settings['notifications_enabled'] = 0;
     $settings['icloud_sync_enabled'] = 0;
     $settings['cancel_min_hours'] = 0;
     $settings['change_min_hours'] = 0;
-    update_option('cemb_settings', $settings);
+    update_option('wpcb_settings', $settings);
 }
 
-function cemb_fixture_booking(bool $confirm): int {
+function wpcb_fixture_booking(bool $confirm): int {
     $types = (new BookingTypeRepository())->all(true);
     if (!$types) {
         throw new RuntimeException('No booking type available.');
@@ -66,7 +66,7 @@ function cemb_fixture_booking(bool $confirm): int {
     if ($confirm) {
         // The fixture only needs lifecycle state; HTTP flow side effects are
         // tested separately and should not send real CI email.
-        remove_all_actions('cemb_booking_transitioned');
+        remove_all_actions('wpcb_booking_transitioned');
         $result = (new BookingTransitionService())->apply(
             $bookingId,
             BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC,
@@ -81,76 +81,76 @@ function cemb_fixture_booking(bool $confirm): int {
     return $bookingId;
 }
 
-function cemb_fixture_payload(int $bookingId, string $action, string $token): array {
+function wpcb_fixture_payload(int $bookingId, string $action, string $token): array {
     return [
         'booking_id' => $bookingId,
         'token' => $token,
         'url' => add_query_arg(
-            ['cemb_action' => $action, 'cemb_token' => rawurlencode($token)],
+            ['wpcb_action' => $action, 'wpcb_token' => rawurlencode($token)],
             home_url('/')
         ),
     ];
 }
 
-cemb_fixture_settings();
+wpcb_fixture_settings();
 $tokens = new TokenService();
 
 if ($action === 'create_confirm') {
-    $bookingId = cemb_fixture_booking(false);
+    $bookingId = wpcb_fixture_booking(false);
     $token = $tokens->create($bookingId, 'doi', 60);
-    echo wp_json_encode(cemb_fixture_payload($bookingId, 'confirm', $token));
+    echo wp_json_encode(wpcb_fixture_payload($bookingId, 'confirm', $token));
     return;
 }
 
 if ($action === 'create_cancel') {
-    $bookingId = cemb_fixture_booking(true);
+    $bookingId = wpcb_fixture_booking(true);
     $token = $tokens->create($bookingId, 'cancel', 60);
-    echo wp_json_encode(cemb_fixture_payload($bookingId, 'cancel', $token));
+    echo wp_json_encode(wpcb_fixture_payload($bookingId, 'cancel', $token));
     return;
 }
 
 if ($action === 'create_update') {
-    $bookingId = cemb_fixture_booking(true);
+    $bookingId = wpcb_fixture_booking(true);
     $token = $tokens->create($bookingId, 'update', 60);
-    echo wp_json_encode(cemb_fixture_payload($bookingId, 'update', $token));
+    echo wp_json_encode(wpcb_fixture_payload($bookingId, 'update', $token));
     return;
 }
 
 if ($action === 'create_expired') {
-    $bookingId = cemb_fixture_booking(false);
+    $bookingId = wpcb_fixture_booking(false);
     $token = $tokens->create($bookingId, 'doi', 60);
     $tokenId = (int)$wpdb->get_var(
         $wpdb->prepare(
-            "SELECT id FROM {$wpdb->prefix}cemb_tokens WHERE booking_id = %d AND token_type = %s ORDER BY id DESC LIMIT 1",
+            "SELECT id FROM {$wpdb->prefix}wpcb_tokens WHERE booking_id = %d AND token_type = %s ORDER BY id DESC LIMIT 1",
             $bookingId,
             'doi'
         )
     );
     $wpdb->update(
-        $wpdb->prefix . 'cemb_tokens',
+        $wpdb->prefix . 'wpcb_tokens',
         ['expires_at' => Time::formatUtc(Time::nowUtc()->modify('-5 minutes'))],
         ['id' => $tokenId]
     );
-    echo wp_json_encode(cemb_fixture_payload($bookingId, 'confirm', $token));
+    echo wp_json_encode(wpcb_fixture_payload($bookingId, 'confirm', $token));
     return;
 }
 
 if ($action === 'cleanup') {
-    $bookingId = (int)getenv('CEMB_PUBLIC_BOOKING_ID');
+    $bookingId = (int)getenv('WPCB_PUBLIC_BOOKING_ID');
     if ($bookingId > 0) {
-        $wpdb->delete($wpdb->prefix . 'cemb_tokens', ['booking_id' => $bookingId]);
-        $wpdb->delete($wpdb->prefix . 'cemb_booking_meta', ['booking_id' => $bookingId]);
-        $wpdb->delete($wpdb->prefix . 'cemb_booking_status_log', ['booking_id' => $bookingId]);
-        $wpdb->delete($wpdb->prefix . 'cemb_sync_jobs', ['booking_id' => $bookingId]);
-        $wpdb->delete($wpdb->prefix . 'cemb_sync_log', ['booking_id' => $bookingId]);
-        $wpdb->delete($wpdb->prefix . 'cemb_bookings', ['id' => $bookingId]);
+        $wpdb->delete($wpdb->prefix . 'wpcb_tokens', ['booking_id' => $bookingId]);
+        $wpdb->delete($wpdb->prefix . 'wpcb_booking_meta', ['booking_id' => $bookingId]);
+        $wpdb->delete($wpdb->prefix . 'wpcb_booking_status_log', ['booking_id' => $bookingId]);
+        $wpdb->delete($wpdb->prefix . 'wpcb_sync_jobs', ['booking_id' => $bookingId]);
+        $wpdb->delete($wpdb->prefix . 'wpcb_sync_log', ['booking_id' => $bookingId]);
+        $wpdb->delete($wpdb->prefix . 'wpcb_bookings', ['id' => $bookingId]);
     }
     echo wp_json_encode(['cleaned' => $bookingId]);
     return;
 }
 
 if ($action === 'state') {
-    $bookingId = (int)getenv('CEMB_PUBLIC_BOOKING_ID');
+    $bookingId = (int)getenv('WPCB_PUBLIC_BOOKING_ID');
     $booking = (new BookingRepository())->find($bookingId);
     if (!$booking) {
         echo wp_json_encode(['missing' => true]);

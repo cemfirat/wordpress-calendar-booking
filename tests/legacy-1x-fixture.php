@@ -6,7 +6,7 @@ global $wpdb;
 require_once ABSPATH . 'wp-admin/includes/upgrade.php';
 
 $charset = $wpdb->get_charset_collate();
-$p = $wpdb->prefix . 'cemb_';
+$p = $wpdb->prefix . 'wpcb_';
 
 dbDelta("CREATE TABLE {$p}bookings (
     id bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -138,7 +138,7 @@ dbDelta("CREATE TABLE {$p}sync_log (
     PRIMARY KEY (id)
 ) {$charset};");
 
-update_option('cemb_settings', [
+update_option('wpcb_settings', [
     'timezone' => 'Europe/Vienna',
     'mode' => 'automatic',
     'sender_name' => 'Legacy Site',
@@ -147,11 +147,11 @@ update_option('cemb_settings', [
     'icloud_sync_password_enc' => base64_encode('legacy-unauthenticated-secret'),
     'calendar_urls' => 'https://example.test/legacy.ics',
 ]);
-delete_option('cemb_schema_version');
-delete_option('cemb_token_storage_version');
-delete_option('cemb_secret_storage_version');
-delete_option('cemb_time_storage_version');
-delete_option('cemb_booking_status_version');
+delete_option('wpcb_schema_version');
+delete_option('wpcb_token_storage_version');
+delete_option('wpcb_secret_storage_version');
+delete_option('wpcb_time_storage_version');
+delete_option('wpcb_booking_status_version');
 
 $wpdb->insert($p . 'booking_types', [
     'id' => 77,

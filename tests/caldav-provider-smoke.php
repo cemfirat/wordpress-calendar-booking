@@ -3,7 +3,7 @@ if (!defined('ABSPATH')) {
     exit(1);
 }
 
-function cemb_caldav_assert($condition, string $message): void {
+function wpcb_caldav_assert($condition, string $message): void {
     if (!$condition) {
         throw new RuntimeException($message);
     }
@@ -91,7 +91,7 @@ $filter = static function ($pre, $args, $url) use (&$requests) {
 };
 add_filter('pre_http_request', $filter, 10, 3);
 
-$client = new Cemb\Calendar\CalDavClient(
+$client = new Wpcb\Calendar\CalDavClient(
     'https://caldav.example.test/',
     'calendar-user',
     'calendar-secret'
@@ -102,16 +102,16 @@ if (!is_array($calendars) || count($calendars) !== 2) {
     WP_CLI::log('DEBUG discovery result: ' . (is_wp_error($calendars) ? $calendars->get_error_code() . ' / ' . $calendars->get_error_message() : wp_json_encode($calendars)));
     WP_CLI::log('DEBUG requested URLs: ' . wp_json_encode(array_map(static fn($request) => [$request['method'], $request['url']], $requests)));
 }
-cemb_caldav_assert(is_array($calendars) && count($calendars) === 2, 'CalDAV discovery returns multiple calendar collections.');
-cemb_caldav_assert($calendars[0]['name'] === 'Work' && $calendars[1]['name'] === 'Private', 'CalDAV discovery keeps calendar display names.');
-cemb_caldav_assert($calendars[0]['url'] === 'https://caldav.example.test/calendars/user/work/', 'Relative CalDAV hrefs are resolved against the endpoint origin.');
+wpcb_caldav_assert(is_array($calendars) && count($calendars) === 2, 'CalDAV discovery returns multiple calendar collections.');
+wpcb_caldav_assert($calendars[0]['name'] === 'Work' && $calendars[1]['name'] === 'Private', 'CalDAV discovery keeps calendar display names.');
+wpcb_caldav_assert($calendars[0]['url'] === 'https://caldav.example.test/calendars/user/work/', 'Relative CalDAV hrefs are resolved against the endpoint origin.');
 
 $objects = $client->calendarQuery(
     'https://caldav.example.test/calendars/user/work/',
     '2026-11-01 00:00:00',
     '2026-11-05 00:00:00'
 );
-cemb_caldav_assert(is_array($objects) && count($objects) === 2, 'Bounded CalDAV calendar-query returns matching objects.');
+wpcb_caldav_assert(is_array($objects) && count($objects) === 2, 'Bounded CalDAV calendar-query returns matching objects.');
 
 $reportBody = '';
 foreach ($requests as $request) {
@@ -120,13 +120,13 @@ foreach ($requests as $request) {
         break;
     }
 }
-cemb_caldav_assert(
+wpcb_caldav_assert(
     strpos($reportBody, 'start="20261101T000000Z"') !== false
     && strpos($reportBody, 'end="20261105T000000Z"') !== false,
     'CalDAV calendar-query includes the exact bounded UTC time range.'
 );
 
-$repo = new Cemb\Calendar\CalendarConnectionRepository();
+$repo = new Wpcb\Calendar\CalendarConnectionRepository();
 $connectionId = $repo->create(
     [
         'provider' => 'caldav',
@@ -145,17 +145,17 @@ $connectionId = $repo->create(
         'password' => 'calendar-secret',
     ]
 );
-cemb_caldav_assert(!is_wp_error($connectionId) && $connectionId > 0, 'Generic CalDAV connection is stored with encrypted credentials.');
+wpcb_caldav_assert(!is_wp_error($connectionId) && $connectionId > 0, 'Generic CalDAV connection is stored with encrypted credentials.');
 
 $connection = $repo->find((int)$connectionId);
-$provider = new Cemb\Calendar\CalDavProvider($repo);
+$provider = new Wpcb\Calendar\CalDavProvider($repo);
 $busy = $provider->busyBetween('2026-11-01 00:00:00', '2026-11-05 00:00:00', $connection);
-cemb_caldav_assert(is_array($busy) && count($busy) === 2, 'CalDAV provider converts timed and all-day VEVENTs into busy intervals.');
-cemb_caldav_assert(
+wpcb_caldav_assert(is_array($busy) && count($busy) === 2, 'CalDAV provider converts timed and all-day VEVENTs into busy intervals.');
+wpcb_caldav_assert(
     $busy[0]['start'] === '2026-11-02 09:00:00',
     'Timed CalDAV event remains canonical UTC.'
 );
-cemb_caldav_assert(
+wpcb_caldav_assert(
     $busy[1]['end'] > $busy[1]['start'],
     'All-day CalDAV event produces a non-empty busy interval.'
 );
@@ -168,10 +168,10 @@ $booking = [
     'notes' => 'CI',
 ];
 $created = $provider->createEvent($booking, ['subject' => 'CalDAV CI'], $connection);
-cemb_caldav_assert(is_array($created) && !empty($created['event_id']), 'CalDAV create returns an opaque event handle.');
+wpcb_caldav_assert(is_array($created) && !empty($created['event_id']), 'CalDAV create returns an opaque event handle.');
 
 $updated = $provider->updateEvent($booking, ['subject' => 'CalDAV CI updated'], $connection, (string)$created['event_id']);
-cemb_caldav_assert(is_array($updated) && !empty($updated['ok']) && $updated['event_id'] !== $created['event_id'], 'CalDAV update advances the stored ETag handle.');
+wpcb_caldav_assert(is_array($updated) && !empty($updated['ok']) && $updated['event_id'] !== $created['event_id'], 'CalDAV update advances the stored ETag handle.');
 
 $conflict = $client->putEvent(
     'https://caldav.example.test/calendars/user/work/conflict.ics',
@@ -179,16 +179,16 @@ $conflict = $client->putEvent(
     '"stale"',
     false
 );
-cemb_caldav_assert(
-    is_wp_error($conflict) && $conflict->get_error_code() === 'cemb_caldav_conflict',
+wpcb_caldav_assert(
+    is_wp_error($conflict) && $conflict->get_error_code() === 'wpcb_caldav_conflict',
     'Stale CalDAV ETag produces an explicit sync conflict instead of blind overwrite.'
 );
 
 $deleted = $provider->cancelEvent($connection, (string)$updated['event_id']);
-cemb_caldav_assert(is_array($deleted) && !empty($deleted['ok']), 'CalDAV delete succeeds with the current event handle.');
+wpcb_caldav_assert(is_array($deleted) && !empty($deleted['ok']), 'CalDAV delete succeeds with the current event handle.');
 
 $credentials = $repo->credentials((int)$connectionId);
-cemb_caldav_assert(
+wpcb_caldav_assert(
     is_array($credentials) && ($credentials['password'] ?? '') === 'calendar-secret',
     'CalDAV credentials round-trip only through the encrypted secret accessor.'
 );

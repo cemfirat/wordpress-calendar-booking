@@ -1,5 +1,5 @@
 <?php
-namespace Cemb\Security;
+namespace Wpcb\Security;
 
 /**
  * Legacy credential policy for the 2.0 security boundary.
@@ -9,7 +9,7 @@ namespace Cemb\Security;
  * again rather than silently trusted and re-encrypted.
  */
 final class SecretMigration {
-    private const OPTION = 'cemb_secret_storage_version';
+    private const OPTION = 'wpcb_secret_storage_version';
     private const VERSION = 2;
 
     public static function maybeRun(): void {
@@ -17,14 +17,14 @@ final class SecretMigration {
             return;
         }
 
-        $settings = (array)get_option('cemb_settings', []);
+        $settings = (array)get_option('wpcb_settings', []);
         $stored = (string)($settings['icloud_sync_password_enc'] ?? '');
 
         if ($stored !== '' && strpos($stored, 'v2:') !== 0) {
             $settings['icloud_sync_password_enc'] = '';
             $settings['icloud_sync_enabled'] = 0;
-            update_option('cemb_settings', $settings);
-            update_option('cemb_secret_reentry_required', 1, false);
+            update_option('wpcb_settings', $settings);
+            update_option('wpcb_secret_reentry_required', 1, false);
         }
 
         update_option(self::OPTION, self::VERSION, false);

@@ -1,11 +1,11 @@
 <?php
-namespace Cemb\Booking;
+namespace Wpcb\Booking;
 
 class BookingTypeRepository {
     private string $table;
     public function __construct() {
         global $wpdb;
-        $this->table = $wpdb->prefix . 'cemb_booking_types';
+        $this->table = $wpdb->prefix . 'wpcb_booking_types';
     }
     public function all(bool $publicOnly = false): array {
         global $wpdb;

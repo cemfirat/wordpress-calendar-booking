@@ -1,8 +1,8 @@
 <?php
-namespace Cemb\Booking;
+namespace Wpcb\Booking;
 
-use Cemb\Availability\SlotService;
-use Cemb\Support\Time;
+use Wpcb\Availability\SlotService;
+use Wpcb\Support\Time;
 
 /**
  * Applies legal lifecycle events and performs the status write atomically.
@@ -30,13 +30,13 @@ final class BookingTransitionService {
     public function apply(int $bookingId, string $event, string $actor = 'system', string $note = '') {
         $booking = $this->bookings->find($bookingId);
         if (!$booking) {
-            return new \WP_Error('cemb_booking_missing', 'Booking not found.');
+            return new \WP_Error('wpcb_booking_missing', 'Booking not found.');
         }
 
         $current = (string)$booking->status;
         $target = $this->machine->targetForEvent($event);
         if ($target === null || !$this->machine->canApply($current, $event)) {
-            return new \WP_Error('cemb_transition_illegal', 'This booking transition is not allowed.');
+            return new \WP_Error('wpcb_transition_illegal', 'This booking transition is not allowed.');
         }
 
         if ($current === $target) {
@@ -51,7 +51,7 @@ final class BookingTransitionService {
                 $bookingId
             )
         ) {
-            return new \WP_Error('cemb_slot_unavailable', 'The booked slot is no longer available.');
+            return new \WP_Error('wpcb_slot_unavailable', 'The booked slot is no longer available.');
         }
 
         $now = Time::formatUtc(Time::nowUtc());
@@ -90,12 +90,12 @@ final class BookingTransitionService {
             if ($fresh && (string)$fresh->status === $target) {
                 return $this->result($bookingId, $event, $current, $target, $actor, false);
             }
-            return new \WP_Error('cemb_transition_race', 'The booking changed while the transition was being applied.');
+            return new \WP_Error('wpcb_transition_race', 'The booking changed while the transition was being applied.');
         }
 
         $fresh = $this->bookings->find($bookingId);
         $result = $this->result($bookingId, $event, $current, $target, $actor, true);
-        do_action('cemb_booking_transitioned', $result, $fresh);
+        do_action('wpcb_booking_transitioned', $result, $fresh);
         return $result;
     }
 
@@ -113,18 +113,18 @@ final class BookingTransitionService {
     ) {
         $booking = $this->bookings->find($bookingId);
         if (!$booking) {
-            return new \WP_Error('cemb_booking_missing', 'Booking not found.');
+            return new \WP_Error('wpcb_booking_missing', 'Booking not found.');
         }
 
         $status = (string)$booking->status;
         if (!in_array($status, [BookingStatus::PENDING_APPROVAL, BookingStatus::CONFIRMED], true)) {
-            return new \WP_Error('cemb_event_illegal', 'This booking cannot be rescheduled in its current state.');
+            return new \WP_Error('wpcb_event_illegal', 'This booking cannot be rescheduled in its current state.');
         }
 
         $start = Time::parseUtc($newStart);
         $end = Time::parseUtc($newEnd);
         if (!$start || !$end || $end <= $start) {
-            return new \WP_Error('cemb_slot_invalid', 'The replacement slot is invalid.');
+            return new \WP_Error('wpcb_slot_invalid', 'The replacement slot is invalid.');
         }
 
         $updated = $this->bookings->updateWhenStatus(
@@ -137,13 +137,13 @@ final class BookingTransitionService {
             ]
         );
         if (!$updated) {
-            return new \WP_Error('cemb_event_race', 'The booking changed while it was being rescheduled.');
+            return new \WP_Error('wpcb_event_race', 'The booking changed while it was being rescheduled.');
         }
 
         $this->bookings->logEvent($bookingId, $status, self::RESCHEDULED, $actor, $note);
         $fresh = $this->bookings->find($bookingId);
         $result = $this->result($bookingId, self::RESCHEDULED, $status, $status, $actor, true);
-        do_action('cemb_booking_event_recorded', $result, $fresh);
+        do_action('wpcb_booking_event_recorded', $result, $fresh);
         return $result;
     }
 

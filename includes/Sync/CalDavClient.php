@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Sync;
+namespace Wpcb\Sync;
 
-use Cemb\Admin\Settings;
+use Wpcb\Admin\Settings;
 
 class CalDavClient {
     private string $appleId;
@@ -157,7 +157,7 @@ class CalDavClient {
             'redirection' => 5,
             'headers' => $headers,
             'body' => $body,
-            'user-agent' => 'CEMB/' . CEMB_VERSION,
+            'user-agent' => 'WPCB/' . WPCB_VERSION,
         ]);
     }
 }

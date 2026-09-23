@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
-use Cemb\Support\Time;
+use Wpcb\Support\Time;
 use Sabre\VObject\DateTimeParser;
 use Sabre\VObject\Reader;
 

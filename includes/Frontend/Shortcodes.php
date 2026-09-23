@@ -1,5 +1,5 @@
 <?php
-namespace Cemb\Frontend;
+namespace Wpcb\Frontend;
 
 final class Shortcodes {
     private ComponentRenderer $renderer;
@@ -11,9 +11,9 @@ final class Shortcodes {
     }
 
     public function boot(): void {
-        add_shortcode('cemb_booking_form', [$this, 'bookingForm']);
-        add_shortcode('cemb_calendar', [$this, 'calendarList']);
-        add_shortcode('cemb_booking_calendar', [$this, 'bookingCalendar']);
+        add_shortcode('wpcb_booking_form', [$this, 'bookingForm']);
+        add_shortcode('wpcb_calendar', [$this, 'calendarList']);
+        add_shortcode('wpcb_booking_calendar', [$this, 'bookingCalendar']);
         add_action('wp_enqueue_scripts', [$this->assets, 'register']);
     }
 

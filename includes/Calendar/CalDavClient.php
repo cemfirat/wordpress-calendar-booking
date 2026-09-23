@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
-use Cemb\Support\Time;
+use Wpcb\Support\Time;
 
 final class CalDavClient {
     private string $endpoint;
@@ -24,7 +24,7 @@ final class CalDavClient {
      */
     public function discoverCalendars() {
         if (!$this->configured()) {
-            return new \WP_Error('cemb_caldav_credentials', 'CalDAV endpoint, username and password are required.');
+            return new \WP_Error('wpcb_caldav_credentials', 'CalDAV endpoint, username and password are required.');
         }
 
         $principal = $this->currentUserPrincipal();
@@ -47,7 +47,7 @@ final class CalDavClient {
         $from = Time::parseUtc($fromUtc);
         $to = Time::parseUtc($toUtc);
         if (!$from || !$to || $to <= $from) {
-            return new \WP_Error('cemb_caldav_range', 'Invalid CalDAV time range.');
+            return new \WP_Error('wpcb_caldav_range', 'Invalid CalDAV time range.');
         }
 
         $calendarUrl = $this->absoluteUrl($calendarUrl);
@@ -69,7 +69,7 @@ final class CalDavClient {
 
         $code = (int)wp_remote_retrieve_response_code($response);
         if ($code !== 207 && ($code < 200 || $code >= 300)) {
-            return new \WP_Error('cemb_caldav_query_http', 'CalDAV calendar query returned HTTP ' . $code . '.');
+            return new \WP_Error('wpcb_caldav_query_http', 'CalDAV calendar query returned HTTP ' . $code . '.');
         }
 
         return $this->parseCalendarDataResponses((string)wp_remote_retrieve_body($response));
@@ -96,10 +96,10 @@ final class CalDavClient {
 
         $code = (int)wp_remote_retrieve_response_code($response);
         if ($code === 409 || $code === 412) {
-            return new \WP_Error('cemb_caldav_conflict', 'The remote calendar event changed. Refresh before retrying the write.');
+            return new \WP_Error('wpcb_caldav_conflict', 'The remote calendar event changed. Refresh before retrying the write.');
         }
         if ($code < 200 || $code >= 300) {
-            return new \WP_Error('cemb_caldav_write_http', 'CalDAV event write returned HTTP ' . $code . '.');
+            return new \WP_Error('wpcb_caldav_write_http', 'CalDAV event write returned HTTP ' . $code . '.');
         }
 
         return [
@@ -127,10 +127,10 @@ final class CalDavClient {
             return ['ok' => true, 'code' => $code];
         }
         if ($code === 409 || $code === 412) {
-            return new \WP_Error('cemb_caldav_conflict', 'The remote calendar event changed. Refresh before retrying the delete.');
+            return new \WP_Error('wpcb_caldav_conflict', 'The remote calendar event changed. Refresh before retrying the delete.');
         }
         if ($code < 200 || $code >= 300) {
-            return new \WP_Error('cemb_caldav_delete_http', 'CalDAV event delete returned HTTP ' . $code . '.');
+            return new \WP_Error('wpcb_caldav_delete_http', 'CalDAV event delete returned HTTP ' . $code . '.');
         }
         return ['ok' => true, 'code' => $code];
     }
@@ -146,7 +146,7 @@ final class CalDavClient {
             return $response;
         }
         $href = $this->extractHref((string)wp_remote_retrieve_body($response), 'current-user-principal');
-        return $href ?: new \WP_Error('cemb_caldav_principal', 'CalDAV current-user-principal could not be discovered.');
+        return $href ?: new \WP_Error('wpcb_caldav_principal', 'CalDAV current-user-principal could not be discovered.');
     }
 
     private function calendarHomeSet(string $principalUrl) {
@@ -161,7 +161,7 @@ final class CalDavClient {
             return $response;
         }
         $href = $this->extractHref((string)wp_remote_retrieve_body($response), 'calendar-home-set');
-        return $href ?: new \WP_Error('cemb_caldav_home', 'CalDAV calendar-home-set could not be discovered.');
+        return $href ?: new \WP_Error('wpcb_caldav_home', 'CalDAV calendar-home-set could not be discovered.');
     }
 
     private function listCalendars(string $homeUrl) {
@@ -178,7 +178,7 @@ final class CalDavClient {
 
         $xpath = $this->domXPath((string)wp_remote_retrieve_body($response));
         if (!$xpath) {
-            return new \WP_Error('cemb_caldav_xml', 'CalDAV discovery returned unreadable XML.');
+            return new \WP_Error('wpcb_caldav_xml', 'CalDAV discovery returned unreadable XML.');
         }
 
         $out = [];
@@ -268,7 +268,7 @@ final class CalDavClient {
             'redirection' => 3,
             'headers' => $headers,
             'body' => $body,
-            'user-agent' => 'CEMB/' . CEMB_VERSION,
+            'user-agent' => 'WPCB/' . WPCB_VERSION,
         ]);
     }
 

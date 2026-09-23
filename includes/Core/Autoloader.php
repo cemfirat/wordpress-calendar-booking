@@ -1,5 +1,5 @@
 <?php
-namespace Cemb\Core;
+namespace Wpcb\Core;
 
 class Autoloader {
     public static function register(): void {
@@ -7,11 +7,11 @@ class Autoloader {
     }
 
     public static function autoload(string $class): void {
-        if (strpos($class, 'Cemb\\') !== 0) {
+        if (strpos($class, 'Wpcb\\') !== 0) {
             return;
         }
-        $relative = str_replace('Cemb\\', '', $class);
-        $path = CEMB_DIR . 'includes/' . str_replace('\\', '/', $relative) . '.php';
+        $relative = str_replace('Wpcb\\', '', $class);
+        $path = WPCB_DIR . 'includes/' . str_replace('\\', '/', $relative) . '.php';
         if (file_exists($path)) {
             require_once $path;
         }

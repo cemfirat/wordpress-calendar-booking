@@ -1,6 +1,6 @@
 # Google Calendar provider
 
-WordPress Calendar Booking uses Google's OAuth 2.0 web-server flow. The public plugin does not ship a shared Google client secret; each site administrator supplies their own OAuth client credentials or defines them through `CEMB_GOOGLE_CLIENT_ID` and `CEMB_GOOGLE_CLIENT_SECRET`.
+WordPress Calendar Booking uses Google's OAuth 2.0 web-server flow. The public plugin does not ship a shared Google client secret; each site administrator supplies their own OAuth client credentials or defines them through `WPCB_GOOGLE_CLIENT_ID` and `WPCB_GOOGLE_CLIENT_SECRET`.
 
 ## Google Cloud setup
 

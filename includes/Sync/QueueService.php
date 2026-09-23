@@ -1,10 +1,10 @@
 <?php
-namespace Cemb\Sync;
+namespace Wpcb\Sync;
 
-use Cemb\Booking\BookingRepository;
-use Cemb\Admin\Settings;
-use Cemb\Calendar\CalendarConnectionRepository;
-use Cemb\Calendar\ProviderSyncService;
+use Wpcb\Booking\BookingRepository;
+use Wpcb\Admin\Settings;
+use Wpcb\Calendar\CalendarConnectionRepository;
+use Wpcb\Calendar\ProviderSyncService;
 
 class QueueService {
     private JobRepository $jobs;
@@ -23,9 +23,9 @@ class QueueService {
 
     public function boot(): void {
         add_filter('cron_schedules', [$this, 'schedules']);
-        add_action('cemb_sync_queue', [$this, 'processPending']);
-        if (!wp_next_scheduled('cemb_sync_queue')) {
-            wp_schedule_event(time() + 300, 'five_minutes', 'cemb_sync_queue');
+        add_action('wpcb_sync_queue', [$this, 'processPending']);
+        if (!wp_next_scheduled('wpcb_sync_queue')) {
+            wp_schedule_event(time() + 300, 'five_minutes', 'wpcb_sync_queue');
         }
     }
 
@@ -52,7 +52,7 @@ class QueueService {
     }
 
     public function processPending(int $limit = 10): void {
-        update_option('cemb_sync_queue_last_run', \Cemb\Support\Time::formatUtc(\Cemb\Support\Time::nowUtc()), false);
+        update_option('wpcb_sync_queue_last_run', \Wpcb\Support\Time::formatUtc(\Wpcb\Support\Time::nowUtc()), false);
         $worker = $this->workerId();
         $items = $this->jobs->claim($worker, $limit, 600);
         foreach ($items as $job) {

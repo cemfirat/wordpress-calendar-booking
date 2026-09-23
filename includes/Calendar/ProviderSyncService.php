@@ -1,7 +1,7 @@
 <?php
-namespace Cemb\Calendar;
+namespace Wpcb\Calendar;
 
-use Cemb\Booking\BookingRepository;
+use Wpcb\Booking\BookingRepository;
 
 final class ProviderSyncService {
     private CalendarConnectionRepository $connections;
