@@ -20,6 +20,7 @@ class Activator {
     }
 
     public static function deactivate(): void {
+        wp_clear_scheduled_hook('wpcb_webhook_queue');
         flush_rewrite_rules();
     }
 
