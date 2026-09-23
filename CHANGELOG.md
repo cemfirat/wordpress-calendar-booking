@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.8.0
+
+- Preserve durable booking, customer, payment, calendar and configuration data on uninstall by default.
+- Add explicit administrator opt-in for destructive uninstall of plugin-owned `wpcb_*` tables and options.
+- Always clear plugin cron events and disposable transients during uninstall.
+- Make multisite deletion opt-in per site and document uninstall versus privacy erasure/retention.
+- Gate stable releases on packaged uninstall-policy checks and dependency vulnerability audits.
+
 ## 3.7.0
 
 - Add bounded weekly customer booking series anchored to a canonical signed slot.
