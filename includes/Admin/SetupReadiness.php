@@ -35,26 +35,9 @@ final class SetupReadiness {
             ),
             $this->item(
                 'availability',
-                (bool)$wpdb->get_var(
-                    "SELECT ar.id
-                     FROM {$wpdb->prefix}wpcb_availability_rules ar
-                     WHERE ar.is_active = 1
-                       AND (
-                            ar.scope_type = 'global'
-                            OR (ar.scope_type = 'booking_type' AND EXISTS (
-                                SELECT 1 FROM {$wpdb->prefix}wpcb_booking_types t
-                                WHERE t.id = ar.scope_id AND t.is_active = 1 AND t.is_public = 1
-                            ))
-                            OR (ar.scope_type = 'resource' AND EXISTS (
-                                SELECT 1 FROM {$wpdb->prefix}wpcb_resources r
-                                WHERE r.id = ar.scope_id AND r.is_active = 1
-                            ))
-                       )
-                     ORDER BY ar.id ASC
-                     LIMIT 1"
-                ),
+                $this->hasEffectiveAvailability(),
                 __('Verfügbarkeit', 'wordpress-calendar-booking'),
-                __('Mindestens eine aktive globale, Terminart- oder Ressourcenregel ist erforderlich.', 'wordpress-calendar-booking'),
+                __('Mindestens eine tatsächlich buchbare Terminart-/Ressourcen-Kombination benötigt eine wirksame Verfügbarkeitsregel.', 'wordpress-calendar-booking'),
                 admin_url('admin.php?page=wpcb_availability')
             ),
             $this->item(
@@ -67,12 +50,9 @@ final class SetupReadiness {
             ),
             $this->item(
                 'scheduler',
-                !empty($health['next_queue_run'])
-                    && !empty($health['next_reminder_run'])
-                    && (int)($health['counts']['failed'] ?? 0) === 0
-                    && (int)($health['stale_leases'] ?? 0) === 0,
+                !empty($health['healthy']),
                 __('Scheduler / Queue', 'wordpress-calendar-booking'),
-                __('WP-Cron muss eingeplant sein und es dürfen keine fehlgeschlagenen oder verwaisten Queue-Jobs vorliegen.', 'wordpress-calendar-booking'),
+                __('WP-Cron und Queue müssen eingeplant sein, regelmäßig laufen und dürfen keine fehlgeschlagenen oder verwaisten Jobs aufweisen.', 'wordpress-calendar-booking'),
                 admin_url('admin.php?page=wpcb_system_health')
             ),
             $this->item(
@@ -107,21 +87,81 @@ final class SetupReadiness {
         return in_array($timezone, \DateTimeZone::listIdentifiers(), true);
     }
 
+    /**
+     * Match the same precedence used by AvailabilityRepository:
+     * resource rules override booking-type rules, which override global rules.
+     * A rule only counts when it is effective for an active/public type that
+     * is assigned to an active resource.
+     */
+    private function hasEffectiveAvailability(): bool {
+        global $wpdb;
+
+        $rules = $wpdb->prefix . 'wpcb_availability_rules';
+        $types = $wpdb->prefix . 'wpcb_booking_types';
+        $resources = $wpdb->prefix . 'wpcb_resources';
+        $mapping = $wpdb->prefix . 'wpcb_booking_type_resources';
+
+        $sql = "SELECT m.booking_type_id
+                FROM {$mapping} m
+                INNER JOIN {$types} t ON t.id = m.booking_type_id
+                INNER JOIN {$resources} r ON r.id = m.resource_id
+                WHERE t.is_active = 1
+                  AND t.is_public = 1
+                  AND r.is_active = 1
+                  AND EXISTS (
+                      SELECT 1
+                      FROM {$rules} ar
+                      WHERE ar.is_active = 1
+                        AND (
+                            (ar.scope_type = 'resource' AND ar.scope_id = r.id)
+                            OR (
+                                ar.scope_type = 'booking_type'
+                                AND ar.scope_id = t.id
+                                AND NOT EXISTS (
+                                    SELECT 1 FROM {$rules} rr
+                                    WHERE rr.is_active = 1
+                                      AND rr.scope_type = 'resource'
+                                      AND rr.scope_id = r.id
+                                )
+                            )
+                            OR (
+                                ar.scope_type = 'global'
+                                AND NOT EXISTS (
+                                    SELECT 1 FROM {$rules} rr
+                                    WHERE rr.is_active = 1
+                                      AND rr.scope_type = 'resource'
+                                      AND rr.scope_id = r.id
+                                )
+                                AND NOT EXISTS (
+                                    SELECT 1 FROM {$rules} tr
+                                    WHERE tr.is_active = 1
+                                      AND tr.scope_type = 'booking_type'
+                                      AND tr.scope_id = t.id
+                                )
+                            )
+                        )
+                  )
+                ORDER BY m.booking_type_id ASC, m.resource_id ASC
+                LIMIT 1";
+
+        return (bool)$wpdb->get_var($sql);
+    }
+
     private function hasPublicBookingSurface(): bool {
         global $wpdb;
 
-        $patterns = [
-            '%[wpcb_booking_form%',
-            '%[wpcb_booking_calendar%',
-            '%<!-- wp:wpcb/booking-form%',
-            '%<!-- wp:wpcb/availability-calendar%',
+        $needles = [
+            '[wpcb_booking_form',
+            '[wpcb_booking_calendar',
+            '<!-- wp:wpcb/booking-form',
+            '<!-- wp:wpcb/availability-calendar',
         ];
 
         $conditions = [];
         $params = [];
-        foreach ($patterns as $pattern) {
+        foreach ($needles as $needle) {
             $conditions[] = 'post_content LIKE %s';
-            $params[] = $pattern;
+            $params[] = '%' . $wpdb->esc_like($needle) . '%';
         }
 
         $sql = "SELECT ID
