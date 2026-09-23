@@ -54,7 +54,7 @@ class Actions {
         check_ajax_referer('wpcb_frontend', 'nonce');
         $typeId = absint($_REQUEST['type_id'] ?? 0);
         if (!$typeId) {
-            wp_send_json_error(['message' => 'Terminart fehlt.'], 400);
+            wp_send_json_error(['message' => __('Terminart fehlt.', 'wordpress-calendar-booking')], 400);
         }
         $partySize = max(1, min(10000, absint($_REQUEST['party_size'] ?? 1)));
         $slots = (new SlotService())->getSlots($typeId, 21, null, $partySize);
@@ -79,14 +79,14 @@ class Actions {
 
         $submittedTypeId = isset($_POST['booking_type_id']) ? absint($_POST['booking_type_id']) : 0;
         $slotToken = isset($_POST['slot_token']) ? sanitize_text_field(wp_unslash($_POST['slot_token'])) : '';
-        if (!$submittedTypeId || !$slotToken) wp_die('Ungültiger Termin.');
+        if (!$submittedTypeId || !$slotToken) wp_die(esc_html__('Ungültiger Termin.', 'wordpress-calendar-booking'));
 
         $selection = (new SlotSelectionService())->resolve($slotToken, $submittedTypeId);
-        if (!$selection) wp_die('Der gewählte Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
+        if (!$selection) wp_die(esc_html__('Der gewählte Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.', 'wordpress-calendar-booking'));
 
         $typeId = (int)$selection['type_id'];
         $type = (new BookingTypeRepository())->find($typeId);
-        if (!$type) wp_die('Terminart nicht gefunden.');
+        if (!$type) wp_die(esc_html__('Terminart nicht gefunden.', 'wordpress-calendar-booking'));
 
         $fields = (new FieldRepository())->active();
         $meta = [];
@@ -97,13 +97,13 @@ class Actions {
             $raw = $_POST[$key] ?? '';
             $value = is_array($raw) ? array_map('sanitize_text_field', wp_unslash($raw)) : sanitize_text_field(wp_unslash($raw));
             if ($field->field_type === 'email') $value = sanitize_email(wp_unslash($raw));
-            if ($field->is_required && (empty($value) || $value === '0')) wp_die('Bitte alle Pflichtfelder ausfüllen.');
-            if ($field->field_type === 'checkbox' && $field->is_required && empty($value)) wp_die('Bitte alle Pflichtfelder bestätigen.');
+            if ($field->is_required && (empty($value) || $value === '0')) wp_die(esc_html__('Bitte alle Pflichtfelder ausfüllen.', 'wordpress-calendar-booking'));
+            if ($field->field_type === 'checkbox' && $field->is_required && empty($value)) wp_die(esc_html__('Bitte alle Pflichtfelder bestätigen.', 'wordpress-calendar-booking'));
             $meta[$key] = $value;
             if ($key === 'email') $email = (string)$value;
             if ($key === 'phone') $phone = (string)$value;
         }
-        if (!is_email($email)) wp_die('Bitte eine gültige E-Mail-Adresse eingeben.');
+        if (!is_email($email)) wp_die(esc_html__('Bitte eine gültige E-Mail-Adresse eingeben.', 'wordpress-calendar-booking'));
 
         $settings = Settings::get();
         $meta['computed_location'] = $this->formatter->location(['booking_type_id' => $typeId], $meta, $settings);
@@ -159,7 +159,7 @@ class Actions {
         $mailer = new Mailer();
         $mailer->sendTemplateOnce('mail:user:' . $bookingId . ':doi', 'doi', $booking, $meta, $links, false);
         $mailer->sendInternalOnce('mail:internal:' . $bookingId . ':reserved', $booking, $meta);
-        wp_safe_redirect(add_query_arg('wpcb_notice', rawurlencode('Bitte bestätige deine E-Mail über den Link in der Nachricht.'), wp_get_referer() ?: home_url('/')));
+        wp_safe_redirect(add_query_arg('wpcb_notice', rawurlencode(__('Bitte bestätige deine E-Mail über den Link in der Nachricht.', 'wordpress-calendar-booking')), wp_get_referer() ?: home_url('/')));
         exit;
     }
 
@@ -186,15 +186,15 @@ class Actions {
 
         if ($state === 'invalid' || !$booking) {
             $this->renderActionScreen(
-                'Link ungültig',
-                'Dieser Termin-Link ist ungültig oder gehört nicht mehr zu einer vorhandenen Buchung.'
+                __('Link ungültig', 'wordpress-calendar-booking'),
+                __('Dieser Termin-Link ist ungültig oder gehört nicht mehr zu einer vorhandenen Buchung.', 'wordpress-calendar-booking')
             );
         }
 
         if ($state === 'expired') {
             $this->renderActionScreen(
-                'Link abgelaufen',
-                'Dieser Termin-Link ist abgelaufen. Es wurde keine Änderung an der Buchung vorgenommen.'
+                __('Link abgelaufen', 'wordpress-calendar-booking'),
+                __('Dieser Termin-Link ist abgelaufen. Es wurde keine Änderung an der Buchung vorgenommen.', 'wordpress-calendar-booking')
             );
         }
 
@@ -220,13 +220,13 @@ class Actions {
         $token = sanitize_text_field(wp_unslash($_POST['wpcb_token'] ?? ''));
         $tokenType = $this->tokenTypeForAction($action);
         if (!$tokenType || $token === '') {
-            wp_die('Ungültige Termin-Aktion.', 'Ungültige Anfrage', ['response' => 400]);
+            wp_die(esc_html__('Ungültige Termin-Aktion.', 'wordpress-calendar-booking'), esc_html__('Ungültige Anfrage', 'wordpress-calendar-booking'), ['response' => 400]);
         }
 
         $nonce = sanitize_text_field(wp_unslash($_POST['wpcb_action_nonce'] ?? ''));
         if (!wp_verify_nonce($nonce, $this->nonceAction($action, $token))) {
             wp_die(
-                'Die Sicherheitsprüfung ist fehlgeschlagen. Es wurde nichts geändert.',
+                __('Die Sicherheitsprüfung ist fehlgeschlagen. Es wurde nichts geändert.', 'wordpress-calendar-booking'),
                 'Sicherheitsprüfung fehlgeschlagen',
                 ['response' => 403]
             );
@@ -362,48 +362,48 @@ class Actions {
                 ? BookingStateMachine::EMAIL_CONFIRMED_APPROVAL
                 : BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC;
             if (!(new BookingStateMachine())->canApply((string)$booking->status, $event)) {
-                $this->renderActionScreen('Status', 'Diese E-Mail-Bestätigung ist für den aktuellen Buchungsstatus nicht verfügbar.');
+                $this->renderActionScreen(__('Status', 'wordpress-calendar-booking'), __('Diese E-Mail-Bestätigung ist für den aktuellen Buchungsstatus nicht verfügbar.', 'wordpress-calendar-booking'));
             }
 
             $form = $this->actionFormStart($action, $token)
-                . '<p>Termin: <strong>' . esc_html($date . ' ' . $time) . '</strong></p>'
-                . '<button class="uk-button uk-button-primary" type="submit">E-Mail bestätigen</button></form>';
-            $this->renderActionScreen('Terminbuchung bestätigen', 'Bitte bestätige deine E-Mail-Adresse und damit die Terminbuchung.', $form);
+                . '<p>' . esc_html__('Termin:', 'wordpress-calendar-booking') . ' <strong>' . esc_html($date . ' ' . $time) . '</strong></p>'
+                . '<button class="uk-button uk-button-primary" type="submit">' . esc_html__('E-Mail bestätigen', 'wordpress-calendar-booking') . '</button></form>';
+            $this->renderActionScreen(__('Terminbuchung bestätigen', 'wordpress-calendar-booking'), __('Bitte bestätige deine E-Mail-Adresse und damit die Terminbuchung.', 'wordpress-calendar-booking'), $form);
         }
 
         if ($action === 'cancel') {
             if (!(new BookingStateMachine())->canApply((string)$booking->status, BookingStateMachine::USER_CANCELLED)) {
-                $this->renderActionScreen('Status', 'Dieser Termin kann in seinem aktuellen Status nicht storniert werden.');
+                $this->renderActionScreen(__('Status', 'wordpress-calendar-booking'), __('Dieser Termin kann in seinem aktuellen Status nicht storniert werden.', 'wordpress-calendar-booking'));
             }
             $cutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['cancel_min_hours']) . ' hours');
             $start = Time::parseUtc((string)$booking->slot_start);
             if (!$start || $start < $cutoff) {
-                $this->renderActionScreen('Stornierung nicht mehr möglich', 'Die Stornofrist für diesen Termin ist abgelaufen.');
+                $this->renderActionScreen(__('Stornierung nicht mehr möglich', 'wordpress-calendar-booking'), __('Die Stornofrist für diesen Termin ist abgelaufen.', 'wordpress-calendar-booking'));
             }
 
             $seriesControl = '';
             if (!empty($booking->series_id)) {
-                $seriesControl = '<label class="uk-form-label" for="wpcb-series-cancel-scope">Serienumfang</label>'
+                $seriesControl = '<label class="uk-form-label" for="wpcb-series-cancel-scope">' . esc_html__('Serienumfang', 'wordpress-calendar-booking') . '</label>'
                     . '<div class="uk-form-controls"><select class="uk-select" id="wpcb-series-cancel-scope" name="series_scope">'
-                    . '<option value="single">Nur diesen Termin</option>'
-                    . '<option value="remaining">Diesen und alle folgenden Termine</option>'
+                    . '<option value="single">' . esc_html__('Nur diesen Termin', 'wordpress-calendar-booking') . '</option>'
+                    . '<option value="remaining">' . esc_html__('Diesen und alle folgenden Termine', 'wordpress-calendar-booking') . '</option>'
                     . '</select></div>';
             }
             $form = $this->actionFormStart($action, $token)
-                . '<p>Termin: <strong>' . esc_html($date . ' ' . $time) . '</strong></p>'
+                . '<p>' . esc_html__('Termin:', 'wordpress-calendar-booking') . ' <strong>' . esc_html($date . ' ' . $time) . '</strong></p>'
                 . $seriesControl
-                . '<button class="uk-button uk-button-danger uk-margin-top" type="submit">Termin verbindlich stornieren</button></form>';
-            $this->renderActionScreen('Termin stornieren', 'Der Termin wird erst nach dem Klick auf den Button storniert.', $form);
+                . '<button class="uk-button uk-button-danger uk-margin-top" type="submit">' . esc_html__('Termin verbindlich stornieren', 'wordpress-calendar-booking') . '</button></form>';
+            $this->renderActionScreen(__('Termin stornieren', 'wordpress-calendar-booking'), __('Der Termin wird erst nach dem Klick auf den Button storniert.', 'wordpress-calendar-booking'), $form);
         }
 
         if ($action === 'update') {
             if (!in_array((string)$booking->status, [BookingStatus::PENDING_APPROVAL, BookingStatus::CONFIRMED], true)) {
-                $this->renderActionScreen('Status', 'Dieser Termin kann in seinem aktuellen Status nicht geändert werden.');
+                $this->renderActionScreen(__('Status', 'wordpress-calendar-booking'), __('Dieser Termin kann in seinem aktuellen Status nicht geändert werden.', 'wordpress-calendar-booking'));
             }
             $cutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['change_min_hours']) . ' hours');
             $start = Time::parseUtc((string)$booking->slot_start);
             if (!$start || $start < $cutoff) {
-                $this->renderActionScreen('Änderung nicht mehr möglich', 'Die Änderungsfrist für diesen Termin ist abgelaufen.');
+                $this->renderActionScreen(__('Änderung nicht mehr möglich', 'wordpress-calendar-booking'), __('Die Änderungsfrist für diesen Termin ist abgelaufen.', 'wordpress-calendar-booking'));
             }
 
             $slots = (new SlotService())->getSlots(
@@ -413,7 +413,7 @@ class Actions {
                 max(1, (int)($booking->party_size ?? 1))
             );
             if (!$slots) {
-                $this->renderActionScreen('Keine freien Alternativen', 'Aktuell ist kein alternativer Termin verfügbar.');
+                $this->renderActionScreen(__('Keine freien Alternativen', 'wordpress-calendar-booking'), __('Aktuell ist kein alternativer Termin verfügbar.', 'wordpress-calendar-booking'));
             }
 
             $slotTokens = new SlotTokenService();
@@ -431,28 +431,28 @@ class Actions {
                 $options .= '<option value="' . esc_attr($value) . '">' . esc_html($slot['label']) . '</option>';
             }
             if ($options === '') {
-                $this->renderActionScreen('Keine freien Alternativen', 'Aktuell ist kein alternativer Termin verfügbar.');
+                $this->renderActionScreen(__('Keine freien Alternativen', 'wordpress-calendar-booking'), __('Aktuell ist kein alternativer Termin verfügbar.', 'wordpress-calendar-booking'));
             }
 
             $seriesControl = '';
             if (!empty($booking->series_id)) {
-                $seriesControl = '<label class="uk-form-label" for="wpcb-series-update-scope">Serienumfang</label>'
+                $seriesControl = '<label class="uk-form-label" for="wpcb-series-update-scope">' . esc_html__('Serienumfang', 'wordpress-calendar-booking') . '</label>'
                     . '<div class="uk-form-controls"><select class="uk-select" id="wpcb-series-update-scope" name="series_scope">'
-                    . '<option value="single">Nur diesen Termin</option>'
-                    . '<option value="remaining">Diesen und alle folgenden Termine</option>'
+                    . '<option value="single">' . esc_html__('Nur diesen Termin', 'wordpress-calendar-booking') . '</option>'
+                    . '<option value="remaining">' . esc_html__('Diesen und alle folgenden Termine', 'wordpress-calendar-booking') . '</option>'
                     . '</select></div>';
             }
             $form = $this->actionFormStart($action, $token)
                 . '<p>Aktuell: <strong>' . esc_html($date . ' ' . $time) . '</strong></p>'
                 . $seriesControl
-                . '<label class="uk-form-label uk-margin-top" for="wpcb-new-slot">Neuer Termin</label>'
+                . '<label class="uk-form-label uk-margin-top" for="wpcb-new-slot">' . esc_html__('Neuer Termin', 'wordpress-calendar-booking') . '</label>'
                 . '<div class="uk-form-controls"><select class="uk-select" id="wpcb-new-slot" name="new_slot_token" required>'
-                . '<option value="">Bitte wählen</option>' . $options . '</select></div>'
-                . '<p><button class="uk-button uk-button-primary" type="submit">Termin ändern</button></p></form>';
-            $this->renderActionScreen('Termin ändern', 'Die Änderung wird erst nach dem Absenden gespeichert.', $form);
+                . '<option value="">' . esc_html__('Bitte wählen', 'wordpress-calendar-booking') . '</option>' . $options . '</select></div>'
+                . '<p><button class="uk-button uk-button-primary" type="submit">' . esc_html__('Termin ändern', 'wordpress-calendar-booking') . '</button></p></form>';
+            $this->renderActionScreen(__('Termin ändern', 'wordpress-calendar-booking'), __('Die Änderung wird erst nach dem Absenden gespeichert.', 'wordpress-calendar-booking'), $form);
         }
 
-        $this->renderActionScreen('Link ungültig', 'Diese Termin-Aktion ist unbekannt.');
+        $this->renderActionScreen(__(__('Link ungültig', 'wordpress-calendar-booking'), 'wordpress-calendar-booking'), __('Diese Termin-Aktion ist unbekannt.', 'wordpress-calendar-booking'));
     }
 
     private function actionFormStart(string $action, string $token): string {
@@ -500,33 +500,33 @@ class Actions {
 
     private function usedTitle(string $action, string $status): string {
         if ($action === 'cancel' && $status === BookingStatus::CANCELLED) {
-            return 'Termin bereits storniert';
+            return __('Termin bereits storniert', 'wordpress-calendar-booking');
         }
         if ($action === 'confirm' && in_array($status, [BookingStatus::PENDING_APPROVAL, BookingStatus::CONFIRMED], true)) {
-            return 'E-Mail bereits bestätigt';
+            return __('E-Mail bereits bestätigt', 'wordpress-calendar-booking');
         }
         if ($action === 'update') {
-            return 'Änderungslink bereits verwendet';
+            return __('Änderungslink bereits verwendet', 'wordpress-calendar-booking');
         }
-        return 'Link bereits verwendet';
+        return __('Link bereits verwendet', 'wordpress-calendar-booking');
     }
 
     private function usedMessage(string $action, string $status, object $booking): string {
         $settings = Settings::get();
         $when = Time::display((string)$booking->slot_start, $settings['date_format'] . ' ' . $settings['time_format']);
         if ($action === 'cancel' && $status === BookingStatus::CANCELLED) {
-            return 'Die Buchung ist bereits storniert. Es wurde keine weitere Änderung vorgenommen.';
+            return __('Die Buchung ist bereits storniert. Es wurde keine weitere Änderung vorgenommen.', 'wordpress-calendar-booking');
         }
         if ($action === 'confirm' && $status === BookingStatus::PENDING_APPROVAL) {
-            return 'Die E-Mail ist bereits bestätigt. Der Termin wartet auf Freigabe.';
+            return __('Die E-Mail ist bereits bestätigt. Der Termin wartet auf Freigabe.', 'wordpress-calendar-booking');
         }
         if ($action === 'confirm' && $status === BookingStatus::CONFIRMED) {
-            return 'Die E-Mail ist bereits bestätigt und der Termin ist bestätigt.';
+            return __('Die E-Mail ist bereits bestätigt und der Termin ist bestätigt.', 'wordpress-calendar-booking');
         }
         if ($action === 'update') {
-            return 'Dieser Änderungslink wurde bereits verwendet. Aktueller Termin: ' . $when . '.';
+            return sprintf(__('Dieser Änderungslink wurde bereits verwendet. Aktueller Termin: %s.', 'wordpress-calendar-booking'), $when);
         }
-        return 'Dieser Link wurde bereits verwendet. Es wurde keine weitere Änderung vorgenommen.';
+        return __('Dieser Link wurde bereits verwendet. Es wurde keine weitere Änderung vorgenommen.', 'wordpress-calendar-booking');
     }
 
     public function expireReservations(): void {
