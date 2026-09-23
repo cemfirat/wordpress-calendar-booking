@@ -5,6 +5,7 @@
  * - WPCB_TEST_SLOT_TOKEN
  * - WPCB_TEST_TYPE_ID
  * - WPCB_TEST_EMAIL
+ * - WPCB_TEST_PARTY_SIZE (optional)
  */
 if (!defined('ABSPATH')) {
     exit(1);
@@ -13,6 +14,7 @@ if (!defined('ABSPATH')) {
 $token = (string)getenv('WPCB_TEST_SLOT_TOKEN');
 $typeId = (int)getenv('WPCB_TEST_TYPE_ID');
 $email = (string)getenv('WPCB_TEST_EMAIL');
+$partySize = max(1, (int)(getenv('WPCB_TEST_PARTY_SIZE') ?: 1));
 
 $payload = (new Wpcb\Tokens\SlotTokenService())->verify($token);
 if (!$payload) {
@@ -42,6 +44,7 @@ $result = (new Wpcb\Booking\ReservationService())->reserve(
         'notes' => '',
         'source' => 'ci',
         'lang' => 'en',
+        'party_size' => $partySize,
     ],
     ['test_case' => 'concurrency']
 );
