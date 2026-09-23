@@ -26,6 +26,7 @@ use Wpcb\Api\RestController;
 use Wpcb\Webhooks\WebhookService;
 use Wpcb\Portal\CustomerPortalController;
 use Wpcb\Payments\PaymentService;
+use Wpcb\Payments\StripeWebhookController;
 use Wpcb\Admin\PaymentAdminPage;
 use Wpcb\Admin\WaitingListAdminPage;
 use Wpcb\WaitingList\WaitingListController;
@@ -57,6 +58,7 @@ class Plugin {
         (new WebhookService())->boot();
         (new CustomerPortalController())->boot();
         (new PaymentService())->boot();
+        (new StripeWebhookController())->boot();
         (new PaymentAdminPage())->boot();
         (new WaitingListAdminPage())->boot();
         (new WaitingListController())->boot();
