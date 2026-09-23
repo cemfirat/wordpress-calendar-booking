@@ -221,7 +221,9 @@ class BookingRepository {
             [BookingStatus::RESERVED_UNCONFIRMED, Time::formatUtc(Time::nowUtc()), $end, $start]
         );
         if ($resourceId !== null && $resourceId > 0) {
-            $sql .= ' AND resource_id = %d';
+            // Unscoped/legacy rows block every resource until the resource
+            // migration assigns them. This is deliberately conservative.
+            $sql .= ' AND (resource_id = %d OR resource_id IS NULL OR resource_id = 0)';
             $params[] = $resourceId;
         }
         if ($ignoreId) {
