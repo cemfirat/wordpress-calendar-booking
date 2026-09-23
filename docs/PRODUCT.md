@@ -1,74 +1,99 @@
-# WordPress Calendar Booking 2.0 — Product Definition
+# WordPress Calendar Booking — Product Definition
 
 ## Product goal
 
-A privacy-conscious WordPress appointment booking plugin that combines configurable availability with external calendar busy-time blocking and optional event write-back.
+WordPress Calendar Booking is a privacy-conscious appointment booking system for WordPress. WordPress owns booking rules, customer state and availability decisions; optional external services contribute busy intervals or lifecycle side effects but are not required for core booking.
 
-The product must remain useful without any third-party calendar connection. External providers are adapters, not the source of truth for booking rules.
+The product must remain useful with no Google, Microsoft, Apple, payment, webhook or video-meeting connection.
 
 ## Primary user flows
 
-1. Administrator creates one or more booking types with duration, buffers, working hours, exceptions, minimum notice and booking horizon.
-2. Administrator optionally connects external calendars that block availability and optionally receive confirmed bookings.
-3. Visitor selects a booking type, sees only server-generated available slots in the selected time zone, completes the form and submits.
-4. The server revalidates and atomically reserves the slot.
-5. Visitor confirms their email address (double opt-in).
-6. Depending on booking type/settings, the booking is automatically confirmed or moves to admin approval.
-7. Confirmation, reschedule and cancellation notifications are sent with standards-compliant calendar data.
-8. External calendar write-back runs idempotently through a retryable queue.
+1. An administrator creates booking types, resources/staff, capacity, availability rules and exceptions.
+2. Optional calendar connections contribute resource-specific busy intervals and may receive confirmed booking write-back.
+3. A visitor receives server-generated slots for a booking type, resource/capacity context and presentation time zone.
+4. Submission revalidates the signed slot and reserves capacity inside a resource-scoped critical section.
+5. The visitor confirms their email address through Double Opt-In.
+6. Depending on configuration, the booking is confirmed automatically or moves to administrator approval.
+7. Optional payment obligations, waiting-list promotion and video-meeting creation participate in the lifecycle without bypassing booking-domain validation.
+8. Notifications, calendar write-back and signed webhooks run through retryable/idempotent delivery paths.
+9. Customers can use the secure portal to inspect and manage their own bookings.
+10. Administrators operate bookings, delivery diagnostics, audit history, scheduler health and provider diagnostics from wp-admin.
 
-## Non-negotiable release properties
+## Non-negotiable product invariants
 
-- A client cannot book a time that was not generated as a valid slot by the server.
-- Two concurrent requests cannot create overlapping confirmed/reserved bookings for the same resource.
-- Recurring external events and time zones cannot silently create false availability.
-- Public calendar UI is busy-only by default; private event/customer data is never exposed by default.
-- State-changing links such as cancellation require an explicit confirmation POST.
-- External calendar credentials are stored using authenticated encryption; insecure plaintext/base64 fallback is prohibited.
-- Personal data supports WordPress privacy export/erase and configurable retention/anonymization.
-- External service connections are opt-in and documented.
-- Core booking works when YOOtheme Pro is absent.
+- Clients cannot create a booking from an arbitrary timestamp; slots are generated and revalidated by the server.
+- Concurrent requests cannot exceed the available capacity of the same resource and time interval.
+- Independent resources can accept bookings concurrently.
+- UTC is the storage model for instants; IANA time zones define local presentation and recurrence behavior.
+- Recurring external calendar events and recurring customer bookings are bounded and timezone-aware.
+- Public availability is busy-only by default and never exposes external event details or another customer's identity.
+- State-changing public links are inspection-only on GET and require an explicit protected POST to mutate state.
+- One-time tokens use selector/verifier storage and cannot be replayed after successful use.
+- Provider/payment/webhook/video credentials and secrets use authenticated encryption or provider-hosted credential handling; raw payment-card data is never stored.
+- Queue jobs and externally visible side effects are idempotent and retryable.
+- Personal data participates in WordPress privacy export/erase and configured retention/anonymization.
+- Core booking remains functional without YOOtheme Pro or any external provider.
 
-## Scope for 2.0.0
+## Current 3.x capabilities
 
-### Booking core
-- Booking types, duration and buffers
-- Weekly availability rules
-- Date/time exceptions and holidays
-- Minimum notice and maximum booking horizon
-- Double opt-in
-- Optional admin approval
-- Cancel/reschedule confirmation flows
-- Reminder/notification idempotency
-- CSV export for administrators
-- Explicit booking state machine and audit history
+### Booking and availability
+
+- Booking types with duration, buffers, public/active state and ordering
+- Explicit resources/staff with per-resource availability and calendar routing
+- Capacity/group booking with party-size accounting
+- Weekly availability rules, resource/type scopes and date/time exceptions
+- Minimum notice and booking horizon
+- Signed canonical slot tokens
+- Resource-scoped reservation locking and atomic capacity checks
+- Double Opt-In and optional administrator approval
+- Cancellation and rescheduling with state-aware validation
+- Bounded recurring booking series with single-occurrence or remaining-series management
+- Explicit lifecycle state machine and privacy-conscious audit history
 
 ### Calendar providers
-- Internal bookings
-- Public ICS feed (read-only, recurrence-capable)
-- Generic CalDAV free/busy + write adapter
-- iCloud preset on top of CalDAV
 
-Google Calendar and Microsoft Graph are designed into the provider contract but may ship in 2.1 if OAuth work would delay the reliable booking core.
+- Public ICS/webcal busy feeds
+- Generic CalDAV with discovery, busy reads and ETag-safe write-back
+- iCloud preset on the CalDAV provider
+- Google Calendar OAuth, FreeBusy and event write-back
+- Microsoft Graph OAuth, availability and event write-back
+- Resource-specific connection routing
+- Redacted provider health/diagnostics
 
-### Frontend
-- Shared semantic component layer with UIkit classes
-- YOOtheme Pro adapter: use existing UIkit/theme assets and native Builder elements
-- Generic fallback adapter: locally bundled pinned UIkit assets
-- Shortcodes retained for compatibility
-- Gutenberg block(s) for new installations
-- Busy-only public calendar: external event and internal customer details are excluded from the public view model
-- Accessible keyboard/focus behavior and screen-reader labels
-- Visitor time-zone selection/detection with clear site-time-zone fallback
+### Customer and integration surface
 
-## Deliberately later
+- Native Gutenberg Booking Form and Availability Calendar blocks
+- Shortcodes and YOOtheme Pro Builder integration through the shared renderer
+- Secure customer portal with self-service booking actions
+- Waiting lists with capacity-safe promotion holds
+- Provider-neutral video meetings with Zoom, Google Meet and Microsoft Teams adapters
+- Provider-neutral payment lifecycle foundation
+- Versioned `/wp-json/wpcb/v1` REST API
+- Signed outbound lifecycle webhooks with encrypted secrets and retryable delivery
 
-- Payments
-- Group/capacity booking
-- Staff/resource scheduling beyond one logical resource
-- Waiting lists
-- Video meeting creation
-- Customer accounts/dashboard
-- Recurring customer bookings
+### Administration and operations
 
-These are valuable but should not expand the first public architecture before correctness, privacy and calendar reliability are proven.
+- Filterable booking administration and complete CSV export
+- Bounded/paginated interactive booking list with batched page metadata
+- Full CRUD for booking types, form fields, availability rules, exceptions and resources
+- Scheduler health and queue controls
+- Notification and webhook delivery history
+- Mail-transport diagnostic
+- First-run readiness dashboard
+- WordPress privacy tools and retention controls
+- Safe uninstall policy with explicit destructive-delete opt-in
+- Reproducible release ZIPs, browser acceptance tests, dependency audits and WordPress/PHP compatibility CI
+
+## Frontend and theme behavior
+
+A shared semantic renderer serves shortcodes, dynamic Gutenberg blocks and YOOtheme Pro elements. YOOtheme installations reuse the existing UIkit runtime; other themes receive the pinned local UIkit fallback only where booking components are rendered.
+
+Themes integrate through documented filters/hooks, wrapper classes and CSS variables rather than copied theme-specific markup.
+
+## Optional integrations
+
+Calendar providers, payment providers, webhooks and video-meeting connections are optional. The first-run readiness check deliberately evaluates only the core path: a public booking type, assigned active resource, effective availability, valid sender/time-zone settings, healthy scheduling and a published booking surface.
+
+## Planning source of truth
+
+This document describes the current product, not an issue backlog. Future work belongs in GitHub issues and [ROADMAP.md](ROADMAP.md). Historical release changes belong in [../CHANGELOG.md](../CHANGELOG.md).
