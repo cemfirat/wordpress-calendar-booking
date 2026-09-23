@@ -17,13 +17,19 @@ wpcb_release_assert(is_file(WPCB_DIR . 'assets/vendor/uikit/uikit.min.js'), 'Rel
 wpcb_release_assert(is_file(WPCB_DIR . 'LICENSE') && filesize(WPCB_DIR . 'LICENSE') > 10000, 'Release ZIP contains the complete GPL license.');
 wpcb_release_assert(shortcode_exists('wpcb_booking_form'), 'Fresh release registers booking form shortcode.');
 wpcb_release_assert(false !== has_action('admin_post_nopriv_wpcb_booking_action'), 'Fresh release registers POST-only public booking actions.');
+if (!did_action('rest_api_init')) {
+    do_action('rest_api_init');
+}
+$routes = rest_get_server()->get_routes();
+wpcb_release_assert(isset($routes['/wpcb/v1/booking-types']), 'Fresh release registers the versioned REST API.');
+wpcb_release_assert(isset($routes['/wpcb/v1/webhooks/endpoints']), 'Fresh release registers webhook administration routes.');
 
 global $wpdb;
 foreach ([
     'bookings', 'booking_meta', 'booking_types', 'resources', 'booking_type_resources',
     'form_fields', 'availability_rules', 'exceptions', 'tokens', 'booking_status_log',
     'sync_jobs', 'deliveries', 'calendar_connections', 'booking_type_calendar_connections',
-    'resource_calendar_connections', 'sync_log',
+    'resource_calendar_connections', 'sync_log', 'api_idempotency', 'webhook_endpoints', 'webhook_deliveries',
 ] as $suffix) {
     $table = $wpdb->prefix . 'wpcb_' . $suffix;
     wpcb_release_assert($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table, 'Fresh release created table ' . $table . '.');
