@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.7.0
+Stable tag: 3.8.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,11 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.8.0 =
+* Add explicit safe uninstall behavior: durable data is preserved by default.
+* Add administrator opt-in for complete plugin-owned data deletion during uninstall.
+* Gate releases on packaged uninstall-policy tests and dependency security audits.
 
 = 3.7.0 =
 * Add bounded weekly recurring customer booking series.
