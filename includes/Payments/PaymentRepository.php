@@ -55,6 +55,19 @@ final class PaymentRepository {
         return $row ?: null;
     }
 
+    public function findByUuid(string $uuid): ?object {
+        global $wpdb;
+        $uuid = sanitize_text_field($uuid);
+        if ($uuid === '') {
+            return null;
+        }
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$this->table} WHERE payment_uuid = %s LIMIT 1",
+            $uuid
+        ));
+        return $row ?: null;
+    }
+
     public function findByProviderReference(string $provider, string $reference): ?object {
         global $wpdb;
         $row = $wpdb->get_row($wpdb->prepare(
