@@ -403,7 +403,7 @@ final class CustomerPortalController {
             $fields .= '</select><button class="uk-button uk-button-primary uk-margin-small-top" type="submit">' . esc_html__('Termin verschieben', 'wordpress-calendar-booking') . '</button>';
             $html .= '<h4>' . esc_html__('Termin ändern', 'wordpress-calendar-booking') . '</h4>' . $this->postForm('wpcb_portal_reschedule', $returnUrl, $session, $fields);
 
-            $cancelFields = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '"><button class="uk-button uk-button-danger" type="submit">Buchung stornieren</button>';
+            $cancelFields = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '"><button class="uk-button uk-button-danger" type="submit">' . esc_html__('Buchung stornieren', 'wordpress-calendar-booking') . '</button>';
             $html .= '<div class="uk-margin-top">' . $this->postForm('wpcb_portal_cancel', $returnUrl, $session, $cancelFields) . '</div>';
         }
 
