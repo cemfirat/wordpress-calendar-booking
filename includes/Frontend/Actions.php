@@ -282,7 +282,8 @@ class Actions {
             $selection = (new SlotSelectionService())->resolve(
                 $newSlotToken,
                 (int)$booking->booking_type_id,
-                (int)$booking->id
+                (int)$booking->id,
+                max(1, (int)($booking->party_size ?? 1))
             );
             if (!$selection) {
                 return new \WP_Error('wpcb_slot_unavailable', 'Der neue Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
@@ -346,7 +347,12 @@ class Actions {
                 $this->renderActionScreen('Änderung nicht mehr möglich', 'Die Änderungsfrist für diesen Termin ist abgelaufen.');
             }
 
-            $slots = (new SlotService())->getSlots((int)$booking->booking_type_id, 14, (int)$booking->id);
+            $slots = (new SlotService())->getSlots(
+                (int)$booking->booking_type_id,
+                14,
+                (int)$booking->id,
+                max(1, (int)($booking->party_size ?? 1))
+            );
             if (!$slots) {
                 $this->renderActionScreen('Keine freien Alternativen', 'Aktuell ist kein alternativer Termin verfügbar.');
             }
