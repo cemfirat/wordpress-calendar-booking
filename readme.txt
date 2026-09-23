@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.3.0
+Stable tag: 3.4.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -23,6 +23,11 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.4.0 =
+* Add provider-neutral payment lifecycle records and adapter contract.
+* Add paid booking-type configuration, pending-payment reservation expiry, idempotent provider events and deterministic refunds.
+* Never store raw card or bank credentials in WordPress.
 
 = 3.3.0 =
 * Add a secure customer portal with one-time magic-link login and encrypted HttpOnly sessions.
