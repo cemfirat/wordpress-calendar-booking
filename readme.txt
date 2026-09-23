@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.16.0
+Stable tag: 3.17.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,12 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.17.0 =
+* Add deterministic partial refunds for paid recurring series.
+* Support single-occurrence and remaining-series cancellation with exact minor-unit allocation from the immutable original payment.
+* Track cumulative refunded and queued amounts, serialize refund processing and prevent over-refunds.
+* Send explicit partial refund amounts to Stripe with stable idempotency keys and show refund scope/amount in customer and administrator UI.
 
 = 3.16.0 =
 * Let authenticated customers safely resume pending Stripe Checkout payments from the customer portal.
