@@ -102,7 +102,7 @@ The asset build copies the pinned UIkit fallback from npm into `assets/vendor/ui
 - Product definition: [docs/PRODUCT.md](docs/PRODUCT.md)
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
-- Initial issue backlog: [docs/GITHUB-ISSUES.md](docs/GITHUB-ISSUES.md)
+- Historical issue backlog: [docs/GITHUB-ISSUES.md](docs/GITHUB-ISSUES.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License
