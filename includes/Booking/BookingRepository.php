@@ -170,7 +170,11 @@ class BookingRepository {
         $sql .= ' ORDER BY slot_start ASC';
         if (!empty($args['limit'])) {
             $sql .= ' LIMIT %d';
-            $params[] = (int)$args['limit'];
+            $params[] = max(1, min(500, (int)$args['limit']));
+            if (!empty($args['offset'])) {
+                $sql .= ' OFFSET %d';
+                $params[] = max(0, (int)$args['offset']);
+            }
         }
         return $params ? $wpdb->get_results($wpdb->prepare($sql, ...$params)) : $wpdb->get_results($sql);
     }
