@@ -56,6 +56,26 @@ $health = (new Wpcb\Reliability\SchedulerHealth())->snapshot();
 wpcb_health_assert($health['healthy'] === false, 'Old scheduler timestamps create a health warning.');
 wpcb_health_assert(count($health['warnings']) >= 3, 'Snapshot reports stale scheduler and queue warnings.');
 
+$privacyNext = wp_next_scheduled('wpcb_privacy_retention');
+wpcb_health_assert($privacyNext !== false, 'Privacy retention is scheduled by the plugin.');
+wp_unschedule_event((int)$privacyNext, 'wpcb_privacy_retention');
+$missingPrivacy = (new Wpcb\Reliability\SchedulerHealth())->snapshot();
+wpcb_health_assert(
+    in_array('Die tägliche Datenschutz-Aufbewahrung ist nicht in WP-Cron eingeplant.', $missingPrivacy['warnings'], true),
+    'Missing privacy retention schedule creates a health warning.'
+);
+wp_schedule_event(max(time() + 60, (int)$privacyNext), 'daily', 'wpcb_privacy_retention');
+
+$portalNext = wp_next_scheduled('wpcb_portal_session_cleanup');
+wpcb_health_assert($portalNext !== false, 'Portal session cleanup is scheduled by the plugin.');
+wp_unschedule_event((int)$portalNext, 'wpcb_portal_session_cleanup');
+$missingPortal = (new Wpcb\Reliability\SchedulerHealth())->snapshot();
+wpcb_health_assert(
+    in_array('Die tägliche Portal-Sitzungsbereinigung ist nicht in WP-Cron eingeplant.', $missingPortal['warnings'], true),
+    'Missing portal session cleanup schedule creates a health warning.'
+);
+wp_schedule_event(max(time() + 60, (int)$portalNext), 'daily', 'wpcb_portal_session_cleanup');
+
 (new Wpcb\Sync\QueueService())->runNow(1);
 wpcb_health_assert((string)get_option(Wpcb\Reliability\SchedulerHealth::QUEUE_LAST_RUN_OPTION, '') !== '2020-01-01 00:00:00', 'Manual queue run records its timestamp.');
 
