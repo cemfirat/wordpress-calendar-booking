@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.5.0
+
+- Add opt-in waiting-list settings per booking type with configurable promotion hold duration.
+- Store minimal waiting-list records and promote entries FIFO when capacity becomes available.
+- Count active promotion holds against capacity under the existing resource-specific reservation lock.
+- Deliver promotion offers through the retryable queue with idempotency keys.
+- Use one-time offer tokens and explicit POST acceptance before creating a normal Double Opt-In reservation.
+- Re-promote expired offers safely and prevent duplicate active holds for the same released capacity.
+- Add wp-admin history plus WordPress privacy export/erase and retention cleanup.
+- Add integration coverage for ordering, hold expiry, replay prevention, queue idempotency and privacy erasure.
+
 ## 3.4.0
 
 - Add provider-neutral payment adapters and payment records linked to bookings.
