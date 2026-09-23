@@ -14,6 +14,7 @@ final class RestController {
 
     public function boot(): void {
         add_action('rest_api_init', [$this, 'register']);
+        add_action('wpcb_hourly_reminders', [$this, 'cleanup'], 40);
     }
 
     public function register(): void {
@@ -114,7 +115,6 @@ final class RestController {
             $items[] = [
                 'id' => (int)$resource->id,
                 'label' => $label,
-                'capacity' => max(1, (int)($resource->capacity ?? 1)),
             ];
         }
         return new \WP_REST_Response(['items' => $items], 200);
@@ -211,6 +211,10 @@ final class RestController {
         ];
         $idempotency->complete((int)$claim['id'], 200, $payload);
         return new \WP_REST_Response($payload, 200);
+    }
+
+    public function cleanup(): void {
+        (new IdempotencyRepository())->cleanup();
     }
 
     public function bookingView(object $booking): array {
