@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.13.0
+Stable tag: 3.14.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,11 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.14.0 =
+* Add read-only Stripe Checkout success/cancel return status pages.
+* Keep Stripe webhooks as the only payment-state authority; return GET requests never confirm payments or bookings.
+* Carry only technical payment UUIDs in return URLs and keep customer PII out of them.
 
 = 3.13.0 =
 * Add Stripe-hosted Checkout for payment-required booking types.
