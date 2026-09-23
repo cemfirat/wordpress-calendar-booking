@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.10.0
+Stable tag: 3.11.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,11 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.11.0 =
+* Paginate the administrator booking list with bounded 50-row pages.
+* Batch-load booking metadata and retention flags to remove per-row query fan-out.
+* Preserve filters across pagination while keeping CSV exports complete.
 
 = 3.10.0 =
 * Add a protected mail-transport diagnostic and safe administrator test email.
