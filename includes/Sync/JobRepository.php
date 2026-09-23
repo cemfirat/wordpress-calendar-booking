@@ -229,6 +229,29 @@ class JobRepository {
         return false;
     }
 
+    public function deferPending(int $jobId, int $delaySeconds): bool {
+        global $wpdb;
+        if ($jobId < 1) {
+            return false;
+        }
+
+        $delaySeconds = max(1, min(DAY_IN_SECONDS, $delaySeconds));
+        $available = Time::formatUtc(Time::nowUtc()->modify('+' . $delaySeconds . ' seconds'));
+        return 1 === $wpdb->query(
+            $wpdb->prepare(
+                "UPDATE {$this->jobsTable}
+                 SET available_at = %s,
+                     updated_at = %s
+                 WHERE id = %d
+                   AND status = 'pending'
+                   AND attempts = 0",
+                $available,
+                Time::formatUtc(Time::nowUtc()),
+                $jobId
+            )
+        );
+    }
+
     /**
      * Batch-load jobs by their non-secret idempotency keys.
      *
