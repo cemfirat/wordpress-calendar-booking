@@ -91,9 +91,18 @@ final class PaymentAdminPage {
         echo '</tr></thead><tbody>';
         foreach ($rows as $row) {
             $amount = number_format(((int)$row->amount_minor) / 100, 2, ',', '.');
+            $refunded = number_format(((int)($row->refunded_minor ?? 0)) / 100, 2, ',', '.');
+            $pendingRefund = number_format(((int)($row->refund_pending_minor ?? 0)) / 100, 2, ',', '.');
             echo '<tr><td>#' . (int)$row->id . '</td><td>#' . (int)$row->booking_id . '</td>';
             echo '<td>' . esc_html((string)$row->provider ?: '—') . '</td>';
-            echo '<td>' . esc_html($amount . ' ' . (string)$row->currency) . '</td>';
+            echo '<td>' . esc_html($amount . ' ' . (string)$row->currency);
+            if ((int)($row->refunded_minor ?? 0) > 0) {
+                echo '<br><small>' . esc_html(sprintf(__('Erstattet: %s %s', 'wordpress-calendar-booking'), $refunded, (string)$row->currency)) . '</small>';
+            }
+            if ((int)($row->refund_pending_minor ?? 0) > 0) {
+                echo '<br><small>' . esc_html(sprintf(__('Vorgemerkt: %s %s', 'wordpress-calendar-booking'), $pendingRefund, (string)$row->currency)) . '</small>';
+            }
+            echo '</td>';
             echo '<td><code>' . esc_html((string)$row->status) . '</code></td>';
             echo '<td>' . esc_html((string)$row->updated_at) . '</td><td>';
             if ((string)$row->provider === 'stripe' && (string)$row->status === PaymentStatus::REFUND_PENDING) {
@@ -101,7 +110,12 @@ final class PaymentAdminPage {
                 echo '<input type="hidden" name="action" value="wpcb_stripe_refund">';
                 echo '<input type="hidden" name="payment_id" value="' . (int)$row->id . '">';
                 wp_nonce_field('wpcb_stripe_refund_' . (int)$row->id);
-                echo '<button class="button button-secondary" type="submit">' . esc_html__('Rückerstatten', 'wordpress-calendar-booking') . '</button></form>';
+                $refundLabel = sprintf(
+                    __('%s %s erstatten', 'wordpress-calendar-booking'),
+                    $pendingRefund,
+                    (string)$row->currency
+                );
+                echo '<button class="button button-secondary" type="submit">' . esc_html($refundLabel) . '</button></form>';
             } else {
                 echo '—';
             }
