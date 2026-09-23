@@ -202,6 +202,35 @@ class BookingRepository {
         return $wpdb->get_results($wpdb->prepare($sql, ...$params));
     }
 
+    public function occupiedSeats(
+        string $start,
+        string $end,
+        int $resourceId,
+        ?int $ignoreId = null
+    ): int {
+        global $wpdb;
+        if ($resourceId < 1) {
+            return 0;
+        }
+        $statuses = BookingStatus::activeBlockingStatuses();
+        $placeholders = implode(',', array_fill(0, count($statuses), '%s'));
+        $sql = "SELECT COALESCE(SUM(GREATEST(1, party_size)), 0) FROM {$this->table}
+            WHERE status IN ($placeholders)
+            AND (status != %s OR reserved_until IS NULL OR reserved_until >= %s)
+            AND slot_start < %s
+            AND slot_end > %s
+            AND resource_id = %d";
+        $params = array_merge(
+            $statuses,
+            [BookingStatus::RESERVED_UNCONFIRMED, Time::formatUtc(Time::nowUtc()), $end, $start, $resourceId]
+        );
+        if ($ignoreId) {
+            $sql .= ' AND id != %d';
+            $params[] = $ignoreId;
+        }
+        return max(0, (int)$wpdb->get_var($wpdb->prepare($sql, ...$params)));
+    }
+
     public function hasConflict(
         string $start,
         string $end,
