@@ -157,39 +157,44 @@ final class PaymentRepository {
         if ($paymentId < 1 || $amountMinor < 1) {
             return false;
         }
+        $payment = $this->find($paymentId);
+        if (!$payment || (string)$payment->status !== PaymentStatus::REFUND_PENDING) {
+            return false;
+        }
+        $refunded = (int)($payment->refunded_minor ?? 0);
+        $pending = (int)($payment->refund_pending_minor ?? 0);
+        $total = (int)$payment->amount_minor;
+        if ($pending < $amountMinor || $refunded + $amountMinor > $total) {
+            return false;
+        }
+
+        $nextRefunded = $refunded + $amountMinor;
+        $nextPending = $pending - $amountMinor;
+        $nextStatus = $nextRefunded >= $total
+            ? PaymentStatus::REFUNDED
+            : ($nextPending > 0 ? PaymentStatus::REFUND_PENDING : PaymentStatus::PAID);
         $now = Time::formatUtc(Time::nowUtc());
+
         $updated = $wpdb->query($wpdb->prepare(
             "UPDATE {$this->table}
-             SET refunded_minor = refunded_minor + %d,
-                 refund_pending_minor = refund_pending_minor - %d,
-                 status = CASE
-                     WHEN refunded_minor + %d >= amount_minor THEN %s
-                     WHEN refund_pending_minor - %d > 0 THEN %s
-                     ELSE %s
-                 END,
-                 refunded_at = CASE
-                     WHEN refunded_minor + %d >= amount_minor THEN %s
-                     ELSE refunded_at
-                 END,
+             SET refunded_minor = %d,
+                 refund_pending_minor = %d,
+                 status = %s,
+                 refunded_at = %s,
                  updated_at = %s
              WHERE id = %d
                AND status = %s
-               AND refund_pending_minor >= %d
-               AND refunded_minor + %d <= amount_minor",
-            $amountMinor,
-            $amountMinor,
-            $amountMinor,
-            PaymentStatus::REFUNDED,
-            $amountMinor,
-            PaymentStatus::REFUND_PENDING,
-            PaymentStatus::PAID,
-            $amountMinor,
-            $now,
+               AND refunded_minor = %d
+               AND refund_pending_minor = %d",
+            $nextRefunded,
+            $nextPending,
+            $nextStatus,
+            $nextStatus === PaymentStatus::REFUNDED ? $now : (string)($payment->refunded_at ?? ''),
             $now,
             $paymentId,
             PaymentStatus::REFUND_PENDING,
-            $amountMinor,
-            $amountMinor
+            $refunded,
+            $pending
         ));
         return $updated === 1;
     }
