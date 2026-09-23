@@ -120,3 +120,10 @@ Completed.
 - authenticated customer-portal Stripe Checkout resume
 - reuse open provider sessions and atomically replace expired ones
 - serialized checkout preparation with settlement/expiry fail-closed behavior
+
+
+### 3.17
+- deterministic partial refunds for paid recurring series
+- single-occurrence and remaining-series cancellation refunds
+- cumulative refund accounting with over-refund protection
+- idempotent Stripe partial refunds and refund amount previews
