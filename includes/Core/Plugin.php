@@ -4,6 +4,7 @@ namespace Wpcb\Core;
 use Wpcb\Admin\Admin;
 use Wpcb\Admin\BookingAuditPage;
 use Wpcb\Database\SchemaMigration;
+use Wpcb\Resources\ResourceMigration;
 use Wpcb\Frontend\Shortcodes;
 use Wpcb\Frontend\Actions;
 use Wpcb\Sync\QueueService;
@@ -23,6 +24,7 @@ use Wpcb\Blocks\Integration as BlocksIntegration;
 class Plugin {
     public function boot(): void {
         SchemaMigration::maybeRun();
+        ResourceMigration::maybeRun();
         TokenMigration::maybeRun();
         SecretMigration::maybeRun();
         TimeMigration::maybeRun();
