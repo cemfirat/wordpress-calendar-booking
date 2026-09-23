@@ -10,7 +10,7 @@ function wpcb_release_assert($condition, string $message): void {
     WP_CLI::log('PASS: ' . $message);
 }
 
-wpcb_release_assert(defined('WPCB_VERSION') && WPCB_VERSION === '3.6.0', 'Release ZIP boots version 3.6.0.');
+wpcb_release_assert(defined('WPCB_VERSION') && WPCB_VERSION === '3.7.0', 'Release ZIP boots version 3.7.0.');
 wpcb_release_assert(class_exists('Sabre\\VObject\\Reader'), 'Release ZIP contains Composer runtime dependencies.');
 wpcb_release_assert(is_file(WPCB_DIR . 'assets/vendor/uikit/uikit.min.css'), 'Release ZIP contains local UIkit CSS fallback.');
 wpcb_release_assert(is_file(WPCB_DIR . 'assets/vendor/uikit/uikit.min.js'), 'Release ZIP contains local UIkit JavaScript fallback.');
@@ -29,7 +29,7 @@ wpcb_release_assert(isset($routes['/wpcb/v1/webhooks/endpoints']), 'Fresh releas
 
 global $wpdb;
 foreach ([
-    'bookings', 'booking_meta', 'booking_types', 'resources', 'booking_type_resources',
+    'bookings', 'booking_series', 'booking_meta', 'booking_types', 'resources', 'booking_type_resources',
     'form_fields', 'availability_rules', 'exceptions', 'tokens', 'booking_status_log',
     'sync_jobs', 'deliveries', 'calendar_connections', 'booking_type_calendar_connections',
     'resource_calendar_connections', 'sync_log', 'api_idempotency', 'webhook_endpoints', 'webhook_deliveries',

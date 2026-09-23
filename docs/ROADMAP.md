@@ -19,7 +19,7 @@ Released in stable 2.0.0.
 
 ## 2.1 — provider ecosystem
 
-Completed on the current 2.x codebase.
+Completed.
 
 - calendar connection data model
 - Google Calendar OAuth + FreeBusy + Events
@@ -29,13 +29,40 @@ Completed on the current 2.x codebase.
 
 ## 2.2 — operations/admin
 
-Completed on the current 2.x codebase.
+Completed.
 
 - CSV export and filters
 - scheduler health
 - notification delivery log
 - filterable, privacy-conscious booking lifecycle audit history
 
-## Later
+## 3.x — product expansion
 
-Resources/staff, capacity/group bookings, payments, waiting list, customer portal, webhooks/API, video meeting integrations and recurring customer bookings.
+### 3.0
+- canonical WordPress Calendar Booking naming
+- packaged browser release acceptance
+
+### 3.1
+- resources/staff
+- capacity/group bookings
+
+### 3.2
+- versioned REST API
+- signed outbound webhooks
+
+### 3.3
+- secure customer portal
+
+### 3.4
+- payment lifecycle foundation
+
+### 3.5
+- waiting lists and capacity-safe promotion
+
+### 3.6
+- provider-neutral video meetings
+
+### 3.7
+- bounded recurring customer booking series
+- single occurrence or remaining-series management
+- local wall-clock recurrence across timezone offset changes

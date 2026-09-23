@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.7.0
+
+- Add bounded weekly customer booking series anchored to a canonical signed slot.
+- Preserve local wall-clock cadence across timezone offset changes and reject ambiguous/non-existent DST wall times.
+- Validate every occurrence before storing the series and create all occurrence reservations in one database transaction.
+- Link occurrences through a technical series identifier and stable occurrence index.
+- Confirm a reserved series through one Double Opt-In flow and support cancelling or rescheduling the selected occurrence or all remaining occurrences.
+- Keep paid booking types out of series creation until payment-series semantics are explicitly defined.
+- Add integration coverage for cadence, lifecycle propagation and all-or-nothing conflict handling.
+
 ## 3.6.0
 
 - Add a provider-neutral video meeting contract and adapters for Zoom, Google Meet and Microsoft Teams.

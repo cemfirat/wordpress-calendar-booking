@@ -28,27 +28,28 @@ final class BookingTransitionEffects {
         $mailer = new Mailer();
         $settings = Settings::get();
         $bookingArray = (array)$booking;
+        $seriesSecondary = !empty($booking->series_id) && (int)($booking->series_occurrence ?? 0) > 0;
 
         if ($target === BookingStatus::PENDING_APPROVAL) {
-            $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'pending', $bookingArray, $meta, $this->actionLinks($bookingId), false);
+            if (!$seriesSecondary) $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'pending', $bookingArray, $meta, $this->actionLinks($bookingId), false);
         } elseif ($target === BookingStatus::CONFIRMED) {
             $queue = new QueueService();
             if ($queue->enqueueCreate($bookingId) > 0) {
                 $queue->runNow();
             }
             $template = $event === BookingStateMachine::ADMIN_APPROVED ? 'approved' : 'confirmed';
-            $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), $template, $bookingArray, $meta, $this->actionLinks($bookingId), true);
+            if (!$seriesSecondary) $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), $template, $bookingArray, $meta, $this->actionLinks($bookingId), true);
         } elseif ($target === BookingStatus::REJECTED) {
-            $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'rejected', $bookingArray, $meta, [], false);
+            if (!$seriesSecondary) $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'rejected', $bookingArray, $meta, [], false);
         } elseif ($target === BookingStatus::CANCELLED) {
             $queue = new QueueService();
             if ($queue->enqueueCancel($bookingId) > 0) {
                 $queue->runNow();
             }
-            $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'cancelled', $bookingArray, $meta, [], false);
+            if (!$seriesSecondary) $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'cancelled', $bookingArray, $meta, [], false);
         }
 
-        if ($target !== BookingStatus::EXPIRED) {
+        if ($target !== BookingStatus::EXPIRED && !$seriesSecondary) {
             $mailer->sendInternalOnce('mail:internal:' . $bookingId . ':transition:' . $event, $bookingArray, $meta);
         }
     }
@@ -62,6 +63,7 @@ final class BookingTransitionEffects {
         $repo = new BookingRepository();
         $meta = $repo->getMeta($bookingId);
         $settings = Settings::get();
+        $seriesSecondary = !empty($booking->series_id) && (int)($booking->series_occurrence ?? 0) > 0;
 
         $queue = new QueueService();
         if ($queue->enqueueUpdate($bookingId) > 0) {
@@ -71,8 +73,10 @@ final class BookingTransitionEffects {
         $bookingArray = (array)$repo->find($bookingId);
         $mailer = new Mailer();
         $version = hash('sha256', (string)($bookingArray['slot_start'] ?? '') . '|' . (string)($bookingArray['slot_end'] ?? ''));
-        $mailer->sendTemplateOnce('mail:user:' . $bookingId . ':rescheduled:' . $version, 'updated', $bookingArray, $meta, $this->actionLinks($bookingId), true);
-        $mailer->sendInternalOnce('mail:internal:' . $bookingId . ':rescheduled:' . $version, $bookingArray, $meta);
+        if (!$seriesSecondary) {
+            $mailer->sendTemplateOnce('mail:user:' . $bookingId . ':rescheduled:' . $version, 'updated', $bookingArray, $meta, $this->actionLinks($bookingId), true);
+            $mailer->sendInternalOnce('mail:internal:' . $bookingId . ':rescheduled:' . $version, $bookingArray, $meta);
+        }
     }
 
     private function mailKey(int $bookingId, string $event, array $booking): string {
