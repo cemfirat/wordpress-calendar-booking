@@ -277,7 +277,7 @@ final class CustomerPortalController {
                 $url = add_query_arg([
                     'wpcb_portal_action' => 'email-change',
                     'wpcb_token' => rawurlencode($token),
-                    'return' => rawurlencode($returnUrl),
+                    'return' => $returnUrl,
                 ], home_url('/'));
                 wp_mail(
                     $newEmail,
