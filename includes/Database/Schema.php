@@ -359,7 +359,7 @@ class Schema {
             updated_at datetime NOT NULL,
             PRIMARY KEY (id),
             UNIQUE KEY payment_uuid (payment_uuid),
-            UNIQUE KEY booking_id (booking_id),
+            KEY booking_id (booking_id),
             UNIQUE KEY provider_reference (provider, provider_reference),
             KEY status_expires (status, expires_at),
             KEY updated_at (updated_at)
