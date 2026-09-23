@@ -7,6 +7,7 @@ use Wpcb\Booking\BookingStateMachine;
 use Wpcb\Booking\BookingTransitionService;
 use Wpcb\Booking\BookingTypeRepository;
 use Wpcb\Resources\ResourceRepository;
+use Wpcb\Security\AvailabilityRequestGuard;
 use Wpcb\Webhooks\WebhookDeliveryRepository;
 use Wpcb\Webhooks\WebhookEndpointRepository;
 
@@ -36,8 +37,8 @@ final class RestController {
             'permission_callback' => '__return_true',
             'args' => [
                 'booking_type_id' => ['required' => true, 'type' => 'integer', 'minimum' => 1],
-                'days' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 60, 'default' => 14],
-                'party_size' => ['type' => 'integer', 'minimum' => 1, 'maximum' => 10000, 'default' => 1],
+                'days' => ['type' => 'integer', 'minimum' => 1, 'maximum' => AvailabilityRequestGuard::MAX_DAYS, 'default' => 14],
+                'party_size' => ['type' => 'integer', 'minimum' => 1, 'maximum' => AvailabilityRequestGuard::MAX_PARTY_SIZE, 'default' => 1],
             ],
         ]);
 
@@ -141,18 +142,34 @@ final class RestController {
     }
 
     public function availability(\WP_REST_Request $request) {
+        $guard = new AvailabilityRequestGuard();
+        $budget = $guard->restBudget();
+        if (empty($budget['allowed'])) {
+            return $this->availabilityRateLimited($budget);
+        }
+
         $typeId = (int)$request->get_param('booking_type_id');
-        $type = (new BookingTypeRepository())->find($typeId);
-        if (!$type || empty($type->is_active) || empty($type->is_public)) {
-            return new \WP_Error('wpcb_api_type_missing', 'Booking type not found.', ['status' => 404]);
+        $query = $guard->validateQuery(
+            $typeId,
+            max(1, (int)$request->get_param('days')),
+            max(1, (int)$request->get_param('party_size'))
+        );
+        if (is_wp_error($query)) {
+            return $query;
         }
 
         $slots = (new SlotService())->getSlots(
             $typeId,
-            max(1, min(60, (int)$request->get_param('days'))),
+            (int)$query['days'],
             null,
-            max(1, (int)$request->get_param('party_size'))
+            (int)$query['party_size']
         );
+
+        $maxSlots = (int)$query['max_slots'];
+        $truncated = count($slots) > $maxSlots;
+        if ($truncated) {
+            $slots = array_slice($slots, 0, $maxSlots);
+        }
 
         $safe = [];
         foreach ($slots as $slot) {
@@ -171,7 +188,15 @@ final class RestController {
             $safe[] = $item;
         }
 
-        return new \WP_REST_Response(['data' => $safe], 200);
+        $response = new \WP_REST_Response([
+            'data' => $safe,
+            'meta' => [
+                'truncated' => $truncated,
+                'max_results' => $maxSlots,
+            ],
+        ], 200);
+        $response->header('Cache-Control', 'no-store');
+        return $this->availabilityRateHeaders($response, $budget);
     }
 
     public function bookings(\WP_REST_Request $request): \WP_REST_Response {
@@ -319,6 +344,27 @@ final class RestController {
     public function webhookDeliveries(\WP_REST_Request $request): \WP_REST_Response {
         $rows = (new WebhookDeliveryRepository())->recent((int)$request->get_param('limit'));
         return new \WP_REST_Response(['data' => array_map(static fn($row) => (array)$row, $rows)], 200);
+    }
+
+    private function availabilityRateLimited(array $budget): \WP_REST_Response {
+        $response = new \WP_REST_Response([
+            'code' => 'wpcb_availability_rate_limited',
+            'message' => __('Too many availability requests. Please retry shortly.', 'wordpress-calendar-booking'),
+            'data' => [
+                'status' => 429,
+                'retry_after' => (int)$budget['retry_after'],
+            ],
+        ], 429);
+        $response->header('Retry-After', (string)(int)$budget['retry_after']);
+        $response->header('Cache-Control', 'no-store');
+        return $this->availabilityRateHeaders($response, $budget);
+    }
+
+    private function availabilityRateHeaders(\WP_REST_Response $response, array $budget): \WP_REST_Response {
+        $response->header('X-RateLimit-Limit', (string)(int)$budget['limit']);
+        $response->header('X-RateLimit-Remaining', (string)(int)$budget['remaining']);
+        $response->header('X-RateLimit-Reset', (string)(int)$budget['reset_at']);
+        return $response;
     }
 
     private function idempotent(\WP_REST_Request $request, callable $callback) {
