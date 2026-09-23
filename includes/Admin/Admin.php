@@ -530,7 +530,7 @@ class Admin {
             echo '<p><input type="text" name="' . esc_attr($p) . '_subject" value="' . esc_attr($templates[$p . '_subject'] ?? '') . '" class="large-text"></p>';
             echo '<p><textarea name="' . esc_attr($p) . '_body" rows="6" class="large-text code">' . esc_textarea($templates[$p . '_body'] ?? '') . '</textarea></p>';
         }
-        echo '<p>Platzhalter: {name}, {email}, {telefon}, {terminart}, {datum}, {uhrzeit}, {bestaetigungslink}, {stornolink}, {aenderungslink}, {status}</p><p><button class="button button-primary">Speichern</button></p></form>'; $this->formEnd();
+        echo '<p>Platzhalter: {name}, {email}, {telefon}, {terminart}, {teilnehmer}, {datum}, {uhrzeit}, {bestaetigungslink}, {stornolink}, {aenderungslink}, {status}</p><p><button class="button button-primary">Speichern</button></p></form>'; $this->formEnd();
     }
 
     private function row(string $label, string $field): void { echo '<tr><th scope="row">' . esc_html($label) . '</th><td>' . $field . '</td></tr>'; }
