@@ -3,6 +3,7 @@ namespace Wpcb\Availability;
 
 use Wpcb\Booking\BookingRepository;
 use Wpcb\Booking\BookingTypeRepository;
+use Wpcb\Booking\CapacityService;
 use Wpcb\Calendar\IcloudProvider;
 use Wpcb\Calendar\PublicBusyPresenter;
 use Wpcb\Calendar\ConnectionBusyService;
@@ -17,6 +18,7 @@ class SlotService {
     private PublicBusyPresenter $publicBusy;
     private ConnectionBusyService $connectionBusy;
     private ResourceRepository $resources;
+    private CapacityService $capacity;
 
     public function __construct() {
         $this->repo = new AvailabilityRepository();
@@ -26,6 +28,7 @@ class SlotService {
         $this->publicBusy = new PublicBusyPresenter();
         $this->connectionBusy = new ConnectionBusyService();
         $this->resources = new ResourceRepository();
+        $this->capacity = new CapacityService($this->bookings, $this->types, $this->resources);
     }
 
     /**
@@ -245,7 +248,8 @@ class SlotService {
         string $start,
         string $end,
         ?int $ignoreId = null,
-        ?int $resourceId = null
+        ?int $resourceId = null,
+        int $partySize = 1
     ): bool {
         $type = $this->types->find($typeId);
         if (!$type || !Time::parseUtc($start) || !Time::parseUtc($end)) {
@@ -254,7 +258,7 @@ class SlotService {
 
         if (!$resourceId) {
             foreach ($this->resources->forBookingType($typeId, true) as $resource) {
-                if ($this->slotAvailable($typeId, $start, $end, $ignoreId, (int)$resource->id)) {
+                if ($this->slotAvailable($typeId, $start, $end, $ignoreId, (int)$resource->id, $partySize)) {
                     return true;
                 }
             }
@@ -272,7 +276,7 @@ class SlotService {
             return false;
         }
 
-        if ($this->bookings->hasConflict($bufferedStart, $bufferedEnd, $ignoreId, $resourceId)) {
+        if (!$this->capacity->canFit($typeId, $resourceId, $bufferedStart, $bufferedEnd, max(1, $partySize), $ignoreId)) {
             return false;
         }
 
@@ -330,6 +334,7 @@ class SlotService {
                 continue;
             }
             if ($this->isBlockedByBookings(
+                (int)$type->id,
                 $slotStart,
                 $slotEnd,
                 $bufferBefore,
@@ -343,19 +348,35 @@ class SlotService {
                 continue;
             }
 
-            $free[] = [
+            $slot = [
                 'resource_id' => $resourceId,
                 'start' => $slotStart,
                 'end' => $slotEnd,
                 'label' => $localStart->format('d.m.Y H:i') . ' ' . Time::bookingTimezoneName(),
                 'timezone' => Time::bookingTimezoneName(),
             ];
+            if (!empty($type->show_remaining_capacity)) {
+                $bufferedStart = Time::addMinutes($slotStart, -$bufferBefore);
+                $bufferedEnd = Time::addMinutes($slotEnd, $bufferAfter);
+                if ($bufferedStart && $bufferedEnd) {
+                    $slot['remaining_capacity'] = $this->capacity->remaining(
+                        (int)$type->id,
+                        $resourceId,
+                        $bufferedStart,
+                        $bufferedEnd,
+                        $ignoreBookingId
+                    );
+                    $slot['label'] .= ' — ' . (int)$slot['remaining_capacity'] . ' frei';
+                }
+            }
+            $free[] = $slot;
         }
 
         return $free;
     }
 
     private function isBlockedByBookings(
+        int $typeId,
         string $start,
         string $end,
         int $bufferBefore,
@@ -365,9 +386,9 @@ class SlotService {
     ): bool {
         $bufferedStart = Time::addMinutes($start, -$bufferBefore);
         $bufferedEnd = Time::addMinutes($end, $bufferAfter);
-        return !$bufferedStart || !$bufferedEnd
+        return !$bufferedStart || !$bufferedEnd || !$resourceId
             ? true
-            : $this->bookings->hasConflict($bufferedStart, $bufferedEnd, $ignoreBookingId, $resourceId);
+            : !$this->capacity->canFit($typeId, $resourceId, $bufferedStart, $bufferedEnd, 1, $ignoreBookingId);
     }
 
     private function isBlockedByCalendar(
