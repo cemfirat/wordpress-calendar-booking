@@ -66,3 +66,9 @@ Completed.
 - bounded recurring customer booking series
 - single occurrence or remaining-series management
 - local wall-clock recurrence across timezone offset changes
+
+### 3.8
+- dependency security audit release gates
+- safe uninstall and explicit destructive-delete policy
+- complete WordPress internationalization and reproducible translation catalog
+- packaged launch hardening for the first production deployment
