@@ -12,8 +12,8 @@ class BookingAuditPage {
     public function menu(): void {
         add_submenu_page(
             'wpcb_dashboard',
-            'Buchungs-Historie',
-            'Buchungs-Historie',
+            __('Buchungs-Historie', 'wordpress-calendar-booking'),
+            __('Buchungs-Historie', 'wordpress-calendar-booking'),
             'manage_options',
             'wpcb_booking_audit',
             [$this, 'render']
@@ -22,7 +22,7 @@ class BookingAuditPage {
 
     public function render(): void {
         if (!current_user_can('manage_options')) {
-            wp_die('Nicht erlaubt.', 403);
+            wp_die(esc_html__('Nicht erlaubt.', 'wordpress-calendar-booking'), '', ['response' => 403]);
         }
 
         $repo = new BookingAuditRepository();
@@ -30,29 +30,41 @@ class BookingAuditPage {
         $items = $repo->search($filters, 200);
 
         echo '<div class="wrap wpcb-admin">';
-        echo '<h1>Buchungs-Historie</h1>';
-        echo '<p class="description">Datensparsames Lifecycle-Protokoll. Namen, E-Mail-Adressen, Telefonnummern und Formularantworten werden hier nicht geladen oder angezeigt.</p>';
+        echo '<h1>' . esc_html__('Buchungs-Historie', 'wordpress-calendar-booking') . '</h1>';
+        echo '<p class="description">' . esc_html__('Datensparsames Lifecycle-Protokoll. Namen, E-Mail-Adressen, Telefonnummern und Formularantworten werden hier nicht geladen oder angezeigt.', 'wordpress-calendar-booking') . '</p>';
 
         echo '<form method="get" style="margin:12px 0;padding:12px;background:#fff;border:1px solid #ccd0d4">';
         echo '<input type="hidden" name="page" value="wpcb_booking_audit">';
-        echo '<label>Buchung <input type="number" min="1" name="booking_id" value="' . esc_attr($filters['booking_id'] ?: '') . '"></label> ';
-        echo '<label>Ereignis <select name="event"><option value="">alle</option>';
+        echo '<label>' . esc_html__('Buchung', 'wordpress-calendar-booking') . ' <input type="number" min="1" name="booking_id" value="' . esc_attr($filters['booking_id'] ?: '') . '"></label> ';
+        echo '<label>' . esc_html__('Ereignis', 'wordpress-calendar-booking') . ' <select name="event"><option value="">' . esc_html__('alle', 'wordpress-calendar-booking') . '</option>';
         foreach ($repo->contexts() as $context) {
             echo '<option value="' . esc_attr($context) . '" ' . selected($filters['context'], $context, false) . '>' . esc_html($context) . '</option>';
         }
         echo '</select></label> ';
-        echo '<label>Akteur <select name="actor"><option value="">alle</option>';
+        echo '<label>' . esc_html__('Akteur', 'wordpress-calendar-booking') . ' <select name="actor"><option value="">' . esc_html__('alle', 'wordpress-calendar-booking') . '</option>';
         foreach ($repo->actors() as $actor) {
             echo '<option value="' . esc_attr($actor) . '" ' . selected($filters['actor'], $actor, false) . '>' . esc_html($actor) . '</option>';
         }
         echo '</select></label> ';
-        echo '<label>Von <input type="date" name="from" value="' . esc_attr($filters['from_date']) . '"></label> ';
-        echo '<label>Bis <input type="date" name="to" value="' . esc_attr($filters['to_date']) . '"></label> ';
-        echo '<button class="button">Filtern</button> ';
-        echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_booking_audit')) . '">Zurücksetzen</a>';
+        echo '<label>' . esc_html__('Von', 'wordpress-calendar-booking') . ' <input type="date" name="from" value="' . esc_attr($filters['from_date']) . '"></label> ';
+        echo '<label>' . esc_html__('Bis', 'wordpress-calendar-booking') . ' <input type="date" name="to" value="' . esc_attr($filters['to_date']) . '"></label> ';
+        echo '<button class="button">' . esc_html__('Filtern', 'wordpress-calendar-booking') . '</button> ';
+        echo '<a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_booking_audit')) . '">' . esc_html__('Zurücksetzen', 'wordpress-calendar-booking') . '</a>';
         echo '</form>';
 
-        echo '<table class="widefat striped"><thead><tr><th>Zeit (UTC)</th><th>Buchung</th><th>Ereignis</th><th>Von</th><th>Nach</th><th>Akteur</th><th>Notiz</th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr>';
+        foreach ([
+            __('Zeit (UTC)', 'wordpress-calendar-booking'),
+            __('Buchung', 'wordpress-calendar-booking'),
+            __('Ereignis', 'wordpress-calendar-booking'),
+            __('Von', 'wordpress-calendar-booking'),
+            __('Nach', 'wordpress-calendar-booking'),
+            __('Akteur', 'wordpress-calendar-booking'),
+            __('Notiz', 'wordpress-calendar-booking'),
+        ] as $heading) {
+            echo '<th>' . esc_html($heading) . '</th>';
+        }
+        echo '</tr></thead><tbody>';
         foreach ($items as $item) {
             echo '<tr>';
             echo '<td>' . esc_html((string)$item->created_at) . '</td>';
@@ -65,7 +77,7 @@ class BookingAuditPage {
             echo '</tr>';
         }
         if (!$items) {
-            echo '<tr><td colspan="7">Keine passenden Einträge.</td></tr>';
+            echo '<tr><td colspan="7">' . esc_html__('Keine passenden Einträge.', 'wordpress-calendar-booking') . '</td></tr>';
         }
         echo '</tbody></table>';
         echo '</div>';
