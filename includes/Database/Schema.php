@@ -340,6 +340,21 @@ class Schema {
             KEY updated_at (updated_at)
         ) {$charset};";
 
+        $sql[] = "CREATE TABLE {$prefix}customer_sessions (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            selector varchar(32) NOT NULL,
+            verifier_hash varchar(64) NOT NULL,
+            email_hash varchar(64) NOT NULL,
+            email_enc longtext NOT NULL,
+            expires_at datetime NOT NULL,
+            last_seen_at datetime DEFAULT NULL,
+            created_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY selector (selector),
+            KEY email_hash (email_hash),
+            KEY expires_at (expires_at)
+        ) {$charset};";
+
         foreach ($sql as $statement) {
             dbDelta($statement);
         }
