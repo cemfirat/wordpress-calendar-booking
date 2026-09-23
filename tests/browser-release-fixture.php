@@ -72,7 +72,7 @@ if ($action === 'setup') {
         'post_name' => 'wpcb-e2e-shortcodes',
         'post_type' => 'page',
         'post_status' => 'publish',
-        'post_content' => "[wpcb_booking_calendar]\n\n[wpcb_booking_form]",
+        'post_content' => "[wpcb_booking_calendar]\n\n[wpcb_booking_form]\n\n[wpcb_customer_portal]",
     ], true);
 
     $blockPage = wp_insert_post([
