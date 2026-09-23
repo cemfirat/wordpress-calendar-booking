@@ -183,6 +183,84 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+  browser_release:
+    name: Browser release acceptance
+    needs: [package]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Install WordPress and packaged plugin
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCB-Browser --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+          mkdir -p "$WP_ROOT/wp-content/mu-plugins"
+          cp "$GITHUB_WORKSPACE/tests/browser-release-mu.php" "$WP_ROOT/wp-content/mu-plugins/wpcb-browser-release.php"
+      - name: Install browser test runtime
+        run: |
+          npm install --no-save --ignore-scripts @playwright/test@1.55.0
+          npx playwright install --with-deps chromium
+      - name: Run packaged release browser acceptance
+        env:
+          WP_ROOT: ${{ runner.temp }}/wordpress
+          WPCB_E2E_BASE_URL: http://127.0.0.1:8080
+          WPCB_E2E_ADMIN_USER: admin
+          WPCB_E2E_ADMIN_PASSWORD: integration-only
+        run: |
+          set -euo pipefail
+          wp server --host=127.0.0.1 --port=8080 --path="$WP_ROOT" > "$RUNNER_TEMP/wpcb-browser-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/ >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+
+          npx playwright test tests/browser-release.spec.mjs --reporter=line
+      - name: Upload redacted browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-release-failure
+          path: tests/browser-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
   fresh_release:
     name: Fresh install release ZIP
     needs: [package]
@@ -269,7 +347,7 @@ jobs:
   release:
     name: Publish stable release
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: [php, wordpress, fresh_release, legacy_upgrade]
+    needs: [php, wordpress, fresh_release, legacy_upgrade, browser_release]
     runs-on: ubuntu-latest
     permissions:
       contents: write
