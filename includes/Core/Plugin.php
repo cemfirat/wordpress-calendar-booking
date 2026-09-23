@@ -4,6 +4,7 @@ namespace Wpcb\Core;
 use Wpcb\Admin\Admin;
 use Wpcb\Admin\BookingAuditPage;
 use Wpcb\Admin\ResourceAdminPage;
+use Wpcb\Admin\WebhookAdminPage;
 use Wpcb\Database\SchemaMigration;
 use Wpcb\Resources\ResourceMigration;
 use Wpcb\Frontend\Shortcodes;
@@ -21,6 +22,8 @@ use Wpcb\Calendar\MicrosoftOAuthController;
 use Wpcb\Calendar\CalDavController;
 use Wpcb\Calendar\ProviderDiagnosticsController;
 use Wpcb\Blocks\Integration as BlocksIntegration;
+use Wpcb\Api\RestController;
+use Wpcb\Webhooks\WebhookService;
 
 class Plugin {
     public function boot(): void {
@@ -35,12 +38,15 @@ class Plugin {
         (new Admin())->boot();
         (new BookingAuditPage())->boot();
         (new ResourceAdminPage())->boot();
+        (new WebhookAdminPage())->boot();
         (new GoogleOAuthController())->boot();
         (new MicrosoftOAuthController())->boot();
         (new CalDavController())->boot();
         (new ProviderDiagnosticsController())->boot();
         (new Integration())->boot();
         (new BlocksIntegration())->boot();
+        (new RestController())->boot();
+        (new WebhookService())->boot();
         (new Shortcodes())->boot();
         (new Actions())->boot();
         (new QueueService())->boot();
