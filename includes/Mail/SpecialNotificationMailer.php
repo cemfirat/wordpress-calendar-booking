@@ -494,12 +494,27 @@ final class SpecialNotificationMailer {
 
     private function returnPath(string $returnUrl): string {
         $safe = wp_validate_redirect(esc_url_raw($returnUrl), home_url('/'));
-        $homeHost = strtolower((string)wp_parse_url(home_url('/'), PHP_URL_HOST));
+        $home = home_url('/');
+        $homeHost = strtolower((string)wp_parse_url($home, PHP_URL_HOST));
         $host = strtolower((string)wp_parse_url($safe, PHP_URL_HOST));
         if ($host !== '' && $homeHost !== '' && !hash_equals($homeHost, $host)) {
             return '/';
         }
-        return $this->sanitizeReturnPath((string)(wp_parse_url($safe, PHP_URL_PATH) ?: '/'));
+
+        $path = $this->sanitizeReturnPath((string)(wp_parse_url($safe, PHP_URL_PATH) ?: '/'));
+        $homePath = $this->sanitizeReturnPath((string)(wp_parse_url($home, PHP_URL_PATH) ?: '/'));
+        $base = rtrim($homePath, '/');
+        if ($base !== '') {
+            if ($path === $base || $path === $base . '/') {
+                return '/';
+            }
+            if (!str_starts_with($path, $base . '/')) {
+                return '/';
+            }
+            $path = substr($path, strlen($base));
+        }
+
+        return $this->sanitizeReturnPath($path);
     }
 
     private function sanitizeReturnPath(string $path): string {
