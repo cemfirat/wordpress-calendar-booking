@@ -10,6 +10,22 @@ permissions:
   contents: read
 
 jobs:
+  docs:
+    name: Documentation consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject stale product/architecture planning text
+        run: |
+          set -euo pipefail
+          ! grep -q '^# WordPress Calendar Booking 2\.0' docs/PRODUCT.md
+          ! grep -q '^## Deliberately later' docs/PRODUCT.md
+          ! grep -q '2\.0 single-resource model' docs/ARCHITECTURE.md
+          ! grep -q '^## P2 — later' docs/GITHUB-ISSUES.md
+          grep -q '^# Initial GitHub Issue Backlog — Historical Archive' docs/GITHUB-ISSUES.md
+          grep -q 'ResourceLock' docs/ARCHITECTURE.md
+          grep -q 'Versioned `/wp-json/wpcb/v1` REST API' docs/PRODUCT.md
+
   php:
     name: PHP ${{ matrix.php }} syntax
     runs-on: ubuntu-latest
@@ -548,7 +564,7 @@ jobs:
   release:
     name: Publish stable release
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: [php, dependency_audit, i18n, wordpress, fresh_release, legacy_upgrade, browser_release, uninstall_release]
+    needs: [docs, php, dependency_audit, i18n, wordpress, fresh_release, legacy_upgrade, browser_release, uninstall_release]
     runs-on: ubuntu-latest
     permissions:
       contents: write

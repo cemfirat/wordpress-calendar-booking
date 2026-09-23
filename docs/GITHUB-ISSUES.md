@@ -1,36 +1,29 @@
-# Initial GitHub Issue Backlog
+# Initial GitHub Issue Backlog — Historical Archive
 
-Do not publish detailed exploit reproduction for security-sensitive items until the affected public version is fixed. Public issues describe the invariant and acceptance criteria without exposing a weaponized request.
+> **Historical document.** This file records the backlog used to drive the original 2.x reliability rewrite. The listed work has since been implemented and must not be treated as the current roadmap.
 
-## P0 — release blockers
+Current planning sources:
 
-1. Canonical slot tokens and server-side availability validation
-2. Atomic reservation to prevent double bookings
-3. UTC/IANA timezone domain model and DST tests
-4. Recurrence-capable ICS/CalDAV busy-time handling
-5. Busy-only public calendar privacy defaults
-6. Explicit booking state machine
-7. Safe cancel/reschedule/DOI confirmation flow
-8. Indexed selector/verifier tokens
-9. Authenticated encryption for provider credentials
-10. Queue leases and idempotent notifications/sync
-11. WordPress privacy tools and retention
-12. UIkit/YOOtheme frontend adapter
+- active work: the repository's GitHub Issues and pull requests;
+- shipped release sequence: [ROADMAP.md](ROADMAP.md);
+- current product capabilities: [PRODUCT.md](PRODUCT.md);
+- current technical design: [ARCHITECTURE.md](ARCHITECTURE.md);
+- historical release details: [../CHANGELOG.md](../CHANGELOG.md).
 
-## P1 — calendar providers
+## Original 2.x release blockers
 
-- Calendar provider/connection data model
-- Google Calendar OAuth + FreeBusy + Events
-- Microsoft Graph provider
-- Generic CalDAV provider + iCloud preset
-- Provider health and diagnostics
+The initial rewrite tracked canonical slot validation, atomic reservation, UTC/IANA time handling, recurrence-aware external busy time, busy-only privacy, an explicit booking state machine, scanner-safe public actions, selector/verifier tokens, encrypted provider credentials, leased queues, WordPress privacy tools and the shared UIkit/YOOtheme renderer.
 
-## P1 — product/admin
+## Original provider follow-up
 
-- CSV booking export and filters
-- Scheduler health
-- Notification delivery log
+The next provider phase introduced the calendar connection model, Google Calendar, Microsoft Graph, generic CalDAV/iCloud and provider diagnostics.
 
-## P2 — later
+## Original operations follow-up
 
-Resources/staff, group/capacity bookings, webhooks/API, Zoom/Meet/Teams, payments, waiting list, customer portal and recurring customer bookings.
+CSV export/filtering, scheduler health, notification delivery history and lifecycle audit history followed the core/provider work.
+
+## Features that were originally marked "later"
+
+The original backlog deferred resources/staff, capacity/group booking, REST/webhooks, customer portal, payments, waiting lists, video meetings and recurring customer bookings. These capabilities are part of the current 3.x codebase and are documented in [PRODUCT.md](PRODUCT.md) and [ARCHITECTURE.md](ARCHITECTURE.md).
+
+Do not add new roadmap items to this archive.
