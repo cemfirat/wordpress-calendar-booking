@@ -83,3 +83,8 @@ Completed.
 - protected mail transport diagnostics
 - privacy-safe administrator test email
 - mail delivery state and redacted failure visibility in Systemstatus
+
+### 3.11
+- bounded/paginated administrator booking list
+- batch metadata loading for admin booking pages
+- filtered counts without changing complete CSV export semantics
