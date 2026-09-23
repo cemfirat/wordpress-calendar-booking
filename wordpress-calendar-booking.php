@@ -11,7 +11,7 @@
  * License: GPL-2.0-or-later
  * License URI: https://www.gnu.org/licenses/gpl-2.0.html
  * Update URI: https://github.com/cemfirat/wordpress-calendar-booking
- * Text Domain: wpcb
+ * Text Domain: wordpress-calendar-booking
  */
 
 if (!defined('ABSPATH')) {
