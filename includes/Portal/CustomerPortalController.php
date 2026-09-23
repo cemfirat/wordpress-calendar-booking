@@ -225,20 +225,20 @@ final class CustomerPortalController {
             $this->redirect($returnUrl, 'not_allowed');
         }
 
-        $payment = (new PaymentService())->paymentForBooking($bookingId);
-        if (!empty($booking->series_id) && $payment) {
+        $scope = sanitize_key(wp_unslash($_POST['cancel_scope'] ?? 'single'));
+        if (!empty($booking->series_id) && $scope === 'remaining') {
             $result = (new RecurringBookingService())->applyRemaining(
                 $bookingId,
                 BookingStateMachine::USER_CANCELLED,
                 'customer_portal',
-                'Customer cancelled paid recurring series from portal'
+                'Customer cancelled this and remaining recurring bookings from portal'
             );
         } else {
             $result = (new BookingTransitionService())->apply(
                 $bookingId,
                 BookingStateMachine::USER_CANCELLED,
                 'customer_portal',
-                'Customer cancelled from portal'
+                'Customer cancelled one booking from portal'
             );
         }
         $this->redirect($returnUrl, is_wp_error($result) ? 'action_failed' : 'cancelled');
@@ -435,7 +435,22 @@ final class CustomerPortalController {
         if ($payment) {
             $amount = number_format(((int)$payment->amount_minor) / 100, 2, ',', '.');
             $paymentLabel = !empty($booking->series_id) ? __('Serienzahlung', 'wordpress-calendar-booking') : __('Zahlung', 'wordpress-calendar-booking');
-            $html .= '<dt>' . esc_html($paymentLabel) . '</dt><dd>' . esc_html($amount . ' ' . (string)$payment->currency . ' · ' . (string)$payment->status) . '</dd>';
+            $paymentSummary = $amount . ' ' . (string)$payment->currency . ' · ' . (string)$payment->status;
+            $refundedMinor = (int)($payment->refunded_minor ?? 0);
+            $refundPendingMinor = (int)($payment->refund_pending_minor ?? 0);
+            if ($refundedMinor > 0) {
+                $paymentSummary .= ' · ' . sprintf(
+                    __('%s erstattet', 'wordpress-calendar-booking'),
+                    number_format($refundedMinor / 100, 2, ',', '.') . ' ' . (string)$payment->currency
+                );
+            }
+            if ($refundPendingMinor > 0) {
+                $paymentSummary .= ' · ' . sprintf(
+                    __('%s zur Erstattung vorgemerkt', 'wordpress-calendar-booking'),
+                    number_format($refundPendingMinor / 100, 2, ',', '.') . ' ' . (string)$payment->currency
+                );
+            }
+            $html .= '<dt>' . esc_html($paymentLabel) . '</dt><dd>' . esc_html($paymentSummary) . '</dd>';
             $ownerBookingId = (int)$payment->booking_id;
             $ownerBooking = $ownerBookingId === (int)$booking->id ? $booking : $this->bookings->find($ownerBookingId);
             $reservedUntil = $ownerBooking ? Time::parseUtc((string)($ownerBooking->reserved_until ?? '')) : null;
@@ -470,17 +485,47 @@ final class CustomerPortalController {
             $fields .= '</select><button class="uk-button uk-button-primary uk-margin-small-top" type="submit">' . esc_html__('Termin verschieben', 'wordpress-calendar-booking') . '</button>';
             $html .= '<h4>' . esc_html__('Termin ändern', 'wordpress-calendar-booking') . '</h4>' . $this->postForm('wpcb_portal_reschedule', $returnUrl, $session, $fields);
 
-            $canCancelHere = !$payment
-                || empty($booking->series_id)
-                || (int)($booking->series_occurrence ?? -1) === 0;
-            if ($canCancelHere) {
-                $cancelLabel = $payment && !empty($booking->series_id)
-                    ? __('Komplette Terminserie stornieren', 'wordpress-calendar-booking')
-                    : __('Buchung stornieren', 'wordpress-calendar-booking');
-                $cancelFields = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '"><button class="uk-button uk-button-danger" type="submit">' . esc_html($cancelLabel) . '</button>';
-                $html .= '<div class="uk-margin-top">' . $this->postForm('wpcb_portal_cancel', $returnUrl, $session, $cancelFields) . '</div>';
+            $paymentService = new PaymentService();
+            if ($payment && !empty($booking->series_id)) {
+                $singleRefund = $paymentService->refundAmountForBooking((int)$booking->id, false);
+                $remainingRefund = $paymentService->refundAmountForBooking((int)$booking->id, true);
+                $currency = (string)$payment->currency;
+                $singleLabel = __('Nur diesen Termin stornieren', 'wordpress-calendar-booking');
+                if ($singleRefund > 0) {
+                    $singleLabel .= ' · ' . sprintf(
+                        __('Erstattung %s', 'wordpress-calendar-booking'),
+                        number_format($singleRefund / 100, 2, ',', '.') . ' ' . $currency
+                    );
+                }
+                $singleFields = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '">'
+                    . '<input type="hidden" name="cancel_scope" value="single">'
+                    . '<button class="uk-button uk-button-danger" type="submit">' . esc_html($singleLabel) . '</button>';
+                $html .= '<div class="uk-margin-top">'
+                    . $this->postForm('wpcb_portal_cancel', $returnUrl, $session, $singleFields)
+                    . '</div>';
+
+                if ($remainingRefund > $singleRefund) {
+                    $remainingLabel = __('Diesen und alle folgenden Termine stornieren', 'wordpress-calendar-booking');
+                    if ($remainingRefund > 0) {
+                        $remainingLabel .= ' · ' . sprintf(
+                            __('Erstattung %s', 'wordpress-calendar-booking'),
+                            number_format($remainingRefund / 100, 2, ',', '.') . ' ' . $currency
+                        );
+                    }
+                    $remainingFields = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '">'
+                        . '<input type="hidden" name="cancel_scope" value="remaining">'
+                        . '<button class="uk-button uk-button-danger" type="submit">' . esc_html($remainingLabel) . '</button>';
+                    $html .= '<div class="uk-margin-small-top">'
+                        . $this->postForm('wpcb_portal_cancel', $returnUrl, $session, $remainingFields)
+                        . '</div>';
+                }
             } else {
-                $html .= '<p class="uk-text-meta uk-margin-top">' . esc_html__('Bezahlte Terminserien können derzeit nur vollständig über den ersten Termin der Serie storniert werden.', 'wordpress-calendar-booking') . '</p>';
+                $cancelFields = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '">'
+                    . '<input type="hidden" name="cancel_scope" value="single">'
+                    . '<button class="uk-button uk-button-danger" type="submit">' . esc_html__('Buchung stornieren', 'wordpress-calendar-booking') . '</button>';
+                $html .= '<div class="uk-margin-top">'
+                    . $this->postForm('wpcb_portal_cancel', $returnUrl, $session, $cancelFields)
+                    . '</div>';
             }
         }
 
