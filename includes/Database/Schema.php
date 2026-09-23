@@ -13,6 +13,7 @@ class Schema {
             id bigint unsigned NOT NULL AUTO_INCREMENT,
             booking_uuid varchar(64) NOT NULL,
             booking_type_id bigint unsigned NOT NULL,
+            resource_id bigint unsigned DEFAULT NULL,
             slot_start datetime NOT NULL,
             slot_end datetime NOT NULL,
             status varchar(50) NOT NULL,
@@ -35,6 +36,7 @@ class Schema {
             KEY slot_start (slot_start),
             KEY slot_end (slot_end),
             KEY booking_type_id (booking_type_id),
+            KEY resource_id (resource_id),
             KEY reserved_until (reserved_until)
         ) {$charset};";
 
@@ -63,6 +65,31 @@ class Schema {
             updated_at datetime NOT NULL,
             PRIMARY KEY (id),
             KEY slug (slug)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}resources (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            name varchar(190) NOT NULL,
+            slug varchar(190) NOT NULL,
+            public_label varchar(190) DEFAULT '',
+            description text DEFAULT NULL,
+            is_active tinyint(1) NOT NULL DEFAULT 1,
+            is_public tinyint(1) NOT NULL DEFAULT 0,
+            sort_order int NOT NULL DEFAULT 0,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY slug (slug),
+            KEY active_sort (is_active, sort_order)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}booking_type_resources (
+            booking_type_id bigint unsigned NOT NULL,
+            resource_id bigint unsigned NOT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (booking_type_id, resource_id),
+            KEY resource_id (resource_id)
         ) {$charset};";
 
         $sql[] = "CREATE TABLE {$prefix}form_fields (
@@ -109,12 +136,14 @@ class Schema {
             date_end datetime NOT NULL,
             all_day tinyint(1) NOT NULL DEFAULT 0,
             booking_type_id bigint unsigned DEFAULT NULL,
+            resource_id bigint unsigned DEFAULT NULL,
             is_active tinyint(1) NOT NULL DEFAULT 1,
             created_at datetime NOT NULL,
             updated_at datetime NOT NULL,
             PRIMARY KEY (id),
             KEY date_range (date_start, date_end),
-            KEY booking_type_id (booking_type_id)
+            KEY booking_type_id (booking_type_id),
+            KEY resource_id (resource_id)
         ) {$charset};";
 
         $sql[] = "CREATE TABLE {$prefix}tokens (
@@ -230,6 +259,19 @@ class Schema {
             KEY connection_id (connection_id),
             KEY booking_type_blocking (booking_type_id, blocks_availability),
             KEY booking_type_writeback (booking_type_id, receives_bookings)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}resource_calendar_connections (
+            resource_id bigint unsigned NOT NULL,
+            connection_id bigint unsigned NOT NULL,
+            blocks_availability tinyint(1) NOT NULL DEFAULT 1,
+            receives_bookings tinyint(1) NOT NULL DEFAULT 0,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (resource_id, connection_id),
+            KEY connection_id (connection_id),
+            KEY resource_blocking (resource_id, blocks_availability),
+            KEY resource_writeback (resource_id, receives_bookings)
         ) {$charset};";
 
         $sql[] = "CREATE TABLE {$prefix}sync_log (
