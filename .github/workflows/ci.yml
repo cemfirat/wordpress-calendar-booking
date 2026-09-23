@@ -625,7 +625,7 @@ jobs:
           p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/wordpress-calendar-booking.php"
           text = p.read_text()
           text = text.replace(" * Version: 3.8.1", " * Version: 3.8.0")
-          text = text.replace("define('WPCB_VERSION', '3.8.0');", "define('WPCB_VERSION', '3.7.0');")
+          text = text.replace("define('WPCB_VERSION', '3.8.1');", "define('WPCB_VERSION', '3.8.0');")
           p.write_text(text)
           PY
           (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-3.8.0.zip" wordpress-calendar-booking)
