@@ -28,16 +28,17 @@ class Admin {
     }
 
     public function menu(): void {
-        add_menu_page('Kalender & Buchungen', 'Kalender & Buchungen', 'manage_options', 'wpcb_dashboard', [$this, 'dashboard'], 'dashicons-calendar-alt', 58);
-        add_submenu_page('wpcb_dashboard', 'Grundeinstellungen', 'Grundeinstellungen', 'manage_options', 'wpcb_settings', [$this, 'settings']);
-        add_submenu_page('wpcb_dashboard', 'Terminarten', 'Terminarten', 'manage_options', 'wpcb_types', [$this, 'types']);
-        add_submenu_page('wpcb_dashboard', 'Formularfelder', 'Formularfelder', 'manage_options', 'wpcb_fields', [$this, 'fields']);
-        add_submenu_page('wpcb_dashboard', 'Verfügbarkeit', 'Verfügbarkeit', 'manage_options', 'wpcb_availability', [$this, 'availability']);
-        add_submenu_page('wpcb_dashboard', 'Buchungen', 'Buchungen', 'manage_options', 'wpcb_bookings', [$this, 'bookings']);
-        add_submenu_page('wpcb_dashboard', 'E-Mail-Vorlagen', 'E-Mail-Vorlagen', 'manage_options', 'wpcb_emails', [$this, 'emails']);
-        add_submenu_page('wpcb_dashboard', 'Versandprotokoll', 'Versandprotokoll', 'manage_options', 'wpcb_delivery_log', [$this, 'deliveryLog']);
-        add_submenu_page('wpcb_dashboard', 'Systemstatus', 'Systemstatus', 'manage_options', 'wpcb_system_health', [$this, 'schedulerHealth']);
-        add_submenu_page('wpcb_dashboard', 'Sync-Protokoll', 'Sync-Protokoll', 'manage_options', 'wpcb_sync_log', [$this, 'syncLog']);
+        $root = __('Kalender & Buchungen', 'wordpress-calendar-booking');
+        add_menu_page($root, $root, 'manage_options', 'wpcb_dashboard', [$this, 'dashboard'], 'dashicons-calendar-alt', 58);
+        add_submenu_page('wpcb_dashboard', __('Grundeinstellungen', 'wordpress-calendar-booking'), __('Grundeinstellungen', 'wordpress-calendar-booking'), 'manage_options', 'wpcb_settings', [$this, 'settings']);
+        add_submenu_page('wpcb_dashboard', __('Terminarten', 'wordpress-calendar-booking'), __('Terminarten', 'wordpress-calendar-booking'), 'manage_options', 'wpcb_types', [$this, 'types']);
+        add_submenu_page('wpcb_dashboard', __('Formularfelder', 'wordpress-calendar-booking'), __('Formularfelder', 'wordpress-calendar-booking'), 'manage_options', 'wpcb_fields', [$this, 'fields']);
+        add_submenu_page('wpcb_dashboard', __('Verfügbarkeit', 'wordpress-calendar-booking'), __('Verfügbarkeit', 'wordpress-calendar-booking'), 'manage_options', 'wpcb_availability', [$this, 'availability']);
+        add_submenu_page('wpcb_dashboard', __('Buchungen', 'wordpress-calendar-booking'), __('Buchungen', 'wordpress-calendar-booking'), 'manage_options', 'wpcb_bookings', [$this, 'bookings']);
+        add_submenu_page('wpcb_dashboard', __('E-Mail-Vorlagen', 'wordpress-calendar-booking'), __('E-Mail-Vorlagen', 'wordpress-calendar-booking'), 'manage_options', 'wpcb_emails', [$this, 'emails']);
+        add_submenu_page('wpcb_dashboard', __('Versandprotokoll', 'wordpress-calendar-booking'), __('Versandprotokoll', 'wordpress-calendar-booking'), 'manage_options', 'wpcb_delivery_log', [$this, 'deliveryLog']);
+        add_submenu_page('wpcb_dashboard', __('Systemstatus', 'wordpress-calendar-booking'), __('Systemstatus', 'wordpress-calendar-booking'), 'manage_options', 'wpcb_system_health', [$this, 'schedulerHealth']);
+        add_submenu_page('wpcb_dashboard', __('Sync-Protokoll', 'wordpress-calendar-booking'), __('Sync-Protokoll', 'wordpress-calendar-booking'), 'manage_options', 'wpcb_sync_log', [$this, 'syncLog']);
     }
 
     public function handlePost(): void {
@@ -234,7 +235,7 @@ class Admin {
             case 'booking_retention':
                 $id = absint($_POST['id'] ?? 0);
                 if ($id < 1) {
-                    wp_die('Ungültige Buchung.');
+                    wp_die(esc_html__('Ungültige Buchung.', 'wordpress-calendar-booking'));
                 }
                 (new PrivacyService())->setRetention($id, !empty($_POST['retain']));
                 break;
@@ -259,7 +260,7 @@ class Admin {
     private function formStart(): void {
         echo '<div class="wrap wpcb-admin">';
         if (!empty($_GET['updated'])) {
-            echo '<div class="notice notice-success"><p>Gespeichert.</p></div>';
+            echo '<div class="notice notice-success"><p>' . esc_html__('Gespeichert.', 'wordpress-calendar-booking') . '</p></div>';
         }
         if (!empty($_GET['wpcb_error'])) {
             $error = sanitize_text_field(wp_unslash($_GET['wpcb_error']));
@@ -272,8 +273,14 @@ class Admin {
         $this->formStart();
         $repo = new BookingRepository();
         $bookings = $repo->all(['limit' => 10]);
-        echo '<h1>Kalender & Buchungen</h1><p>Shortcodes: <code>[wpcb_booking_form]</code>, <code>[wpcb_calendar]</code> und <code>[wpcb_booking_calendar]</code></p><h2>Neueste Buchungen</h2>';
-        echo '<table class="widefat"><thead><tr><th>Name</th><th>E-Mail</th><th>Termin</th><th>Status</th></tr></thead><tbody>';
+        echo '<h1>' . esc_html__('Kalender & Buchungen', 'wordpress-calendar-booking') . '</h1>';
+        echo '<p>' . esc_html__('Shortcodes:', 'wordpress-calendar-booking') . ' <code>[wpcb_booking_form]</code>, <code>[wpcb_calendar]</code> ' . esc_html__('und', 'wordpress-calendar-booking') . ' <code>[wpcb_booking_calendar]</code></p>';
+        echo '<h2>' . esc_html__('Neueste Buchungen', 'wordpress-calendar-booking') . '</h2>';
+        echo '<table class="widefat"><thead><tr>';
+        foreach ([__('Name','wordpress-calendar-booking'), __('E-Mail','wordpress-calendar-booking'), __('Termin','wordpress-calendar-booking'), __('Status','wordpress-calendar-booking')] as $heading) {
+            echo '<th>' . esc_html($heading) . '</th>';
+        }
+        echo '</tr></thead><tbody>';
         foreach ($bookings as $b) {
             echo '<tr><td>' . esc_html($b->full_name) . '</td><td>' . esc_html($b->email) . '</td><td>' . esc_html($b->slot_start) . '</td><td>' . esc_html($b->status) . '</td></tr>';
         }
@@ -285,59 +292,62 @@ class Admin {
         $s = Settings::get();
         $secret_status = Settings::secretStatus();
         $this->formStart();
-        echo '<h1>Grundeinstellungen</h1><form method="post">';
+        echo '<h1>' . esc_html__('Grundeinstellungen', 'wordpress-calendar-booking') . '</h1><form method="post">';
         wp_nonce_field('wpcb_admin_action');
         echo '<input type="hidden" name="wpcb_admin_action" value="save_settings">';
         echo '<table class="form-table">';
-        $this->row('Buchungsmodus', '<label><input type="radio" name="mode" value="automatic" ' . checked($s['mode'], 'automatic', false) . '> automatisch</label> <label><input type="radio" name="mode" value="approval" ' . checked($s['mode'], 'approval', false) . '> Admin-Freigabe</label>');
-        $this->row('Absendername', '<input type="text" name="sender_name" value="' . esc_attr($s['sender_name']) . '" class="regular-text">');
-        $this->row('Absender-E-Mail', '<input type="email" name="sender_email" value="' . esc_attr($s['sender_email']) . '" class="regular-text">');
-        $this->row('Adresse für "Mich besuchen"', '<textarea name="visit_address" rows="3" class="regular-text">' . esc_textarea($s['visit_address']) . '</textarea>');
-        $this->row('Eigene Telefonnummer', '<input type="text" name="own_phone" value="' . esc_attr($s['own_phone']) . '" class="regular-text">');
-        $this->row('Öffentliche iCloud-Kalender-URLs', '<textarea name="calendar_urls" rows="6" class="large-text code" placeholder="Eine URL pro Zeile">' . esc_textarea($s['calendar_urls']) . '</textarea><p class="description">Mehrere URLs erlaubt. <code>webcal://</code> wird automatisch in <code>https://</code> umgewandelt.</p>');
-        $this->row('Kalender-Cache (Min.)', '<input type="number" name="calendar_cache_minutes" value="' . esc_attr($s['calendar_cache_minutes']) . '">');
-        $this->row('Interne Benachrichtigungen', '<label><input type="checkbox" name="notifications_enabled" value="1" ' . checked($s['notifications_enabled'], 1, false) . '> aktiv</label><br><input type="text" name="notification_emails" value="' . esc_attr($s['notification_emails']) . '" class="regular-text">');
-        $this->row('Erinnerungen', '<label><input type="checkbox" name="reminders_enabled" value="1" ' . checked($s['reminders_enabled'], 1, false) . '> aktiv</label><br><input type="number" name="reminder_hours" value="' . esc_attr($s['reminder_hours']) . '"> Stunden vorher');
-        $this->row('Versandprotokoll-Aufbewahrung', '<input type="number" min="1" name="delivery_log_retention_days" value="' . esc_attr($s['delivery_log_retention_days']) . '"> Tage<p class="description">Gesendete und fehlgeschlagene Versanddatensätze werden danach automatisch entfernt. Nachrichtentexte werden nicht im Versandprotokoll gespeichert.</p>');
-        $this->row('Token-Gültigkeit (Min.)', '<input type="number" name="token_ttl_minutes" value="' . esc_attr($s['token_ttl_minutes']) . '">');
-        $this->row('Reservierungsdauer (Min.)', '<input type="number" name="reservation_ttl_minutes" value="' . esc_attr($s['reservation_ttl_minutes']) . '">');
-        $this->row('Storno bis X Stunden vorher', '<input type="number" name="cancel_min_hours" value="' . esc_attr($s['cancel_min_hours']) . '">');
-        $this->row('Änderung bis X Stunden vorher', '<input type="number" name="change_min_hours" value="' . esc_attr($s['change_min_hours']) . '">');
-        $this->row('Datenschutz-Aufbewahrung', '<label><input type="checkbox" name="retention_enabled" value="1" ' . checked($s['retention_enabled'], 1, false) . '> automatische Anonymisierung aktivieren</label><br><input type="number" min="1" name="retention_days" value="' . esc_attr($s['retention_days']) . '"> Tage nach Terminende<p class="description">Standardmäßig deaktiviert. Persönliche Buchungsdaten werden anonymisiert, nicht der Termin-/Statusdatensatz gelöscht. Buchungen mit Aufbewahrungs-Markierung werden übersprungen.</p>');
-        $this->row('Daten bei Deinstallation', '<label><input type="checkbox" name="delete_data_on_uninstall" value="1" ' . checked($s['delete_data_on_uninstall'], 1, false) . '> alle WordPress Calendar Booking-Daten beim Löschen des Plugins endgültig entfernen</label><p class="description"><strong>Achtung:</strong> Standardmäßig bleiben Buchungen, Kunden-, Zahlungs-, Kalender- und Konfigurationsdaten bei einer Deinstallation erhalten. Diese Option löscht beim Deinstallieren alle <code>wpcb_*</code>-Tabellen und -Optionen unwiderruflich. Für normale Datenschutzlöschung die WordPress-Datenschutzwerkzeuge bzw. Aufbewahrung verwenden.</p>');
-        $this->row('Honeypot', '<label><input type="checkbox" name="honeypot_enabled" value="1" ' . checked($s['honeypot_enabled'], 1, false) . '> aktiv</label>');
-        $this->row('Timing-Schutz', '<label><input type="checkbox" name="timing_enabled" value="1" ' . checked($s['timing_enabled'], 1, false) . '> aktiv</label><br><input type="number" name="min_form_seconds" value="' . esc_attr($s['min_form_seconds']) . '"> Sekunden Minimum');
-        $this->row('Rate Limit', '<label><input type="checkbox" name="rate_limit_enabled" value="1" ' . checked($s['rate_limit_enabled'], 1, false) . '> aktiv</label><br><input type="number" name="rate_limit_requests" value="' . esc_attr($s['rate_limit_requests']) . '"> Anfragen in <input type="number" name="rate_limit_window_minutes" value="' . esc_attr($s['rate_limit_window_minutes']) . '"> Minuten');
-        echo '</table><hr><h2>iCloud Schreibsync</h2><table class="form-table">';
-        $this->row('Sync aktivieren', '<label><input type="checkbox" name="icloud_sync_enabled" value="1" ' . checked($s['icloud_sync_enabled'], 1, false) . '> neue bestätigte Buchungen nach iCloud schreiben</label>');
-        $this->row('Apple-ID', '<input type="email" name="icloud_sync_apple_id" value="' . esc_attr($s['icloud_sync_apple_id']) . '" class="regular-text">');
-        $secret_description = 'Noch kein Passwort gespeichert.';
+        $this->row(__('Buchungsmodus', 'wordpress-calendar-booking'), '<label><input type="radio" name="mode" value="automatic" ' . checked($s['mode'], 'automatic', false) . '> ' . esc_html__('automatisch', 'wordpress-calendar-booking') . '</label> <label><input type="radio" name="mode" value="approval" ' . checked($s['mode'], 'approval', false) . '> ' . esc_html__('Admin-Freigabe', 'wordpress-calendar-booking') . '</label>');
+        $this->row(__('Absendername', 'wordpress-calendar-booking'), '<input type="text" name="sender_name" value="' . esc_attr($s['sender_name']) . '" class="regular-text">');
+        $this->row(__('Absender-E-Mail', 'wordpress-calendar-booking'), '<input type="email" name="sender_email" value="' . esc_attr($s['sender_email']) . '" class="regular-text">');
+        $this->row(__('Adresse für "Mich besuchen"', 'wordpress-calendar-booking'), '<textarea name="visit_address" rows="3" class="regular-text">' . esc_textarea($s['visit_address']) . '</textarea>');
+        $this->row(__('Eigene Telefonnummer', 'wordpress-calendar-booking'), '<input type="text" name="own_phone" value="' . esc_attr($s['own_phone']) . '" class="regular-text">');
+        $this->row(__('Öffentliche iCloud-Kalender-URLs', 'wordpress-calendar-booking'), '<textarea name="calendar_urls" rows="6" class="large-text code" placeholder="' . esc_attr__('Eine URL pro Zeile', 'wordpress-calendar-booking') . '">' . esc_textarea($s['calendar_urls']) . '</textarea><p class="description">' . wp_kses_post(__('Mehrere URLs erlaubt. <code>webcal://</code> wird automatisch in <code>https://</code> umgewandelt.', 'wordpress-calendar-booking')) . '</p>');
+        $this->row(__('Kalender-Cache (Min.)', 'wordpress-calendar-booking'), '<input type="number" name="calendar_cache_minutes" value="' . esc_attr($s['calendar_cache_minutes']) . '">');
+        $this->row(__('Interne Benachrichtigungen', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="notifications_enabled" value="1" ' . checked($s['notifications_enabled'], 1, false) . '> ' . esc_html__('aktiv', 'wordpress-calendar-booking') . '</label><br><input type="text" name="notification_emails" value="' . esc_attr($s['notification_emails']) . '" class="regular-text">');
+        $this->row(__('Erinnerungen', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="reminders_enabled" value="1" ' . checked($s['reminders_enabled'], 1, false) . '> ' . esc_html__('aktiv', 'wordpress-calendar-booking') . '</label><br><input type="number" name="reminder_hours" value="' . esc_attr($s['reminder_hours']) . '"> ' . esc_html__('Stunden vorher', 'wordpress-calendar-booking'));
+        $this->row(__('Versandprotokoll-Aufbewahrung', 'wordpress-calendar-booking'), '<input type="number" min="1" name="delivery_log_retention_days" value="' . esc_attr($s['delivery_log_retention_days']) . '"> ' . esc_html__('Tage', 'wordpress-calendar-booking') . '<p class="description">' . esc_html__('Gesendete und fehlgeschlagene Versanddatensätze werden danach automatisch entfernt. Nachrichtentexte werden nicht im Versandprotokoll gespeichert.', 'wordpress-calendar-booking') . '</p>');
+        $this->row(__('Token-Gültigkeit (Min.)', 'wordpress-calendar-booking'), '<input type="number" name="token_ttl_minutes" value="' . esc_attr($s['token_ttl_minutes']) . '">');
+        $this->row(__('Reservierungsdauer (Min.)', 'wordpress-calendar-booking'), '<input type="number" name="reservation_ttl_minutes" value="' . esc_attr($s['reservation_ttl_minutes']) . '">');
+        $this->row(__('Storno bis X Stunden vorher', 'wordpress-calendar-booking'), '<input type="number" name="cancel_min_hours" value="' . esc_attr($s['cancel_min_hours']) . '">');
+        $this->row(__('Änderung bis X Stunden vorher', 'wordpress-calendar-booking'), '<input type="number" name="change_min_hours" value="' . esc_attr($s['change_min_hours']) . '">');
+        $this->row(__('Datenschutz-Aufbewahrung', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="retention_enabled" value="1" ' . checked($s['retention_enabled'], 1, false) . '> ' . esc_html__('automatische Anonymisierung aktivieren', 'wordpress-calendar-booking') . '</label><br><input type="number" min="1" name="retention_days" value="' . esc_attr($s['retention_days']) . '"> ' . esc_html__('Tage nach Terminende', 'wordpress-calendar-booking') . '<p class="description">' . esc_html__('Standardmäßig deaktiviert. Persönliche Buchungsdaten werden anonymisiert, nicht der Termin-/Statusdatensatz gelöscht. Buchungen mit Aufbewahrungs-Markierung werden übersprungen.', 'wordpress-calendar-booking') . '</p>');
+        $this->row(__('Daten bei Deinstallation', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="delete_data_on_uninstall" value="1" ' . checked($s['delete_data_on_uninstall'], 1, false) . '> ' . esc_html__('alle WordPress Calendar Booking-Daten beim Löschen des Plugins endgültig entfernen', 'wordpress-calendar-booking') . '</label><p class="description">' . wp_kses_post(__('<strong>Achtung:</strong> Standardmäßig bleiben Buchungen, Kunden-, Zahlungs-, Kalender- und Konfigurationsdaten bei einer Deinstallation erhalten. Diese Option löscht beim Deinstallieren alle <code>wpcb_*</code>-Tabellen und -Optionen unwiderruflich. Für normale Datenschutzlöschung die WordPress-Datenschutzwerkzeuge bzw. Aufbewahrung verwenden.', 'wordpress-calendar-booking')) . '</p>');
+        $this->row(__('Honeypot', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="honeypot_enabled" value="1" ' . checked($s['honeypot_enabled'], 1, false) . '> ' . esc_html__('aktiv', 'wordpress-calendar-booking') . '</label>');
+        $this->row(__('Timing-Schutz', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="timing_enabled" value="1" ' . checked($s['timing_enabled'], 1, false) . '> ' . esc_html__('aktiv', 'wordpress-calendar-booking') . '</label><br><input type="number" name="min_form_seconds" value="' . esc_attr($s['min_form_seconds']) . '"> ' . esc_html__('Sekunden Minimum', 'wordpress-calendar-booking'));
+        $this->row(__('Rate Limit', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="rate_limit_enabled" value="1" ' . checked($s['rate_limit_enabled'], 1, false) . '> ' . esc_html__('aktiv', 'wordpress-calendar-booking') . '</label><br><input type="number" name="rate_limit_requests" value="' . esc_attr($s['rate_limit_requests']) . '"> ' . esc_html__('Anfragen in', 'wordpress-calendar-booking') . ' <input type="number" name="rate_limit_window_minutes" value="' . esc_attr($s['rate_limit_window_minutes']) . '"> ' . esc_html__('Minuten', 'wordpress-calendar-booking'));
+        echo '</table><hr><h2>' . esc_html__('iCloud Schreibsync', 'wordpress-calendar-booking') . '</h2><table class="form-table">';
+        $this->row(__('Sync aktivieren', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="icloud_sync_enabled" value="1" ' . checked($s['icloud_sync_enabled'], 1, false) . '> ' . esc_html__('neue bestätigte Buchungen nach iCloud schreiben', 'wordpress-calendar-booking') . '</label>');
+        $this->row(__('Apple-ID', 'wordpress-calendar-booking'), '<input type="email" name="icloud_sync_apple_id" value="' . esc_attr($s['icloud_sync_apple_id']) . '" class="regular-text">');
+        $secret_description = __('Noch kein Passwort gespeichert.', 'wordpress-calendar-booking');
         if ($secret_status['state'] === 'stored') {
-            $secret_description = 'Authentifiziert verschlüsselt gespeichert (' . esc_html($secret_status['format']) . '). Das Passwort wird nie im HTML ausgegeben.';
+            $secret_description = sprintf(
+                __('Authentifiziert verschlüsselt gespeichert (%s). Das Passwort wird nie im HTML ausgegeben.', 'wordpress-calendar-booking'),
+                (string)$secret_status['format']
+            );
         } elseif ($secret_status['state'] === 'reentry') {
-            $secret_description = 'Das frühere Legacy-Credential wurde aus Sicherheitsgründen widerrufen. Bitte neu eingeben.';
+            $secret_description = __('Das frühere Legacy-Credential wurde aus Sicherheitsgründen widerrufen. Bitte neu eingeben.', 'wordpress-calendar-booking');
         } elseif ($secret_status['state'] === 'invalid') {
-            $secret_description = 'Das gespeicherte Credential kann nicht authentifiziert werden. Bitte neu eingeben.';
+            $secret_description = __('Das gespeicherte Credential kann nicht authentifiziert werden. Bitte neu eingeben.', 'wordpress-calendar-booking');
         } elseif ($secret_status['state'] === 'unavailable') {
-            $secret_description = 'Sichere Speicherung ist auf diesem Server nicht verfügbar. Benötigt libsodium oder AES-256-GCM.';
+            $secret_description = __('Sichere Speicherung ist auf diesem Server nicht verfügbar. Benötigt libsodium oder AES-256-GCM.', 'wordpress-calendar-booking');
         }
-        $this->row('App-spezifisches Passwort', '<input type="password" name="icloud_sync_password" value="" class="regular-text" autocomplete="new-password"><p class="description">' . $secret_description . ' Leer lassen, um ein gültiges gespeichertes Passwort beizubehalten.</p>');
-        $this->row('Zielkalender-URL', '<input type="url" name="icloud_sync_target_calendar_url" value="' . esc_attr($s['icloud_sync_target_calendar_url']) . '" class="large-text"><p class="description">Optional. Wenn leer, wird über den Kalendernamen gesucht.</p>');
-        $this->row('Zielkalender-Name', '<input type="text" name="icloud_sync_target_calendar_name" value="' . esc_attr($s['icloud_sync_target_calendar_name']) . '" class="regular-text">');
-        $this->row('Änderungen zurückschreiben', '<label><input type="checkbox" name="icloud_sync_updates" value="1" ' . checked($s['icloud_sync_updates'], 1, false) . '> aktiv</label>');
-        $this->row('Stornos zurückschreiben', '<label><input type="checkbox" name="icloud_sync_cancellations" value="1" ' . checked($s['icloud_sync_cancellations'], 1, false) . '> aktiv</label>');
-        $this->row('Letzter Verbindungstest', '<code>' . esc_html((string) $s['icloud_sync_last_test']) . '</code>');
-        echo '</table><p><button class="button button-primary">Speichern</button></p></form>';
-        echo '<p><strong>Offene Sync-Jobs:</strong> ' . (new JobRepository())->pendingCount() . '</p>';
+        $this->row(__('App-spezifisches Passwort', 'wordpress-calendar-booking'), '<input type="password" name="icloud_sync_password" value="" class="regular-text" autocomplete="new-password"><p class="description">' . esc_html($secret_description) . ' ' . esc_html__('Leer lassen, um ein gültiges gespeichertes Passwort beizubehalten.', 'wordpress-calendar-booking') . '</p>');
+        $this->row(__('Zielkalender-URL', 'wordpress-calendar-booking'), '<input type="url" name="icloud_sync_target_calendar_url" value="' . esc_attr($s['icloud_sync_target_calendar_url']) . '" class="large-text"><p class="description">' . esc_html__('Optional. Wenn leer, wird über den Kalendernamen gesucht.', 'wordpress-calendar-booking') . '</p>');
+        $this->row(__('Zielkalender-Name', 'wordpress-calendar-booking'), '<input type="text" name="icloud_sync_target_calendar_name" value="' . esc_attr($s['icloud_sync_target_calendar_name']) . '" class="regular-text">');
+        $this->row(__('Änderungen zurückschreiben', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="icloud_sync_updates" value="1" ' . checked($s['icloud_sync_updates'], 1, false) . '> ' . esc_html__('aktiv', 'wordpress-calendar-booking') . '</label>');
+        $this->row(__('Stornos zurückschreiben', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="icloud_sync_cancellations" value="1" ' . checked($s['icloud_sync_cancellations'], 1, false) . '> ' . esc_html__('aktiv', 'wordpress-calendar-booking') . '</label>');
+        $this->row(__('Letzter Verbindungstest', 'wordpress-calendar-booking'), '<code>' . esc_html((string)$s['icloud_sync_last_test']) . '</code>');
+        echo '</table><p><button class="button button-primary">' . esc_html__('Speichern', 'wordpress-calendar-booking') . '</button></p></form>';
+        echo '<p><strong>' . esc_html__('Offene Sync-Jobs:', 'wordpress-calendar-booking') . '</strong> ' . (int)(new JobRepository())->pendingCount() . '</p>';
         echo '<form method="post" style="margin-top:12px;display:inline-block">';
         wp_nonce_field('wpcb_admin_action');
-        echo '<input type="hidden" name="wpcb_admin_action" value="test_icloud_sync"><button class="button">iCloud-Verbindung testen</button></form> ';
+        echo '<input type="hidden" name="wpcb_admin_action" value="test_icloud_sync"><button class="button">' . esc_html__('iCloud-Verbindung testen', 'wordpress-calendar-booking') . '</button></form> ';
         echo '<form method="post" style="margin-top:12px;display:inline-block">';
         wp_nonce_field('wpcb_admin_action');
-        echo '<input type="hidden" name="wpcb_admin_action" value="clear_calendar_cache"><button class="button">Kalender-Cache leeren</button></form> ';
+        echo '<input type="hidden" name="wpcb_admin_action" value="clear_calendar_cache"><button class="button">' . esc_html__('Kalender-Cache leeren', 'wordpress-calendar-booking') . '</button></form> ';
         echo '<form method="post" style="margin-top:12px;display:inline-block">';
         wp_nonce_field('wpcb_admin_action');
-        echo '<input type="hidden" name="wpcb_admin_action" value="process_sync_queue"><button class="button">Sync-Queue jetzt ausführen</button></form>';
+        echo '<input type="hidden" name="wpcb_admin_action" value="process_sync_queue"><button class="button">' . esc_html__('Sync-Queue jetzt ausführen', 'wordpress-calendar-booking') . '</button></form>';
         $this->formEnd();
     }
 
