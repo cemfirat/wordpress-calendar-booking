@@ -40,6 +40,9 @@ Booking and administrator notifications use the same leased five-minute queue as
 - The queue descriptor contains only the booking ID, logical delivery key, template identifier, recipient class, attachment intent and expected booking status. Customer name, e-mail address, phone, message content, OAuth/payment credentials and raw one-time-token verifiers are not copied into queue rows.
 - Customer/booking data is reconstructed from canonical WordPress records only when the retry worker actually executes.
 - DOI, cancellation and reschedule action tokens are rotated immediately before a retry send. Superseded unsent tokens are revoked.
+- Customer-portal login links, pending e-mail-change links, waiting-list offers and video-meeting-ready notifications use the same durable delivery semantics. Their queue descriptors contain only technical references, pseudonymous recipient/version hashes and same-site return paths.
+- Portal and waiting-list one-time links are regenerated immediately before a retry. A changed recipient, changed waiting-list offer, accepted/expired offer or changed video-meeting version makes the queued notification obsolete instead of sending stale content.
+- Video meeting join URLs and administrator/customer addresses are resolved from the current canonical records only when the retry worker executes; they are never copied into queue payloads.
 - If the mail transport throws or a worker recovers a delivery that was left in `sending`, the delivery is marked `uncertain` and is **not** retried automatically. This avoids turning an unknown in-flight result into a duplicate customer e-mail.
 - The **Versandprotokoll** shows delivery attempts, retry state/next attempt, terminal queue failures and `uncertain` outcomes that require manual review.
 - Once the delivery ledger reaches `sent`, repeated worker execution is idempotent and does not send the logical notification again.
