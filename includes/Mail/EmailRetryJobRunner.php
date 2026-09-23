@@ -276,10 +276,28 @@ final class EmailRetryJobRunner {
         return $jobId;
     }
 
-    private function sanitizeReturnPath(string $path): string {
-        $path = '/' . ltrim($path, '/');
+    private function sanitizeReturnPath(string $target): string {
+        $parts = wp_parse_url($target);
+        $path = '/' . ltrim((string)($parts['path'] ?? '/'), '/');
         $path = preg_replace('/[^A-Za-z0-9_\-\.~\/]/', '', $path);
-        return substr($path !== '' ? $path : '/', 0, 500);
+        $path = $path !== '' ? $path : '/';
+
+        $query = [];
+        if (!empty($parts['query'])) {
+            parse_str((string)$parts['query'], $raw);
+            if (!empty($raw['pagename'])) {
+                $query['pagename'] = sanitize_key((string)$raw['pagename']);
+            }
+            if (!empty($raw['page_id'])) {
+                $query['page_id'] = absint($raw['page_id']);
+            }
+            if (!empty($raw['wpcb_booking'])) {
+                $query['wpcb_booking'] = absint($raw['wpcb_booking']);
+            }
+        }
+
+        $target = $query ? add_query_arg($query, $path) : $path;
+        return substr($target, 0, 500);
     }
 
     private function validHash(string $value): bool {
