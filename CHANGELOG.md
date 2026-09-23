@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.14.0
+
+- Add a CSRF-protected customer-portal action to resume pending Stripe Checkout payments.
+- Reuse an existing open Stripe Checkout Session instead of creating duplicates.
+- Atomically replace an expired Stripe Session reference on the existing pending payment record.
+- Reject checkout restart after the local reservation expires or after the payment is settled.
+- Add integration coverage for session reuse, expired-session replacement and customer authorization boundaries.
+
 ## 3.13.0
 
 - Add a production Stripe Checkout adapter behind the provider-neutral payment contract.
