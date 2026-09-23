@@ -36,7 +36,8 @@ final class EmailRetryJobRunner {
             return 0;
         }
 
-        return (new JobRepository())->enqueue(
+        $jobs = new JobRepository();
+        $jobId = $jobs->enqueue(
             self::JOB_TYPE,
             $bookingId,
             [
@@ -49,6 +50,10 @@ final class EmailRetryJobRunner {
             ],
             self::jobKey($deliveryKey)
         );
+        if ($jobId > 0) {
+            $jobs->deferPending($jobId, 120);
+        }
+        return $jobId;
     }
 
     public function enqueueInternal(int $bookingId, string $deliveryKey, string $expectedStatus): int {
@@ -56,7 +61,8 @@ final class EmailRetryJobRunner {
             return 0;
         }
 
-        return (new JobRepository())->enqueue(
+        $jobs = new JobRepository();
+        $jobId = $jobs->enqueue(
             self::JOB_TYPE,
             $bookingId,
             [
@@ -67,6 +73,10 @@ final class EmailRetryJobRunner {
             ],
             self::jobKey($deliveryKey)
         );
+        if ($jobId > 0) {
+            $jobs->deferPending($jobId, 120);
+        }
+        return $jobId;
     }
 
     public function run(array $payload, int $bookingId): array {
