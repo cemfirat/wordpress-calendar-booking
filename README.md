@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.0.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.1.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -70,7 +70,9 @@ The plugin does **not** scrape arbitrary themes and copy their CSS classes. Them
 The current release provides:
 
 - signed short-lived canonical slot tokens
-- atomic conflict prevention
+- atomic conflict and capacity prevention
+- resource/staff scheduling with resource-specific availability and calendar routing
+- configurable group capacity and participant counts
 - UTC/IANA time-zone storage and DST tests
 - recurrence-capable busy-time parsing
 - busy-only public output
