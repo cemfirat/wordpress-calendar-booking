@@ -156,10 +156,13 @@ wpcb_payment_assert($expiredCount >= 1, 'Expired pending payments are processed.
 wpcb_payment_assert((string)(new Wpcb\Payments\PaymentRepository())->forBooking($expiringId)->status === 'expired', 'Expired payment reaches expired state.');
 wpcb_payment_assert((string)$bookings->find($expiringId)->status === Wpcb\Booking\BookingStatus::EXPIRED, 'Expired payment releases the reserved booking.');
 
-$adminSource = file_get_contents(WPCB_DIR . 'includes/Admin/PaymentAdminPage.php');
-foreach (['card_number', 'cardholder', 'cvc', 'cvv', 'pan'] as $forbidden) {
-    wpcb_payment_assert(stripos($adminSource, $forbidden) === false, 'Payment admin never stores or renders raw card field ' . $forbidden . '.');
+$paymentSource = file_get_contents(WPCB_DIR . 'includes/Admin/PaymentAdminPage.php')
+    . file_get_contents(WPCB_DIR . 'includes/Payments/PaymentRepository.php')
+    . file_get_contents(WPCB_DIR . 'includes/Payments/PaymentService.php');
+foreach (['card_number', 'cardholder', 'cvc', 'cvv'] as $forbidden) {
+    wpcb_payment_assert(stripos($paymentSource, $forbidden) === false, 'Payment code never stores or renders raw card field ' . $forbidden . '.');
 }
+wpcb_payment_assert(!preg_match('/\\bpan\\b/i', $paymentSource), 'Payment code does not define a raw PAN field.');
 
 foreach ([$bookingId, $blockedBookingId, $expiringId] as $id) {
     $paymentIds = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$wpdb->prefix}wpcb_payments WHERE booking_id = %d", $id));
