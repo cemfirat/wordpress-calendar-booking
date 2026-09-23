@@ -2,6 +2,7 @@
 namespace Wpcb\Frontend;
 
 use Wpcb\Security\Guard;
+use Wpcb\Security\AvailabilityRequestGuard;
 use Wpcb\Forms\FieldRepository;
 use Wpcb\Booking\BookingRepository;
 use Wpcb\Booking\BookingStatus;
@@ -55,12 +56,38 @@ class Actions {
 
     public function ajaxSlots(): void {
         check_ajax_referer('wpcb_frontend', 'nonce');
-        $typeId = absint($_REQUEST['type_id'] ?? 0);
-        if (!$typeId) {
-            wp_send_json_error(['message' => __('Terminart fehlt.', 'wordpress-calendar-booking')], 400);
+
+        $guard = new AvailabilityRequestGuard();
+        $budget = $guard->browserBudget();
+        if (empty($budget['allowed'])) {
+            if (!headers_sent()) {
+                header('Retry-After: ' . (int)$budget['retry_after']);
+            }
+            wp_send_json_error([
+                'message' => __('Zu viele Verfügbarkeitsanfragen. Bitte kurz warten und erneut versuchen.', 'wordpress-calendar-booking'),
+                'retry_after' => (int)$budget['retry_after'],
+            ], 429);
         }
-        $partySize = max(1, min(10000, absint($_REQUEST['party_size'] ?? 1)));
-        $slots = (new SlotService())->getSlots($typeId, 21, null, $partySize);
+
+        $typeId = absint($_REQUEST['type_id'] ?? 0);
+        $partySize = max(1, absint($_REQUEST['party_size'] ?? 1));
+        $query = $guard->validateQuery($typeId, 21, $partySize);
+        if (is_wp_error($query)) {
+            $errorData = $query->get_error_data();
+            $status = is_array($errorData) && isset($errorData['status'])
+                ? (int)$errorData['status']
+                : 400;
+            wp_send_json_error(['message' => $query->get_error_message()], $status);
+        }
+
+        $slots = (new SlotService())->getSlots(
+            $typeId,
+            (int)$query['days'],
+            null,
+            (int)$query['party_size']
+        );
+        $slots = array_slice($slots, 0, (int)$query['max_slots']);
+
         $tokens = new SlotTokenService();
         $data = array_map(static function ($slot) use ($typeId, $tokens) {
             return [

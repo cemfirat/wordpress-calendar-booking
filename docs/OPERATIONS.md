@@ -41,3 +41,19 @@ The diagnostic uses the same WordPress `wp_mail()` path and configured sender id
 The diagnostic message contains no booking, customer, calendar, payment or provider data. The delivery ledger stores only technical delivery state and a redacted error code/message. The test recipient and message body are not persisted by WordPress Calendar Booking.
 
 If the test fails, verify the site's SMTP/mail plugin, sender-domain authentication (SPF/DKIM/DMARC where applicable), hosting restrictions and the configured sender address before accepting real bookings.
+
+
+## Public availability request budgets
+
+Public slot generation is intentionally bounded before it can fan out across resources, bookings and external calendar providers.
+
+- Browser AJAX availability uses a pseudonymous per-client budget of 30 requests per 60 seconds by default.
+- Public REST availability uses a separate machine-client budget of 120 requests per 60 seconds by default.
+- The limiter keys only use an HMAC of the direct `REMOTE_ADDR`; raw IP addresses are not persisted and forwarding headers such as `X-Forwarded-For` are not trusted implicitly.
+- REST responses expose `X-RateLimit-Limit`, `X-RateLimit-Remaining` and `X-RateLimit-Reset`; rejected requests return HTTP 429 with `Retry-After`.
+- Availability requests are bounded to one public booking type, at most 60 days, the booking type's configured capacity, at most 25 assigned resources and at most 500 returned slots by default.
+- Availability responses use `Cache-Control: no-store`. Slot responses are never booking authority; final booking and reschedule operations always regenerate and revalidate the canonical slot server-side.
+
+The defaults can be tuned with the WordPress filters `wpcb_availability_browser_limit`, `wpcb_availability_rest_limit`, `wpcb_availability_window_seconds`, `wpcb_availability_max_days`, `wpcb_availability_max_resources` and `wpcb_availability_max_slots`.
+
+If WordPress is behind a reverse proxy, configure the web server so `REMOTE_ADDR` represents the trusted proxy/client boundary you intend to rate-limit. The plugin deliberately does not consume arbitrary forwarding headers because those can be spoofed when the proxy chain is not explicitly trusted.
