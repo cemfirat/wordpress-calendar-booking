@@ -18,69 +18,40 @@ Do not introduce a second product abbreviation or identifier prefix.
 
 ## Core rule
 
-The booking domain owns availability. Calendar providers only contribute busy intervals and optional write-back events.
+The booking domain owns availability, reservation, capacity and lifecycle state. External calendars, payments, meeting providers and webhook consumers are adapters around that domain; they do not become the source of truth.
 
-## Provider contract
+## Booking/resource model
 
-A calendar connection advertises capabilities instead of being hard-coded as iCloud.
+A booking type defines customer-facing duration, buffers, notice/horizon, capacity/payment behavior and optional recurring-series behavior. Booking types are assigned to one or more active resources/staff records.
 
-```php
-interface CalendarProviderInterface {
-    public function capabilities(): array;
-    public function busyBetween(DateTimeImmutable $from, DateTimeImmutable $to, CalendarConnection $connection): array;
-    public function createEvent(Booking $booking, CalendarConnection $connection): SyncResult;
-    public function updateEvent(Booking $booking, CalendarConnection $connection): SyncResult;
-    public function cancelEvent(Booking $booking, CalendarConnection $connection): SyncResult;
-}
-```
+Resources own the conflict domain:
 
-Initial adapters:
+- weekly availability and exceptions may be resource-scoped
+- calendar connections can be routed per resource
+- a generated slot identifies the booking type, resource and canonical UTC interval
+- internal reservation checks operate on the selected resource
+- capacity is evaluated as the sum of active reserved/confirmed party sizes for the same resource interval
 
-- `IcsFeedProvider`: read-only ICS/webcal source.
-- `CalDavProvider`: generic CalDAV availability and event write-back.
-- `IcloudCalDavPreset`: Apple-specific discovery/configuration on top of CalDAV.
-- `GoogleCalendarProvider`: OAuth + FreeBusy/Events API.
-- `MicrosoftGraphProvider`: OAuth + Graph availability/events with account-type-specific behavior.
-
-## Calendar connection model
-
-Provider adapters are registered through the `wpcb_calendar_providers` filter and implement `CalendarProviderInterface`. The registry normalizes capability identifiers so booking-domain code can ask for behavior without knowing Google, Microsoft, Apple or CalDAV details.
-
-Canonical capabilities:
-
-- `busy_read`
-- `event_create`
-- `event_update`
-- `event_cancel`
-- `calendar_discovery`
-
-Connections are stored in `wpcb_calendar_connections` with:
-
-- provider identifier
-- administrator-facing connection name
-- selected remote calendar identifier
-- active/blocking/write-back flags
-- non-secret provider configuration
-- authenticated-encrypted credential/token payload
-- health status plus last success/error metadata
-
-Credentials are deliberately excluded from normal `find()`/`all()` connection reads. Provider code must request them explicitly through the connection repository, which decrypts the authenticated payload only at the point of use.
-
-Booking-type routing lives in `wpcb_booking_type_calendar_connections`. A booking type can use multiple connections, and each mapping independently controls whether that connection blocks availability and/or receives confirmed booking write-back. This keeps external account topology out of the booking state machine.
+A fresh installation can model the traditional one-calendar use case with a single default resource, but concurrency is no longer site-wide.
 
 ## Availability pipeline
 
-1. Resolve booking type/resource and requested presentation time zone.
-2. Generate canonical candidate slots from weekly rules and exceptions using `DateTimeImmutable`.
-3. Normalize instants to UTC for storage/comparison.
-4. Merge busy intervals from internal reservations/confirmed bookings and all blocking provider connections.
-5. Apply buffers, notice and horizon rules.
-6. Return HMAC-signed, short-lived slot tokens rather than trusting a client-supplied timestamp. Tokens bind booking type, canonical start/end and expiry and contain no personal data. They may be replayed during their short TTL, so the signature is never treated as a reservation.
-7. On submit: verify token and regenerate/revalidate the slot, acquire a MySQL advisory reservation lock, re-check availability while holding the lock, insert the unconfirmed reservation, then release the lock. The 2.0 single-resource model deliberately uses one conservative site-wide lock; a later resource model can narrow the lock key without weakening the invariant.
+1. Resolve booking type, eligible resource(s), requested party size and presentation time zone.
+2. Generate candidate local wall-clock slots from weekly rules and exceptions.
+3. Normalize candidate instants to UTC while retaining IANA time-zone semantics.
+4. Merge internal reserved/confirmed occupancy with busy intervals from blocking calendar connections routed to that resource.
+5. Apply buffers, capacity, notice and horizon rules.
+6. Return short-lived HMAC-signed slot tokens. A token binds booking type, resource, canonical start/end and expiry and contains no personal data.
+7. On submit, verify the token and regenerate/revalidate the candidate.
+8. Acquire the resource-scoped MySQL advisory reservation lock, repeat the authoritative availability/capacity check, insert the reservation, then release the lock.
 
-## Reservation concurrency
+The second check inside the lock is authoritative. Expired unconfirmed reservations stop consuming capacity after `reserved_until`.
 
-The initial reservation path performs a fast pre-check, then obtains a MySQL advisory lock and repeats the canonical slot check while serialized. Only the second check is authoritative. Unconfirmed reservations block availability only until `reserved_until`; an expired reservation no longer keeps a slot unavailable.
+## Reservation and capacity concurrency
+
+The lock key is derived from the resource conflict domain rather than a single global site lock. Independent resources can therefore reserve concurrently while requests for the same resource remain serialized around the final check/insert window.
+
+Capacity one behaves like exclusive booking. For larger capacities, party sizes are summed atomically under the same resource lock. Cancellation, rejection, expiry and rescheduling release the corresponding occupancy before later availability calculations.
 
 ## Booking state machine
 
@@ -93,68 +64,128 @@ Canonical states:
 - `cancelled`
 - `expired`
 
-Callers emit semantic lifecycle events instead of target status strings:
+Callers emit semantic lifecycle events instead of assigning target status directly. Transition writes are compare-and-swap guarded by the expected current state. Repeating an already-applied transition is idempotent and must not emit duplicate side effects.
 
-| Event | From | To |
-| --- | --- | --- |
-| `email_confirmed_approval` | `reserved_unconfirmed` | `pending_approval` |
-| `email_confirmed_automatic` | `reserved_unconfirmed` | `confirmed` |
-| `admin_approved` | `pending_approval` | `confirmed` |
-| `admin_rejected` | `pending_approval` | `rejected` |
-| `user_cancelled` | `pending_approval`, `confirmed` | `cancelled` |
-| `admin_cancelled` | `pending_approval`, `confirmed` | `cancelled` |
-| `reservation_expired` | `reserved_unconfirmed` | `expired` |
+Rescheduling changes canonical slot/resource data while preserving the lifecycle status where valid. Confirm/reschedule paths revalidate current availability before committing.
 
-The transition write is compare-and-swap guarded by the expected current state. Repeating the same successful transition is idempotent and does not fire side effects twice. Any transition into `confirmed` and all Double-Opt-In confirmation events revalidate current slot availability before committing.
+Audit rows record technical lifecycle event, actor, state and time with generic notes rather than duplicated customer identity.
 
-Rescheduling is a lifecycle event, not a status. A `confirmed` booking remains `confirmed`; a `pending_approval` booking remains `pending_approval`. Reschedule writes are also guarded by the expected state.
+## Recurring booking series
 
-Mail and calendar write-back are subscribed to lifecycle events after the database transition. Audit rows record state/event/actor/time and generic notes, not customer identity.
+Recurring customer bookings are stored as a bounded series of normal occurrence bookings linked by a series identifier. Supported recurrence is intentionally explicit and bounded by the booking horizon.
+
+Series creation validates every occurrence before any occurrence is committed and then reserves the series atomically enough to avoid partial domain state. Local wall-clock recurrence is preserved across UTC-offset changes; ambiguous or non-existent DST wall times are rejected.
+
+Lifecycle operations can target one occurrence or the selected occurrence plus all remaining occurrences. Paid series remain excluded until a series-wide payment contract is explicitly defined.
+
+## Provider contract and calendar routing
+
+Calendar providers advertise capabilities rather than leaking provider-specific branches into booking-domain code. The registry normalizes capabilities such as:
+
+- `busy_read`
+- `event_create`
+- `event_update`
+- `event_cancel`
+- `calendar_discovery`
+
+Implemented adapters cover ICS/webcal, generic CalDAV, iCloud, Google Calendar and Microsoft Graph.
+
+Connections store provider identity, selected calendar, active/blocking/write-back flags, non-secret configuration, encrypted credentials and health metadata. Credentials are deliberately excluded from normal repository reads and decrypted only at point of use.
+
+Booking-type/resource mappings determine which external calendars block availability and which receive write-back.
+
+## Queue and side effects
+
+Long-running or failure-prone side effects use leased/idempotent jobs:
+
+- calendar create/update/cancel
+- notification delivery/reminders
+- webhook delivery/retry
+- video-meeting create/update/cancel
+- related maintenance tasks
+
+Jobs follow `pending -> running(lease_until) -> done`; expired leases are reclaimable. Retry/backoff is bounded, and logical operations use idempotency keys so retries cannot create duplicate external state.
 
 ## Public email-link actions
 
-Email links are safe to prefetch. `GET ?wpcb_action=...&wpcb_token=...` only inspects the token and renders a confirmation/status screen; it never changes a booking.
+Email/security scanners may prefetch links. Therefore `GET ?wpcb_action=...&wpcb_token=...` only validates enough information to render a confirmation/status screen and never mutates a booking.
 
-Mutating actions post to `admin-post.php` and require all of:
+Mutations post to `admin-post.php` and require:
 
-- the expected action-specific one-time token
-- a WordPress nonce bound to action + token
-- the current lifecycle state to allow the requested event
-- canonical server-side slot revalidation for rescheduling
-- a short MySQL advisory lock around token verification/action/consumption
+- expected action-specific one-time token
+- nonce bound to action + token
+- allowed current lifecycle state
+- fresh canonical slot validation for rescheduling
+- serialized token consumption
 
-The one-time token is marked used only after the domain action succeeds. Failed CSRF, invalid slot or domain-transition checks leave booking state unchanged. Used and expired tokens remain readable as non-destructive status screens.
+The one-time token is marked used only after the domain action succeeds.
+
+## Customer portal
+
+The customer portal does not require WordPress customer accounts. A customer requests a one-time magic link by email, confirms it through scanner-safe POST and receives an encrypted HttpOnly portal session scoped to the verified email.
+
+Portal reads are constrained to that customer identity. Mutations use per-session CSRF tokens and reuse booking lifecycle services rather than bypassing domain validation. Privacy erasure revokes matching sessions.
+
+## REST API
+
+The versioned `wpcb/v1` REST namespace exposes privacy-safe public booking/availability data and authenticated administrative/integration operations.
+
+Mutations require explicit permission callbacks, schema validation and idempotency keys. API responses do not expose provider credentials, internal secrets, private calendar payloads or unrelated customer data.
+
+## Outbound webhooks
+
+Lifecycle webhooks are schema-versioned queued deliveries. Each delivery has a stable event identifier, bounded retry policy and HMAC signature over timestamp plus raw payload.
+
+Endpoint secrets are encrypted at rest. Delivery history stores technical state and redacted errors rather than secrets or unnecessary customer content.
+
+## Payments
+
+Payment state is separate from booking state and linked by technical identifiers. A payment adapter receives only the minimum technical data needed for the transaction.
+
+Provider callbacks are idempotent. Pending-payment expiry can release an unconfirmed reservation. Refund/cancellation mapping is explicit. Raw PAN, CVC/CVV, bank credentials and full sensitive provider payloads are never stored.
+
+## Waiting lists
+
+Waiting-list entries are scoped to booking type/resource/slot semantics and retain only required customer data. When capacity is released, promotion runs through a serialized offer process so one released seat cannot produce multiple active holds.
+
+Offers expire and return capacity to the queue. Confirmation uses one-time tokens and the normal canonical booking path; customers cannot inspect other waiting-list entries.
+
+## Video meetings
+
+Meeting integrations use a provider-neutral capability contract for Zoom, Google Meet and Microsoft Teams. Credentials are encrypted using the shared secret infrastructure.
+
+Meeting create/update/cancel operations are queued and idempotent. Join URLs are customer/admin communication data and are never part of public availability output.
 
 ## Time model
 
-- Store instants in UTC.
-- Store IANA time-zone names such as `Europe/Vienna`, never only fixed UTC offsets.
-- Display in visitor-selected time zone when enabled; otherwise use the site booking time zone.
-- Use `DateTimeImmutable`; avoid mixed `strtotime()`, `date()` and WordPress local timestamps in domain logic.
+- store instants in UTC
+- store/use IANA zone names, never fixed-offset-only domain state
+- preserve local wall-clock semantics where recurrence requires it
+- use `DateTimeImmutable`
+- reject ambiguous/non-existent recurrence wall times rather than silently shifting them
 
 ## UI architecture
 
-One render model feeds multiple adapters:
+One shared render model feeds:
 
-- `YoothemeThemeAdapter`: detects YOOtheme Pro, does not enqueue duplicate UIkit, registers native Builder elements and uses theme/UIkit classes.
-- `UikitFallbackAdapter`: enqueues a locally bundled, pinned UIkit build and plugin component CSS/JS only when needed.
-- `WordPressBlockAdapter`: exposes Gutenberg blocks while reusing the same render model.
+- YOOtheme Pro native Builder elements without duplicate UIkit
+- pinned local UIkit fallback
+- dynamic Gutenberg blocks
+- shortcodes
+- customer portal surfaces
 
-Do not scrape arbitrary themes and copy their CSS class names. That is brittle and impossible to guarantee across updates. Instead expose filters for wrapper/button/form classes, CSS variables and render hooks so themes can integrate intentionally.
+Themes integrate through filters, wrapper/button/form classes, CSS variables and render hooks. The plugin does not scrape arbitrary theme markup/classes.
 
 ## Privacy model
 
-Public output defaults to availability/busy status only. External event summaries, locations, attendee data and customer identity are private unless an administrator explicitly opts into a display field.
+Public output defaults to availability/capacity-safe information only. External calendar summaries, locations, attendees, customer identity, booking notes, payment internals and meeting URLs are private unless a specific product surface is explicitly designed to expose them to the authorized party.
 
-## Queue model
+WordPress privacy exporter/eraser and retention/anonymization operate across booking/customer data and related portal/session records. Durable operational history is minimized and secrets are excluded.
 
-Jobs are idempotent and leased:
+## Operations and release architecture
 
-- `pending -> running(lease_until) -> done`
-- stale running jobs are reclaimable after lease expiry
-- retries use backoff and max attempts
-- create/update/cancel are deduplicated by booking + destination + desired state/version
+WP-Cron drives retryable scheduled processing; production sites should use a real cron runner. Systemstatus exposes scheduler health, queue state and privacy-safe mail diagnostics.
 
-## Notification model
+Stable releases are built as reproducible ZIP artifacts and gated on PHP syntax, dependency audits, translation catalog generation, WordPress integration tests, fresh installation, imported migration fixtures, uninstall policy and packaged Chromium browser acceptance.
 
-Every notification has an idempotency key. Reminder delivery records prevent repeated hourly cron runs from resending the same reminder.
+See [SECURITY-PRIVACY.md](SECURITY-PRIVACY.md), [OPERATIONS.md](OPERATIONS.md), [PRODUCT.md](PRODUCT.md) and [ROADMAP.md](ROADMAP.md).
