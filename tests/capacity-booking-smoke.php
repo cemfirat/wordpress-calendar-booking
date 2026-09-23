@@ -46,7 +46,13 @@ wpcb_capacity_assert($capacity->remaining($typeId,$resourceId,$start,$end)===1,'
 wpcb_capacity_assert(!$capacity->canFit($typeId,$resourceId,$start,$end,2),'Two additional seats do not fit.');
 wpcb_capacity_assert($capacity->canFit($typeId,$resourceId,$start,$end,1),'Last seat remains bookable.');
 
-$wpdb->update($wpdb->prefix . 'wpcb_bookings',['status'=>Wpcb\Booking\BookingStatus::CANCELLED],['id'=>$first]);
+$cancelled=(new Wpcb\Booking\BookingTransitionService())->apply(
+    $first,
+    Wpcb\Booking\BookingStateMachine::USER_CANCELLED,
+    'test',
+    'Capacity cancellation fixture'
+);
+wpcb_capacity_assert(is_array($cancelled) && !empty($cancelled['changed']),'Confirmed group booking cancels through the lifecycle service.');
 wpcb_capacity_assert($capacity->remaining($typeId,$resourceId,$start,$end)===3,'Cancellation releases capacity.');
 
 $wpdb->delete($wpdb->prefix.'wpcb_booking_status_log',['booking_id'=>$first]);
