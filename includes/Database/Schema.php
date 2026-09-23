@@ -423,6 +423,46 @@ class Schema {
             KEY booking_id (booking_id)
         ) {$charset};";
 
+        $sql[] = "CREATE TABLE {$prefix}video_connections (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            provider varchar(64) NOT NULL,
+            name varchar(190) NOT NULL,
+            credentials_enc longtext DEFAULT NULL,
+            config_json longtext DEFAULT NULL,
+            is_active tinyint(1) NOT NULL DEFAULT 1,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY provider_active (provider, is_active)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}booking_type_video_connections (
+            booking_type_id bigint unsigned NOT NULL,
+            connection_id bigint unsigned NOT NULL,
+            is_required tinyint(1) NOT NULL DEFAULT 0,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (booking_type_id, connection_id),
+            KEY connection_id (connection_id)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}video_meetings (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            booking_id bigint unsigned NOT NULL,
+            connection_id bigint unsigned NOT NULL,
+            provider varchar(64) NOT NULL,
+            remote_id varchar(255) DEFAULT NULL,
+            join_url text DEFAULT NULL,
+            status varchar(20) NOT NULL DEFAULT 'pending',
+            last_error text DEFAULT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY booking_connection (booking_id, connection_id),
+            KEY provider_status (provider, status),
+            KEY updated_at (updated_at)
+        ) {$charset};";
+
         foreach ($sql as $statement) {
             dbDelta($statement);
         }
