@@ -393,6 +393,36 @@ class Schema {
             KEY expires_at (expires_at)
         ) {$charset};";
 
+        $sql[] = "CREATE TABLE {$prefix}waiting_list (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            entry_uuid varchar(64) NOT NULL,
+            booking_id bigint unsigned DEFAULT NULL,
+            booking_type_id bigint unsigned NOT NULL,
+            resource_id bigint unsigned NOT NULL,
+            slot_start datetime NOT NULL,
+            slot_end datetime NOT NULL,
+            party_size int NOT NULL DEFAULT 1,
+            full_name varchar(190) DEFAULT NULL,
+            email varchar(190) NOT NULL,
+            phone varchar(100) DEFAULT NULL,
+            status varchar(20) NOT NULL DEFAULT 'waiting',
+            offer_selector varchar(32) DEFAULT NULL,
+            offer_hash varchar(64) DEFAULT NULL,
+            offer_secret_enc longtext DEFAULT NULL,
+            offer_expires_at datetime DEFAULT NULL,
+            offered_at datetime DEFAULT NULL,
+            accepted_at datetime DEFAULT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY entry_uuid (entry_uuid),
+            KEY slot_queue (booking_type_id, resource_id, slot_start, slot_end, status, created_at),
+            KEY email_status (email, status),
+            KEY offer_selector (offer_selector),
+            KEY offer_expires_at (offer_expires_at),
+            KEY booking_id (booking_id)
+        ) {$charset};";
+
         foreach ($sql as $statement) {
             dbDelta($statement);
         }
