@@ -96,9 +96,70 @@ wpcb_wait_mail_assert($delivery && $delivery->status === 'sent', 'Waiting-list d
 $jobAfter = $wpdb->get_row($wpdb->prepare("SELECT * FROM {$wpdb->prefix}wpcb_sync_jobs WHERE id = %d", (int)$job->id));
 wpcb_wait_mail_assert($jobAfter && $jobAfter->status === 'done', 'Waiting-list retry job completes.');
 
+// A changed waiting-list state suppresses a queued offer.
+$staleEntryId = $repo->create([
+    'booking_type_id' => $typeId,
+    'resource_id' => $resourceId,
+    'slot_start' => '2034-05-07 11:00:00',
+    'slot_end' => '2034-05-07 11:30:00',
+    'party_size' => 1,
+    'full_name' => 'Waiting Stale Person',
+    'email' => 'wait-stale@example.com',
+    'phone' => '',
+]);
+$staleSelector = bin2hex(random_bytes(8));
+$staleVerifier = rtrim(strtr(base64_encode(random_bytes(32)), '+/', '-_'), '=');
+$staleEncrypted = (new Wpcb\Security\SecretBox())->encrypt($staleVerifier);
+wpcb_wait_mail_assert(!is_wp_error($staleEncrypted), 'Stale waiting-list verifier encrypts.');
+wpcb_wait_mail_assert(
+    $repo->markOffered(
+        $staleEntryId,
+        $staleSelector,
+        hash('sha256', $staleVerifier),
+        (string)$staleEncrypted,
+        Wpcb\Support\Time::formatUtc(Wpcb\Support\Time::nowUtc()->modify('+30 minutes'))
+    ),
+    'Stale waiting-list fixture enters offered state.'
+);
+$GLOBALS['wpcb_wait_mail_mode'] = 'fail';
+$mailer->sendWaitingListOffer($staleEntryId);
+$staleRows = $wpdb->get_results(
+    "SELECT * FROM {$wpdb->prefix}wpcb_sync_jobs
+     WHERE booking_id = 0 AND job_type = 'email_notification'
+     ORDER BY id DESC LIMIT 20"
+);
+$staleJob = null;
+$stalePayload = [];
+foreach ($staleRows as $candidate) {
+    $candidatePayload = json_decode((string)$candidate->payload_json, true);
+    if (($candidatePayload['kind'] ?? '') === 'waiting_list_offer'
+        && (int)($candidatePayload['entry_id'] ?? 0) === $staleEntryId
+    ) {
+        $staleJob = $candidate;
+        $stalePayload = $candidatePayload;
+        break;
+    }
+}
+wpcb_wait_mail_assert($staleJob !== null, 'Stale waiting-list mail is queued.');
+$wpdb->update($wpdb->prefix . 'wpcb_waiting_list', ['status' => 'accepted'], ['id' => $staleEntryId]);
+$callCount = count($GLOBALS['wpcb_wait_mail_calls']);
+$GLOBALS['wpcb_wait_mail_mode'] = 'success';
+$wpdb->update(
+    $wpdb->prefix . 'wpcb_sync_jobs',
+    ['available_at' => Wpcb\Support\Time::formatUtc(Wpcb\Support\Time::nowUtc())],
+    ['id' => (int)$staleJob->id, 'status' => 'pending']
+);
+(new Wpcb\Sync\QueueService())->runNow(100);
+wpcb_wait_mail_assert(count($GLOBALS['wpcb_wait_mail_calls']) === $callCount, 'Changed waiting-list state suppresses stale offer mail.');
+$staleDelivery = (new Wpcb\Reliability\DeliveryRepository())->findByKey((string)$stalePayload['delivery_key']);
+wpcb_wait_mail_assert(($staleDelivery->last_error_code ?? '') === 'notification_obsolete', 'Stale waiting-list notification is recorded as obsolete.');
+
 remove_filter('pre_wp_mail', 'wpcb_wait_mail_transport', 10);
 $wpdb->delete($wpdb->prefix . 'wpcb_sync_jobs', ['id' => (int)$job->id]);
 $wpdb->delete($wpdb->prefix . 'wpcb_deliveries', ['idempotency_key' => (string)$payload['delivery_key']]);
+$wpdb->delete($wpdb->prefix . 'wpcb_sync_jobs', ['id' => (int)($staleJob->id ?? 0)]);
+$wpdb->delete($wpdb->prefix . 'wpcb_deliveries', ['idempotency_key' => (string)($stalePayload['delivery_key'] ?? '')]);
 $wpdb->delete($wpdb->prefix . 'wpcb_waiting_list', ['id' => $entryId]);
+$wpdb->delete($wpdb->prefix . 'wpcb_waiting_list', ['id' => $staleEntryId]);
 
 WP_CLI::success('Waiting-list durable mail smoke test passed.');
