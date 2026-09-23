@@ -251,6 +251,7 @@ final class PrivacyService {
         $bookings = $wpdb->prefix . 'wpcb_bookings';
         $meta = $wpdb->prefix . 'wpcb_booking_meta';
         $tokens = $wpdb->prefix . 'wpcb_tokens';
+        $videoMeetings = $wpdb->prefix . 'wpcb_video_meetings';
 
         $booking = $wpdb->get_row(
             $wpdb->prepare("SELECT id, email FROM {$bookings} WHERE id = %d LIMIT 1", $bookingId)
@@ -297,6 +298,9 @@ final class PrivacyService {
 
         // Guest action links are personal access tokens; invalidate them on erase.
         $wpdb->delete($tokens, ['booking_id' => $bookingId]);
+
+        // Meeting join URLs are access credentials and must not survive erasure locally.
+        $wpdb->delete($videoMeetings, ['booking_id' => $bookingId]);
 
         // Portal sessions are temporary access credentials tied to the original email.
         (new CustomerSessionRepository())->deleteForEmail((string)$booking->email);

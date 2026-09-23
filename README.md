@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.5.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.6.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -136,3 +136,8 @@ Authenticated customers can see only bookings matching their verified session em
 Version 3.4 adds a provider-neutral payment lifecycle foundation. Booking types can be configured as free or payment-required with a price and ISO currency. Paid reservations receive a separate pending payment record; booking confirmation remains blocked until the payment is verified.
 
 Payment adapters receive only a technical payment identifier, amount, currency and expiry. Raw card numbers, CVC/CVV values, bank credentials and full provider callback payloads are never stored by the plugin. Provider callbacks are idempotent, expired pending payments release unconfirmed reservations, and cancelling a paid booking moves its payment into an explicit refund workflow.
+
+
+## Video meetings
+
+Version 3.6 adds provider-neutral video meeting orchestration for Zoom, Google Meet and Microsoft Teams. Meeting credentials are encrypted at rest, meeting creation/update/cancellation runs through the idempotent retry queue, and join links are included only in customer/admin communication after a booking is confirmed. Public availability never contains meeting URLs.

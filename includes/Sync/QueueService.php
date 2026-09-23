@@ -6,6 +6,7 @@ use Wpcb\Admin\Settings;
 use Wpcb\Calendar\CalendarConnectionRepository;
 use Wpcb\Calendar\ProviderSyncService;
 use Wpcb\Webhooks\WebhookDispatcher;
+use Wpcb\VideoMeetings\VideoMeetingJobRunner;
 
 class QueueService {
     private JobRepository $jobs;
@@ -14,6 +15,7 @@ class QueueService {
     private CalendarConnectionRepository $connections;
     private ProviderSyncService $providerSync;
     private WebhookDispatcher $webhooks;
+    private VideoMeetingJobRunner $videoMeetings;
 
     public function __construct() {
         $this->jobs = new JobRepository();
@@ -22,6 +24,7 @@ class QueueService {
         $this->connections = new CalendarConnectionRepository();
         $this->providerSync = new ProviderSyncService();
         $this->webhooks = new WebhookDispatcher();
+        $this->videoMeetings = new VideoMeetingJobRunner();
     }
 
     public function boot(): void {
@@ -189,6 +192,12 @@ class QueueService {
                 return $this->providerSync->run('cancel', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
             case 'webhook_delivery':
                 return $this->webhooks->dispatch($payload, (int)$job->booking_id);
+            case 'video_create':
+                return $this->videoMeetings->run('create', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
+            case 'video_update':
+                return $this->videoMeetings->run('update', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
+            case 'video_delete':
+                return $this->videoMeetings->run('delete', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
             case 'create':
             case 'update':
                 return $this->sync->syncBooking((int)$job->booking_id);

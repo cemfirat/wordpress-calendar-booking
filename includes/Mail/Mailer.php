@@ -94,6 +94,7 @@ class Mailer {
         $settings = Settings::get();
         $displayName = $this->formatter->displayName($booking, $meta);
         $resolvedLocation = $this->formatter->location($booking, $meta, $settings);
+        $meetingLink = (new \Wpcb\VideoMeetings\VideoMeetingRepository())->firstJoinUrl((int)($booking['id'] ?? 0));
         $replacements = [
             '{name}' => $displayName,
             '{email}' => $booking['email'] ?? '',
@@ -111,6 +112,7 @@ class Mailer {
             '{betreff}' => (string)($meta['subject'] ?? ''),
             '{ort}' => $resolvedLocation,
             '{teilnehmer}' => (string)max(1, (int)($booking['party_size'] ?? 1)),
+            '{meeting_link}' => $meetingLink,
         ];
         $subject = strtr($subject, $replacements);
         $body = nl2br(esc_html(strtr($body, $replacements)));
@@ -139,6 +141,7 @@ class Mailer {
         $templates = get_option('wpcb_email_templates', []);
         $typeRepo = new BookingTypeRepository();
         $type = $typeRepo->find((int)$booking['booking_type_id']);
+        $meetingLink = (new \Wpcb\VideoMeetings\VideoMeetingRepository())->firstJoinUrl((int)($booking['id'] ?? 0));
         $map = [
             '{status}' => $booking['status'] ?? '',
             '{name}' => $this->formatter->displayName($booking, $meta),
@@ -149,6 +152,7 @@ class Mailer {
             '{betreff}' => (string)($meta['subject'] ?? ''),
             '{ort}' => $this->formatter->location($booking, $meta, $settings),
             '{teilnehmer}' => (string)max(1, (int)($booking['party_size'] ?? 1)),
+            '{meeting_link}' => $meetingLink,
         ];
         $subject = strtr($templates['internal_subject'] ?? 'Neue Termin-Aktion', $map);
         $body = nl2br(esc_html(strtr($templates['internal_body'] ?? '', $map)));

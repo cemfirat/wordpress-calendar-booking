@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.6.0
+
+- Add a provider-neutral video meeting contract and adapters for Zoom, Google Meet and Microsoft Teams.
+- Encrypt provider access tokens using the shared authenticated secret infrastructure.
+- Create meetings after booking confirmation, update them on reschedule and remove/cancel them on booking cancellation where supported.
+- Execute meeting operations through the leased idempotent retry queue so transient provider failures never roll back booking state.
+- Send meeting-ready links idempotently and expose `{meeting_link}` to customer/admin notification templates.
+- Keep meeting URLs out of public availability and remove local meeting access links during privacy erasure.
+- Add integration coverage with a deterministic fake provider for create/retry/update/delete and secret redaction.
+
 ## 3.5.0
 
 - Add opt-in waiting-list entries for full resource/capacity slots.
