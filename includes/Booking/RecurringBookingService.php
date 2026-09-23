@@ -139,6 +139,16 @@ final class RecurringBookingService {
                 $created[] = $bookingId;
             }
 
+            if ((string)($type->payment_mode ?? 'free') === 'required') {
+                $payment = (new PaymentService())->ensureForBooking((int)$created[0]);
+                if (is_wp_error($payment) || !$payment) {
+                    $wpdb->query('ROLLBACK');
+                    return is_wp_error($payment)
+                        ? $payment
+                        : new \WP_Error('wpcb_series_payment_storage', 'The recurring series payment could not be stored.');
+                }
+            }
+
             $wpdb->query('COMMIT');
         } catch (\Throwable $error) {
             $wpdb->query('ROLLBACK');
