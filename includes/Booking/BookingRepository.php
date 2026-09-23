@@ -126,6 +126,40 @@ class BookingRepository {
         }
     }
 
+    public function deleteMeta(int $bookingId, string $key): void {
+        global $wpdb;
+        $wpdb->delete($this->metaTable, ['booking_id' => $bookingId, 'meta_key' => $key]);
+    }
+
+    public function latestForEmail(string $email): ?object {
+        global $wpdb;
+        $email = strtolower(sanitize_email($email));
+        if ($email === '') {
+            return null;
+        }
+        $row = $wpdb->get_row($wpdb->prepare(
+            "SELECT * FROM {$this->table} WHERE email = %s ORDER BY id DESC LIMIT 1",
+            $email
+        ));
+        return $row ?: null;
+    }
+
+    public function forEmail(string $email, int $limit = 100): array {
+        global $wpdb;
+        $email = strtolower(sanitize_email($email));
+        if ($email === '') {
+            return [];
+        }
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT * FROM {$this->table}
+             WHERE email = %s
+             ORDER BY slot_start DESC, id DESC
+             LIMIT %d",
+            $email,
+            max(1, min(200, $limit))
+        ));
+    }
+
     public function find(int $bookingId) {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare("SELECT * FROM {$this->table} WHERE id = %d", $bookingId));

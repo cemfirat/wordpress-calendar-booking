@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.2.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.3.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -55,7 +55,7 @@ For delegated Microsoft accounts the plugin requests `Calendars.ReadBasic` when 
 One semantic component/render layer serves:
 
 - YOOtheme Pro native Builder elements when YOOtheme is installed
-- Shortcodes (`[wpcb_booking_form]`, `[wpcb_calendar]`, `[wpcb_booking_calendar]`)
+- Shortcodes (`[wpcb_booking_form]`, `[wpcb_calendar]`, `[wpcb_booking_calendar]`, `[wpcb_customer_portal]`)
 - Native dynamic Gutenberg blocks for the Booking Form and Availability Calendar
 - UIkit fallback assets when no compatible UIkit/YOOtheme runtime is present
 
@@ -122,3 +122,10 @@ Source checkouts require Composer/npm only for development. Release ZIPs already
 Version 3.2 exposes a versioned `/wp-json/wpcb/v1` API. Public endpoints expose only public booking types, explicitly public resource labels and privacy-safe availability. Booking administration and webhook configuration require WordPress administrator capabilities.
 
 State-changing REST requests require an `Idempotency-Key` header. Outbound lifecycle webhooks use encrypted endpoint secrets and an `X-WPCB-Signature: sha256=...` HMAC over `<timestamp>.<raw-body>`. Webhook payloads are schema-versioned and deliberately omit customer name, email, phone, notes and provider credentials.
+
+
+## Customer portal
+
+Add `[wpcb_customer_portal]` to a normal WordPress page to provide self-service access without creating WordPress customer accounts. Customers request a one-time magic link by email; the link opens a scanner-safe confirmation screen and creates an encrypted, HttpOnly portal session only after an explicit POST confirmation.
+
+Authenticated customers can see only bookings matching their verified session email, open booking details, cancel or reschedule active appointments through the same server-side lifecycle services used elsewhere, and update contact details. Email-address changes require a second one-time verification link before the booking email is changed. Portal mutations use per-session CSRF tokens, login requests are rate-limited, and WordPress privacy erasure revokes matching portal sessions.

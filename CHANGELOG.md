@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.3.0
+
+- Add a secure customer portal through the `[wpcb_customer_portal]` shortcode without requiring WordPress customer accounts.
+- Add scanner-safe one-time magic-link login, encrypted HttpOnly customer sessions, per-session CSRF protection and rate-limited login requests.
+- Let customers view only their own bookings and use the canonical lifecycle services to cancel or reschedule active appointments.
+- Add contact-data updates with a separately verified one-time flow before an email address is changed.
+- Revoke portal sessions during WordPress privacy erasure and automatically clean expired sessions.
+- Add integration coverage for token replay protection, session tampering, authorization boundaries, privacy export/erase and cross-customer data isolation.
+
 ## 3.2.0
 
 - Add the versioned `wpcb/v1` REST API for public booking types/resources/availability and capability-protected booking administration.
