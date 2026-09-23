@@ -278,6 +278,58 @@ class Schema {
             KEY resource_writeback (resource_id, receives_bookings)
         ) {$charset};";
 
+        $sql[] = "CREATE TABLE {$prefix}api_idempotency (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            idempotency_hash char(64) NOT NULL,
+            route varchar(190) NOT NULL,
+            status varchar(20) NOT NULL DEFAULT 'processing',
+            response_code int DEFAULT NULL,
+            response_json longtext DEFAULT NULL,
+            expires_at datetime NOT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY idempotency_hash (idempotency_hash),
+            KEY expires_at (expires_at)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}webhook_endpoints (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            name varchar(190) NOT NULL,
+            url varchar(500) NOT NULL,
+            secret_enc longtext NOT NULL,
+            events_json longtext NOT NULL,
+            is_active tinyint(1) NOT NULL DEFAULT 1,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY active (is_active)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}webhook_jobs (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            event_id char(36) NOT NULL,
+            endpoint_id bigint unsigned NOT NULL,
+            booking_id bigint unsigned NOT NULL,
+            event_type varchar(80) NOT NULL,
+            payload_json longtext NOT NULL,
+            status varchar(20) NOT NULL DEFAULT 'pending',
+            attempts int NOT NULL DEFAULT 0,
+            next_attempt_at datetime NOT NULL,
+            last_attempt_at datetime DEFAULT NULL,
+            last_http_code int DEFAULT NULL,
+            last_error text DEFAULT NULL,
+            lease_owner varchar(64) DEFAULT NULL,
+            lease_expires_at datetime DEFAULT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY endpoint_event (endpoint_id, event_id),
+            KEY pending (status, next_attempt_at),
+            KEY booking_id (booking_id),
+            KEY lease_expires_at (lease_expires_at)
+        ) {$charset};";
+
         $sql[] = "CREATE TABLE {$prefix}sync_log (
             id bigint unsigned NOT NULL AUTO_INCREMENT,
             job_id bigint unsigned DEFAULT NULL,
