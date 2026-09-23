@@ -2,6 +2,7 @@
 namespace Wpcb\Booking;
 
 use Wpcb\Resources\ResourceRepository;
+use Wpcb\WaitingList\WaitingListRepository;
 
 final class CapacityService {
     private BookingRepository $bookings;
@@ -41,7 +42,13 @@ final class CapacityService {
             return 0;
         }
         $used = $this->bookings->occupiedSeats($start, $end, $resourceId, $ignoreBookingId);
-        return max(0, $capacity - $used);
+        $held = 0;
+        global $wpdb;
+        $waitTable = $wpdb->prefix . 'wpcb_waiting_list';
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $waitTable)) === $waitTable) {
+            $held = (new WaitingListRepository())->activeHeldSeats($typeId, $resourceId, $start, $end);
+        }
+        return max(0, $capacity - $used - $held);
     }
 
     public function canFit(
