@@ -2,6 +2,8 @@
 namespace Wpcb\Payments;
 
 use Wpcb\Booking\BookingRepository;
+use Wpcb\Booking\BookingSeriesRepository;
+use Wpcb\Booking\RecurringBookingService;
 use Wpcb\Booking\BookingStateMachine;
 use Wpcb\Booking\BookingStatus;
 use Wpcb\Booking\BookingTransitionService;
@@ -24,7 +26,7 @@ final class PaymentService {
 
     public function boot(): void {
         add_action('wpcb_booking_transitioned', [$this, 'onBookingTransition'], 20, 2);
-        add_action('wpcb_hourly_reminders', [$this, 'expirePending'], 20);
+        add_action('wpcb_hourly_reminders', [$this, 'expirePending'], 1);
     }
 
     /**
@@ -37,16 +39,18 @@ final class PaymentService {
         if (!$booking) {
             return new \WP_Error('wpcb_payment_booking_missing', 'Booking not found.');
         }
-        $type = $this->types->find((int)$booking->booking_type_id);
+
+        $scope = $this->paymentScope($booking);
+        if (is_wp_error($scope)) {
+            return $scope;
+        }
+        $owner = $scope['owner'];
+        $type = $this->types->find((int)$owner->booking_type_id);
         if (!$type || (string)($type->payment_mode ?? 'free') !== 'required') {
             return null;
         }
-        $amount = max(0, (int)($type->price_minor ?? 0));
-        $currency = strtoupper((string)($type->currency ?? 'EUR'));
-        if ($amount < 1 || !preg_match('/^[A-Z]{3}$/', $currency)) {
-            return new \WP_Error('wpcb_payment_config_invalid', 'Paid booking type has invalid price settings.');
-        }
-        $existing = $this->payments->forBooking($bookingId);
+
+        $existing = $this->payments->forBooking((int)$owner->id);
         if ($existing && in_array((string)$existing->status, [
             PaymentStatus::PENDING,
             PaymentStatus::PAID,
@@ -55,8 +59,62 @@ final class PaymentService {
         ], true)) {
             return $existing;
         }
-        $id = $this->payments->createPending($bookingId, $amount, $currency, (string)$booking->reserved_until);
+
+        $unitAmount = max(0, (int)($type->price_minor ?? 0));
+        $occurrenceCount = max(1, (int)$scope['occurrence_count']);
+        $currency = strtoupper((string)($type->currency ?? 'EUR'));
+        if ($unitAmount < 1 || !preg_match('/^[A-Z]{3}$/', $currency)) {
+            return new \WP_Error('wpcb_payment_config_invalid', 'Paid booking type has invalid price settings.');
+        }
+        if ($unitAmount > intdiv(PHP_INT_MAX, $occurrenceCount)) {
+            return new \WP_Error('wpcb_payment_amount_invalid', 'Series payment amount is too large.');
+        }
+
+        // The stored payment amount/currency are the immutable price snapshot.
+        $amount = $unitAmount * $occurrenceCount;
+        $id = $this->payments->createPending(
+            (int)$owner->id,
+            $amount,
+            $currency,
+            (string)$owner->reserved_until
+        );
         return $id > 0 ? $this->payments->find($id) : new \WP_Error('wpcb_payment_storage', 'Payment could not be stored.');
+    }
+
+    public function paymentForBooking(int $bookingId): ?object {
+        $booking = $this->bookings->find($bookingId);
+        if (!$booking) {
+            return null;
+        }
+        $scope = $this->paymentScope($booking);
+        if (is_wp_error($scope)) {
+            return null;
+        }
+        return $this->payments->forBooking((int)$scope['owner']->id);
+    }
+
+    /**
+     * Paid series are one payment obligation. A paid/refundable series can only
+     * be cancelled as the complete series from its first occurrence.
+     *
+     * @return true|\WP_Error
+     */
+    public function validateSeriesCancellation(int $bookingId, bool $wholeSeries): mixed {
+        $booking = $this->bookings->find($bookingId);
+        if (!$booking || empty($booking->series_id)) {
+            return true;
+        }
+        $type = $this->types->find((int)$booking->booking_type_id);
+        if (!$type || (string)($type->payment_mode ?? 'free') !== 'required') {
+            return true;
+        }
+        if (!$wholeSeries || (int)($booking->series_occurrence ?? -1) !== 0) {
+            return new \WP_Error(
+                'wpcb_paid_series_partial_refund_unsupported',
+                'Paid recurring bookings can currently be cancelled only as the complete series from the first occurrence.'
+            );
+        }
+        return true;
     }
 
     /**
@@ -154,13 +212,7 @@ final class PaymentService {
 
         $booking = $this->bookings->find((int)$payment->booking_id);
         if ($booking) {
-            $this->bookings->logEvent(
-                (int)$booking->id,
-                (string)$booking->status,
-                'payment_' . $target,
-                'payment_provider',
-                'Payment lifecycle updated'
-            );
+            $this->logScopeEvent($booking, 'payment_' . $target, 'Payment lifecycle updated', 'payment_provider');
         }
         return $this->payments->find((int)$payment->id);
     }
@@ -174,7 +226,7 @@ final class PaymentService {
         if (!$type || (string)($type->payment_mode ?? 'free') !== 'required') {
             return true;
         }
-        $payment = $this->payments->forBooking($bookingId);
+        $payment = $this->paymentForBooking($bookingId);
         return $payment && (string)$payment->status === PaymentStatus::PAID;
     }
 
@@ -186,12 +238,21 @@ final class PaymentService {
             }
             $booking = $this->bookings->find((int)$payment->booking_id);
             if ($booking && (string)$booking->status === BookingStatus::RESERVED_UNCONFIRMED) {
-                (new BookingTransitionService())->apply(
-                    (int)$booking->id,
-                    BookingStateMachine::RESERVATION_EXPIRED,
-                    'payment',
-                    'Payment reservation expired'
-                );
+                if (!empty($booking->series_id)) {
+                    (new RecurringBookingService())->applyRemaining(
+                        (int)$booking->id,
+                        BookingStateMachine::RESERVATION_EXPIRED,
+                        'payment',
+                        'Series payment reservation expired'
+                    );
+                } else {
+                    (new BookingTransitionService())->apply(
+                        (int)$booking->id,
+                        BookingStateMachine::RESERVATION_EXPIRED,
+                        'payment',
+                        'Payment reservation expired'
+                    );
+                }
             }
             ++$count;
         }
@@ -206,16 +267,10 @@ final class PaymentService {
         )) {
             return;
         }
-        $payment = $this->payments->forBooking((int)$booking->id);
+        $payment = $this->paymentForBooking((int)$booking->id);
         if ($payment && (string)$payment->status === PaymentStatus::PAID) {
             $this->payments->setStatus((int)$payment->id, PaymentStatus::PAID, PaymentStatus::REFUND_PENDING);
-            $this->bookings->logEvent(
-                (int)$booking->id,
-                (string)$booking->status,
-                'payment_refund_pending',
-                'payment',
-                'Booking lifecycle requires payment refund'
-            );
+            $this->logScopeEvent($booking, 'payment_refund_pending', 'Booking lifecycle requires payment refund');
         }
     }
 
@@ -246,4 +301,49 @@ final class PaymentService {
             (string)$payment->currency
         );
     }
+    /**
+     * @return array{owner:object,occurrence_count:int}|\WP_Error
+     */
+    private function paymentScope(object $booking): array|\WP_Error {
+        if (empty($booking->series_id)) {
+            return ['owner' => $booking, 'occurrence_count' => 1];
+        }
+
+        $seriesRepo = new BookingSeriesRepository();
+        $series = $seriesRepo->find((int)$booking->series_id);
+        $members = $series ? $seriesRepo->members((int)$series->id, 0) : [];
+        if (!$series || !$members) {
+            return new \WP_Error('wpcb_payment_series_missing', 'Recurring series payment scope is incomplete.');
+        }
+
+        return [
+            'owner' => $members[0],
+            'occurrence_count' => max(1, (int)$series->occurrence_count),
+        ];
+    }
+
+    private function logScopeEvent(
+        object $booking,
+        string $context,
+        string $note,
+        string $actor = 'payment'
+    ): void {
+        $members = [$booking];
+        if (!empty($booking->series_id)) {
+            $seriesMembers = (new BookingSeriesRepository())->members((int)$booking->series_id, 0);
+            if ($seriesMembers) {
+                $members = $seriesMembers;
+            }
+        }
+        foreach ($members as $member) {
+            $this->bookings->logEvent(
+                (int)$member->id,
+                (string)$member->status,
+                $context,
+                $actor,
+                $note
+            );
+        }
+    }
+
 }
