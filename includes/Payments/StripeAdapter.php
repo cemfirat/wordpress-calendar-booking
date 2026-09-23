@@ -108,7 +108,17 @@ final class StripeAdapter implements PaymentAdapterInterface {
             return new \WP_Error('wpcb_stripe_payment_intent_missing', 'Stripe payment intent is missing.');
         }
 
-        $refund = $this->request('POST', '/v1/refunds', ['payment_intent' => $intent], $secret);
+        $amount = max(0, (int)($context['amount_minor'] ?? 0));
+        if ($amount < 1) {
+            return new \WP_Error('wpcb_stripe_refund_amount_invalid', 'Stripe refund amount is invalid.');
+        }
+        $refund = $this->request(
+            'POST',
+            '/v1/refunds',
+            ['payment_intent' => $intent, 'amount' => (string)$amount],
+            $secret,
+            ['Idempotency-Key' => sanitize_text_field((string)($context['idempotency_key'] ?? ''))]
+        );
         if (is_wp_error($refund)) {
             return $refund;
         }
@@ -127,16 +137,17 @@ final class StripeAdapter implements PaymentAdapterInterface {
             : '';
     }
 
-    private function request(string $method, string $path, array $body, string $secret) {
+    private function request(string $method, string $path, array $body, string $secret, array $extraHeaders = []) {
+        $headers = array_merge([
+            'Authorization' => 'Bearer ' . $secret,
+            'Content-Type' => 'application/x-www-form-urlencoded',
+            'User-Agent' => 'WordPress-Calendar-Booking/' . WPCB_VERSION,
+        ], array_filter($extraHeaders, static fn($value) => is_string($value) && $value !== ''));
         $args = [
             'method' => $method,
             'timeout' => 15,
             'redirection' => 0,
-            'headers' => [
-                'Authorization' => 'Bearer ' . $secret,
-                'Content-Type' => 'application/x-www-form-urlencoded',
-                'User-Agent' => 'WordPress-Calendar-Booking/' . WPCB_VERSION,
-            ],
+            'headers' => $headers,
         ];
         if ($method !== 'GET') {
             $args['body'] = $body;
