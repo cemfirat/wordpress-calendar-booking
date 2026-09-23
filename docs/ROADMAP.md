@@ -77,3 +77,9 @@ Completed.
 - first-run setup readiness dashboard
 - actionable core configuration checklist
 - core-only booking readiness without external provider dependencies
+
+
+### 3.10
+- protected mail transport diagnostics
+- privacy-safe administrator test email
+- mail delivery state and redacted failure visibility in Systemstatus
