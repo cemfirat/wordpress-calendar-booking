@@ -10,7 +10,7 @@ function wpcb_release_assert($condition, string $message): void {
     WP_CLI::log('PASS: ' . $message);
 }
 
-wpcb_release_assert(defined('WPCB_VERSION') && WPCB_VERSION === '3.3.0', 'Release ZIP boots version 3.3.0.');
+wpcb_release_assert(defined('WPCB_VERSION') && WPCB_VERSION === '3.4.0', 'Release ZIP boots version 3.4.0.');
 wpcb_release_assert(class_exists('Sabre\\VObject\\Reader'), 'Release ZIP contains Composer runtime dependencies.');
 wpcb_release_assert(is_file(WPCB_DIR . 'assets/vendor/uikit/uikit.min.css'), 'Release ZIP contains local UIkit CSS fallback.');
 wpcb_release_assert(is_file(WPCB_DIR . 'assets/vendor/uikit/uikit.min.js'), 'Release ZIP contains local UIkit JavaScript fallback.');
@@ -31,7 +31,7 @@ foreach ([
     'form_fields', 'availability_rules', 'exceptions', 'tokens', 'booking_status_log',
     'sync_jobs', 'deliveries', 'calendar_connections', 'booking_type_calendar_connections',
     'resource_calendar_connections', 'sync_log', 'api_idempotency', 'webhook_endpoints', 'webhook_deliveries',
-    'customer_sessions',
+    'customer_sessions', 'payments', 'payment_events',
 ] as $suffix) {
     $table = $wpdb->prefix . 'wpcb_' . $suffix;
     wpcb_release_assert($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) === $table, 'Fresh release created table ' . $table . '.');

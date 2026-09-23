@@ -10,6 +10,7 @@ use Wpcb\Booking\BookingTransitionService;
 use Wpcb\Booking\BookingTypeRepository;
 use Wpcb\Support\Time;
 use Wpcb\Tokens\TokenService;
+use Wpcb\Payments\PaymentRepository;
 
 final class CustomerPortalController {
     private CustomerSessionRepository $sessions;
@@ -380,6 +381,11 @@ final class CustomerPortalController {
         $html .= '<dt>Termin</dt><dd>' . esc_html(Time::display((string)$booking->slot_start, 'd.m.Y H:i')) . ' – ' . esc_html(Time::display((string)$booking->slot_end, 'H:i')) . '</dd>';
         $html .= '<dt>Status</dt><dd>' . esc_html((string)$booking->status) . '</dd>';
         $html .= '<dt>Teilnehmer</dt><dd>' . max(1, (int)$booking->party_size) . '</dd>';
+        $payment = (new PaymentRepository())->forBooking((int)$booking->id);
+        if ($payment) {
+            $amount = number_format(((int)$payment->amount_minor) / 100, 2, ',', '.');
+            $html .= '<dt>Zahlung</dt><dd>' . esc_html($amount . ' ' . (string)$payment->currency . ' · ' . (string)$payment->status) . '</dd>';
+        }
         $html .= '</dl>';
 
         if (in_array((string)$booking->status, [BookingStatus::PENDING_APPROVAL, BookingStatus::CONFIRMED], true)) {

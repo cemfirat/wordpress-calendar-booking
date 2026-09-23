@@ -4,6 +4,7 @@ namespace Wpcb\Booking;
 use Wpcb\Availability\SlotService;
 use Wpcb\Resources\ResourceLock;
 use Wpcb\Support\Time;
+use Wpcb\Payments\PaymentService;
 
 /**
  * Applies legal lifecycle events and performs the status write atomically.
@@ -45,6 +46,14 @@ final class BookingTransitionService {
 
         if ($current === $target) {
             return $this->result($bookingId, $event, $current, $target, $actor, false);
+        }
+
+        if (in_array($event, [
+            BookingStateMachine::EMAIL_CONFIRMED_APPROVAL,
+            BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC,
+            BookingStateMachine::ADMIN_APPROVED,
+        ], true) && !(new PaymentService())->canConfirm($bookingId)) {
+            return new \WP_Error('wpcb_payment_required', 'Payment must be completed before this booking can be confirmed.');
         }
 
         if ($this->requiresAvailabilityRevalidation($event)

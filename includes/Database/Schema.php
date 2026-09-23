@@ -61,6 +61,9 @@ class Schema {
             buffer_after_minutes int NOT NULL DEFAULT 0,
             capacity int NOT NULL DEFAULT 1,
             show_remaining_capacity tinyint(1) NOT NULL DEFAULT 0,
+            payment_mode varchar(20) NOT NULL DEFAULT 'free',
+            price_minor bigint unsigned NOT NULL DEFAULT 0,
+            currency char(3) NOT NULL DEFAULT 'EUR',
             is_active tinyint(1) NOT NULL DEFAULT 1,
             is_public tinyint(1) NOT NULL DEFAULT 1,
             sort_order int NOT NULL DEFAULT 0,
@@ -338,6 +341,41 @@ class Schema {
             KEY booking_id (booking_id),
             KEY event_id (event_id),
             KEY updated_at (updated_at)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}payments (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            payment_uuid varchar(64) NOT NULL,
+            booking_id bigint unsigned NOT NULL,
+            provider varchar(64) NOT NULL DEFAULT '',
+            provider_reference varchar(190) DEFAULT NULL,
+            amount_minor bigint unsigned NOT NULL,
+            currency char(3) NOT NULL,
+            status varchar(30) NOT NULL DEFAULT 'pending',
+            expires_at datetime DEFAULT NULL,
+            paid_at datetime DEFAULT NULL,
+            refunded_at datetime DEFAULT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY payment_uuid (payment_uuid),
+            KEY booking_id (booking_id),
+            UNIQUE KEY provider_reference (provider, provider_reference),
+            KEY status_expires (status, expires_at),
+            KEY updated_at (updated_at)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}payment_events (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            payment_id bigint unsigned NOT NULL,
+            provider varchar(64) NOT NULL,
+            provider_event_id varchar(190) NOT NULL,
+            event_type varchar(50) NOT NULL,
+            created_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY provider_event (provider, provider_event_id),
+            KEY payment_id (payment_id),
+            KEY created_at (created_at)
         ) {$charset};";
 
         $sql[] = "CREATE TABLE {$prefix}customer_sessions (

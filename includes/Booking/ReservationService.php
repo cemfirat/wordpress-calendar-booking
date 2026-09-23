@@ -5,6 +5,7 @@ use Wpcb\Admin\Settings;
 use Wpcb\Availability\SlotSelectionService;
 use Wpcb\Resources\ResourceLock;
 use Wpcb\Support\Time;
+use Wpcb\Payments\PaymentService;
 
 /**
  * Creates the initial booking reservation inside a serialized critical section.
@@ -90,6 +91,18 @@ class ReservationService {
             if ($bookingId < 1) {
                 return new \WP_Error('wpcb_reservation_storage', 'The booking reservation could not be stored.');
             }
+
+            $payment = (new PaymentService())->ensureForBooking($bookingId);
+            if (is_wp_error($payment)) {
+                (new BookingTransitionService($this->bookings))->apply(
+                    $bookingId,
+                    BookingStateMachine::RESERVATION_EXPIRED,
+                    'payment',
+                    'Payment obligation could not be created'
+                );
+                return $payment;
+            }
+
             return $bookingId;
         } finally {
             $this->locks->release($resourceId);

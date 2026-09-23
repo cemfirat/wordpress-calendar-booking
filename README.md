@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.3.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.4.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -129,3 +129,10 @@ State-changing REST requests require an `Idempotency-Key` header. Outbound lifec
 Add `[wpcb_customer_portal]` to a normal WordPress page to provide self-service access without creating WordPress customer accounts. Customers request a one-time magic link by email; the link opens a scanner-safe confirmation screen and creates an encrypted, HttpOnly portal session only after an explicit POST confirmation.
 
 Authenticated customers can see only bookings matching their verified session email, open booking details, cancel or reschedule active appointments through the same server-side lifecycle services used elsewhere, and update contact details. Email-address changes require a second one-time verification link before the booking email is changed. Portal mutations use per-session CSRF tokens, login requests are rate-limited, and WordPress privacy erasure revokes matching portal sessions.
+
+
+## Payments
+
+Version 3.4 adds a provider-neutral payment lifecycle foundation. Booking types can be configured as free or payment-required with a price and ISO currency. Paid reservations receive a separate pending payment record; booking confirmation remains blocked until the payment is verified.
+
+Payment adapters receive only a technical payment identifier, amount, currency and expiry. Raw card numbers, CVC/CVV values, bank credentials and full provider callback payloads are never stored by the plugin. Provider callbacks are idempotent, expired pending payments release unconfirmed reservations, and cancelling a paid booking moves its payment into an explicit refund workflow.
