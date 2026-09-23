@@ -32,6 +32,20 @@ The plugin's **Kalender & Buchungen → Systemstatus** screen shows the last and
 A scheduler warning should be investigated if the queue has not run for more than 15 minutes, the hourly task has not run for more than two hours, any of the four recurring schedules is missing, failed jobs are present, or a running job has an expired lease.
 
 
+## Retryable booking e-mail delivery
+
+Booking and administrator notifications use the same leased five-minute queue as other retryable side effects when `wp_mail()` returns a definite failure.
+
+- A definite `wp_mail() === false` result queues a bounded retry job. Queue attempts use the existing 2, 4, 8 and 16 minute backoff and stop after the fifth worker attempt.
+- The queue descriptor contains only the booking ID, logical delivery key, template identifier, recipient class, attachment intent and expected booking status. Customer name, e-mail address, phone, message content, OAuth/payment credentials and raw one-time-token verifiers are not copied into queue rows.
+- Customer/booking data is reconstructed from canonical WordPress records only when the retry worker actually executes.
+- DOI, cancellation and reschedule action tokens are rotated immediately before a retry send. Superseded unsent tokens are revoked.
+- If the mail transport throws or a worker recovers a delivery that was left in `sending`, the delivery is marked `uncertain` and is **not** retried automatically. This avoids turning an unknown in-flight result into a duplicate customer e-mail.
+- The **Versandprotokoll** shows delivery attempts, retry state/next attempt, terminal queue failures and `uncertain` outcomes that require manual review.
+- Once the delivery ledger reaches `sent`, repeated worker execution is idempotent and does not send the logical notification again.
+
+A terminal retry failure means WordPress repeatedly rejected the notification before accepting it for transport. An `uncertain` state is different: delivery may have happened, so investigate the configured SMTP/mail transport before manually triggering any replacement communication.
+
 ## E-mail transport verification
 
 Before publishing the booking page, open **Kalender & Buchungen → Systemstatus** and send a diagnostic test email to an administrator-controlled mailbox.
