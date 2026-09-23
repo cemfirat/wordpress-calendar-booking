@@ -101,3 +101,9 @@ Completed.
 - encrypted Stripe API and webhook signing secrets
 - verified/idempotent Stripe payment webhooks
 - administrator-triggered Stripe refunds
+
+
+### 3.14
+- read-only Stripe Checkout return status flow
+- technical payment identifiers only in success/cancel return URLs
+- verified webhooks remain the sole payment-state authority
