@@ -232,8 +232,8 @@ class SlotService {
         }
 
         $slots = $resourceId
-            ? $this->getSlotsForResource($typeId, $resourceId, $daysFromToday + 1, $ignoreBookingId)
-            : $this->getSlots($typeId, $daysFromToday + 1, $ignoreBookingId);
+            ? $this->getSlotsForResource($typeId, $resourceId, $daysFromToday + 1, $ignoreBookingId, $partySize)
+            : $this->getSlots($typeId, $daysFromToday + 1, $ignoreBookingId, $partySize);
 
         foreach ($slots as $slot) {
             if (($slot['start'] ?? null) === $start
@@ -387,7 +387,8 @@ class SlotService {
         int $bufferBefore,
         int $bufferAfter,
         ?int $ignoreBookingId = null,
-        ?int $resourceId = null
+        ?int $resourceId = null,
+        int $partySize = 1
     ): bool {
         $bufferedStart = Time::addMinutes($start, -$bufferBefore);
         $bufferedEnd = Time::addMinutes($end, $bufferAfter);
