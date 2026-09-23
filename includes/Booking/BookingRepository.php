@@ -31,6 +31,10 @@ class BookingRepository {
             ]);
         }
         $this->log($id, null, $data['status'], 'create', 'system', 'Buchung erstellt');
+        $created = $this->find($id);
+        if ($created) {
+            do_action('wpcb_booking_created', $created);
+        }
         return $id;
     }
 

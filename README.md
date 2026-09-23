@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.1.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.2.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -115,3 +115,10 @@ GPL-2.0-or-later. Copyright © 2026 Cem Firat.
 Download `wordpress-calendar-booking.zip` from the latest GitHub release and upload it through **Plugins → Add New → Upload Plugin**. Stable GitHub releases are then discovered through WordPress's native plugin update flow.
 
 Source checkouts require Composer/npm only for development. Release ZIPs already include production Composer dependencies and the built local UIkit fallback.
+
+
+## REST API and webhooks
+
+Version 3.2 exposes a versioned `/wp-json/wpcb/v1` API. Public endpoints expose only public booking types, explicitly public resource labels and privacy-safe availability. Booking administration and webhook configuration require WordPress administrator capabilities.
+
+State-changing REST requests require an `Idempotency-Key` header. Outbound lifecycle webhooks use encrypted endpoint secrets and an `X-WPCB-Signature: sha256=...` HMAC over `<timestamp>.<raw-body>`. Webhook payloads are schema-versioned and deliberately omit customer name, email, phone, notes and provider credentials.
