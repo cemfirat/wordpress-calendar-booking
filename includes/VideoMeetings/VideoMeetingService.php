@@ -31,6 +31,7 @@ final class VideoMeetingService {
         $connectionIds = [];
         if ($operation !== 'delete') {
             foreach ((new VideoMeetingConnectionRepository())->forBookingType((int)$booking->booking_type_id) as $connection) {
+                $connectionId = (int)$connection->id;
                 $connectionIds[$connectionId] = $connectionId;
             }
         }
