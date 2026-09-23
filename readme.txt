@@ -17,6 +17,7 @@ Calendar providers include public ICS feeds, generic CalDAV/iCloud, Google Calen
 Shortcodes:
 [wpcb_calendar]
 [wpcb_booking_form]
+[wpcb_booking_calendar]
 
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
@@ -25,7 +26,7 @@ Security and privacy controls include canonical signed slot tokens, atomic reser
 = 3.0.0 =
 * Normalize the plugin filename, technical prefix, PHP namespace, hooks, shortcodes, block namespace, database/options prefix and text domain.
 * Use wordpress-calendar-booking.php as the canonical plugin entry point.
-* Remove the historical CEMB identifier before the plugin's first production deployment.
+* Remove the previous abbreviated identifier before the plugin's first production deployment.
 
 = 2.0.0 =
 * First stable public release.
