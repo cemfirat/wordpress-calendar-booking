@@ -11,6 +11,10 @@ use Wpcb\Booking\BookingTypeRepository;
 use Wpcb\Support\Time;
 use Wpcb\Tokens\TokenService;
 use Wpcb\Payments\PaymentRepository;
+use Wpcb\Payments\PaymentService;
+use Wpcb\Payments\PaymentStatus;
+use Wpcb\Payments\StripeAdapter;
+use Wpcb\Payments\StripeConfig;
 
 final class CustomerPortalController {
     private CustomerSessionRepository $sessions;
@@ -41,6 +45,7 @@ final class CustomerPortalController {
             'wpcb_portal_cancel' => 'cancel',
             'wpcb_portal_reschedule' => 'reschedule',
             'wpcb_portal_contact' => 'updateContact',
+            'wpcb_portal_payment' => 'resumePayment',
             'wpcb_portal_email_change' => 'confirmEmailChange',
         ] as $action => $method) {
             add_action('admin_post_nopriv_' . $action, [$this, $method]);
@@ -272,6 +277,43 @@ final class CustomerPortalController {
         $this->redirect($returnUrl, is_wp_error($result) ? 'action_failed' : 'rescheduled');
     }
 
+    public function resumePayment(): void {
+        $session = $this->requireSession();
+        $returnUrl = $this->safeReturn((string)wp_unslash($_POST['return_url'] ?? home_url('/')));
+        $this->requireCsrf($session);
+
+        $bookingId = absint($_POST['booking_id'] ?? 0);
+        $booking = $this->ownedBooking($bookingId, $session['email']);
+        if (!$booking || (string)$booking->status !== BookingStatus::RESERVED_UNCONFIRMED) {
+            $this->redirect($returnUrl, 'payment_unavailable');
+        }
+        $reservedUntil = Time::parseUtc((string)($booking->reserved_until ?? ''));
+        if (!$reservedUntil || $reservedUntil <= Time::nowUtc()) {
+            $this->redirect($returnUrl, 'payment_unavailable');
+        }
+
+        $payment = (new PaymentRepository())->forBooking($bookingId);
+        if (!$payment
+            || (string)$payment->status !== PaymentStatus::PENDING
+            || !in_array((string)$payment->provider, ['', 'stripe'], true)
+            || !(new StripeConfig())->ready()
+        ) {
+            $this->redirect($returnUrl, 'payment_unavailable');
+        }
+
+        $started = (new PaymentService())->begin($bookingId, new StripeAdapter());
+        if (is_wp_error($started) || empty($started->checkout_url)) {
+            $this->redirect($returnUrl, 'action_failed');
+        }
+        $checkoutUrl = esc_url_raw((string)$started->checkout_url);
+        $host = strtolower((string)wp_parse_url($checkoutUrl, PHP_URL_HOST));
+        if ($host !== 'checkout.stripe.com' && !str_ends_with($host, '.stripe.com')) {
+            $this->redirect($returnUrl, 'action_failed');
+        }
+        wp_redirect($checkoutUrl, 303);
+        exit;
+    }
+
     public function updateContact(): void {
         $session = $this->requireSession();
         $returnUrl = $this->safeReturn((string)wp_unslash($_POST['return_url'] ?? home_url('/')));
@@ -385,6 +427,20 @@ final class CustomerPortalController {
         if ($payment) {
             $amount = number_format(((int)$payment->amount_minor) / 100, 2, ',', '.');
             $html .= '<dt>' . esc_html__('Zahlung', 'wordpress-calendar-booking') . '</dt><dd>' . esc_html($amount . ' ' . (string)$payment->currency . ' · ' . (string)$payment->status) . '</dd>';
+            $reservedUntil = Time::parseUtc((string)($booking->reserved_until ?? ''));
+            if ((string)$payment->status === PaymentStatus::PENDING
+                && (string)$booking->status === BookingStatus::RESERVED_UNCONFIRMED
+                && $reservedUntil && $reservedUntil > Time::nowUtc()
+                && in_array((string)$payment->provider, ['', 'stripe'], true)
+                && (new StripeConfig())->ready()
+            ) {
+                $paymentFields = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '">'
+                    . '<button class="uk-button uk-button-primary" type="submit">'
+                    . esc_html__('Zahlung fortsetzen', 'wordpress-calendar-booking') . '</button>';
+                $html .= '<div class="uk-margin-small-top">'
+                    . $this->postForm('wpcb_portal_payment', $returnUrl, $session, $paymentFields)
+                    . '</div>';
+            }
         }
         $html .= '</dl>';
 
@@ -531,6 +587,7 @@ final class CustomerPortalController {
             'email_changed' => __('Die neue E-Mail-Adresse wurde bestätigt.', 'wordpress-calendar-booking'),
             'not_allowed' => __('Diese Buchung kann mit dieser Sitzung nicht verwaltet werden.', 'wordpress-calendar-booking'),
             'action_failed' => __('Die Aktion konnte nicht ausgeführt werden.', 'wordpress-calendar-booking'),
+            'payment_unavailable' => __('Diese Zahlung kann nicht mehr fortgesetzt werden.', 'wordpress-calendar-booking'),
         ][$notice] ?? '';
     }
 }
