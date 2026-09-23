@@ -143,7 +143,7 @@ class ComponentRenderer {
                 echo '<input class="uk-input" type="email" id="' . esc_attr($id) . '" name="' . $name . '" ' . $required . '>';
                 break;
             case 'select':
-                echo '<select class="uk-select" id="' . esc_attr($id) . '" name="' . $name . '" ' . $required . '><option value=""><?php esc_html_e('Bitte wählen', 'wordpress-calendar-booking'); ?></option>';
+                echo '<select class="uk-select" id="' . esc_attr($id) . '" name="' . $name . '" ' . $required . '><option value="">' . esc_html__('Bitte wählen', 'wordpress-calendar-booking') . '</option>';
                 foreach ($options as $option) echo '<option value="' . esc_attr($option) . '">' . esc_html($option) . '</option>';
                 echo '</select>';
                 break;
