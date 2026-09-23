@@ -67,8 +67,8 @@ final class WebhookEndpointRepository {
 
         $name = sanitize_text_field((string)($data['name'] ?? ''));
         $url = esc_url_raw(trim((string)($data['url'] ?? '')));
-        if ($name === '' || $url === '' || !wp_http_validate_url($url)) {
-            return new \WP_Error('wpcb_webhook_invalid', 'Webhook name and a valid HTTP(S) URL are required.');
+        if ($name === '' || $url === '' || !wp_http_validate_url($url) || wp_parse_url($url, PHP_URL_SCHEME) !== 'https') {
+            return new \WP_Error('wpcb_webhook_invalid', 'Webhook name and a valid HTTPS URL are required.');
         }
 
         $events = array_values(array_intersect(
