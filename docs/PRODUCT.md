@@ -96,4 +96,4 @@ Calendar providers, payment providers, webhooks and video-meeting connections ar
 
 ## Planning source of truth
 
-This document describes the current product, not an issue backlog. Future work belongs in GitHub issues and [ROADMAP.md](ROADMAP.md). Historical release changes belong in [../CHANGELOG.md](../CHANGELOG.md).
+This document describes the current product, not an issue backlog. Future work belongs in GitHub issues and [ROADMAP.md](ROADMAP.md). Historical release changes belong in [../CHANGELOG.md](../CHANGELOG.md). Production guidance lives in [OPERATIONS.md](OPERATIONS.md), and security/privacy invariants are maintained in [SECURITY-PRIVACY.md](SECURITY-PRIVACY.md).
