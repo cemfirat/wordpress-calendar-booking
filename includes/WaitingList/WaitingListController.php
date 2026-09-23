@@ -5,7 +5,9 @@ final class WaitingListController {
     public function boot(): void {
         add_action('admin_post_nopriv_wpcb_waitlist_join', [$this, 'join']);
         add_action('admin_post_wpcb_waitlist_join', [$this, 'join']);
-        add_action('template_redirect', [$this, 'accept'], 0);
+        add_action('template_redirect', [$this, 'renderOffer'], 0);
+        add_action('admin_post_nopriv_wpcb_waitlist_accept', [$this, 'accept']);
+        add_action('admin_post_wpcb_waitlist_accept', [$this, 'accept']);
         add_action('wpcb_waitlist_send_offer', [$this, 'sendOffer']);
         add_action('wpcb_hourly_reminders', [$this, 'expireOffers'], 7);
         add_action('wpcb_booking_transitioned', [$this, 'onBookingTransition'], 30, 2);
@@ -34,15 +36,33 @@ final class WaitingListController {
         exit;
     }
 
-    public function accept(): void {
-        if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') {
-            return;
-        }
-        if (sanitize_key(wp_unslash($_GET['wpcb_waitlist_action'] ?? '')) !== 'accept') {
-            return;
-        }
+    public function renderOffer(): void {
+        if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? 'GET')) !== 'GET') return;
+        if (sanitize_key(wp_unslash($_GET['wpcb_waitlist_action'] ?? '')) !== 'accept') return;
         $id = absint($_GET['wpcb_waitlist_id'] ?? 0);
         $token = sanitize_text_field(wp_unslash($_GET['wpcb_waitlist_token'] ?? ''));
+        if ($id < 1 || $token === '') return;
+        echo '<!doctype html><html><head><meta charset="' . esc_attr(get_bloginfo('charset')) . '"><meta name="robots" content="noindex,nofollow"><title>' . esc_html__('Waiting-list offer', 'wordpress-calendar-booking') . '</title></head><body>';
+        echo '<main><h1>' . esc_html__('A booking slot is available', 'wordpress-calendar-booking') . '</h1><p>' . esc_html__('Confirm explicitly to reserve the offered slot. Opening this page alone changes nothing.', 'wordpress-calendar-booking') . '</p>';
+        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
+        echo '<input type="hidden" name="action" value="wpcb_waitlist_accept">';
+        echo '<input type="hidden" name="wpcb_waitlist_id" value="' . (int)$id . '">';
+        echo '<input type="hidden" name="wpcb_waitlist_token" value="' . esc_attr($token) . '">';
+        wp_nonce_field('wpcb_waitlist_accept|' . hash('sha256', $token), 'wpcb_waitlist_nonce');
+        echo '<button type="submit">' . esc_html__('Reserve this slot', 'wordpress-calendar-booking') . '</button></form></main></body></html>';
+        exit;
+    }
+
+    public function accept(): void {
+        if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
+            wp_die('Method not allowed.', 'Method not allowed', ['response' => 405]);
+        }
+        $id = absint($_POST['wpcb_waitlist_id'] ?? 0);
+        $token = sanitize_text_field(wp_unslash($_POST['wpcb_waitlist_token'] ?? ''));
+        $nonce = sanitize_text_field(wp_unslash($_POST['wpcb_waitlist_nonce'] ?? ''));
+        if (!wp_verify_nonce($nonce, 'wpcb_waitlist_accept|' . hash('sha256', $token))) {
+            wp_die('Security check failed.', 'Security check failed', ['response' => 403]);
+        }
         $result = (new WaitingListService())->accept($id, $token);
         if (is_wp_error($result)) {
             wp_die(esc_html($result->get_error_message()), 'Waiting list', ['response' => 400]);
