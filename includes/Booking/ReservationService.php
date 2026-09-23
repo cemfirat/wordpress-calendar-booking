@@ -34,15 +34,15 @@ class ReservationService {
      * @return int|\WP_Error Booking ID on success.
      */
     public function reserve(string $slotToken, int $expectedTypeId, array $customer, array $meta = []) {
+        $partySize = max(1, (int)($customer['party_size'] ?? 1));
         $initial = $expectedTypeId > 0
-            ? $this->selection->resolve($slotToken, $expectedTypeId)
+            ? $this->selection->resolve($slotToken, $expectedTypeId, null, $partySize)
             : null;
         if (!$initial || empty($initial['resource_id'])) {
             return new \WP_Error('wpcb_slot_unavailable', 'The selected slot is invalid, expired or no longer available.');
         }
 
         $resourceId = (int)$initial['resource_id'];
-        $partySize = max(1, (int)($customer['party_size'] ?? 1));
         if (!$this->locks->acquire($resourceId, 5)) {
             return new \WP_Error('wpcb_reservation_busy', 'The selected resource is busy. Please try again.');
         }
@@ -50,7 +50,7 @@ class ReservationService {
         try {
             // The second check is the important one: it runs after all other
             // reservation writers using this service have been serialized.
-            $slot = $this->selection->resolve($slotToken, $expectedTypeId);
+            $slot = $this->selection->resolve($slotToken, $expectedTypeId, null, $partySize);
             if (!$slot) {
                 return new \WP_Error('wpcb_slot_unavailable', 'The selected slot is no longer available.');
             }
