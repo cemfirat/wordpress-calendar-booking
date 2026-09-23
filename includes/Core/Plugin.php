@@ -27,6 +27,9 @@ use Wpcb\Webhooks\WebhookService;
 use Wpcb\Portal\CustomerPortalController;
 use Wpcb\Payments\PaymentService;
 use Wpcb\Admin\PaymentAdminPage;
+use Wpcb\Admin\WaitingListAdminPage;
+use Wpcb\WaitingList\WaitingListController;
+use Wpcb\WaitingList\WaitingListPrivacy;
 
 class Plugin {
     public function boot(): void {
@@ -53,6 +56,9 @@ class Plugin {
         (new CustomerPortalController())->boot();
         (new PaymentService())->boot();
         (new PaymentAdminPage())->boot();
+        (new WaitingListAdminPage())->boot();
+        (new WaitingListController())->boot();
+        (new WaitingListPrivacy())->boot();
         (new Shortcodes())->boot();
         (new Actions())->boot();
         (new QueueService())->boot();

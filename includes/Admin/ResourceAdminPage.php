@@ -48,6 +48,8 @@ final class ResourceAdminPage {
             );
             if (is_wp_error($result)) {
                 $error = $result->get_error_message();
+            } else {
+                do_action('wpcb_capacity_changed');
             }
         } elseif ($action === 'delete_resource') {
             $result = $resources->delete(absint($_POST['resource_id'] ?? 0));

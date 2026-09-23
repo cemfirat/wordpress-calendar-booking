@@ -135,6 +135,7 @@ class Admin {
                     $data['created_at'] = current_time('mysql');
                     $wpdb->insert($table, $data);
                 }
+                do_action('wpcb_capacity_changed');
                 break;
             case 'delete_type':
                 $wpdb->delete($wpdb->prefix . 'wpcb_booking_types', ['id' => absint($_POST['id'])]);

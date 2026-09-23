@@ -41,7 +41,24 @@ final class CapacityService {
             return 0;
         }
         $used = $this->bookings->occupiedSeats($start, $end, $resourceId, $ignoreBookingId);
-        return max(0, $capacity - $used);
+        $held = $this->waitingListHeldSeats($typeId, $resourceId, $start, $end);
+        return max(0, $capacity - $used - $held);
+    }
+
+    private function waitingListHeldSeats(int $typeId, int $resourceId, string $start, string $end): int {
+        global $wpdb;
+        $table = $wpdb->prefix . 'wpcb_waiting_list';
+        if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) {
+            return 0;
+        }
+        return max(0, (int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COALESCE(SUM(party_size), 0) FROM {$table}
+             WHERE booking_type_id = %d AND resource_id = %d
+               AND slot_start = %s AND slot_end = %s
+               AND status = 'offered'
+               AND offer_expires_at >= %s",
+            $typeId, $resourceId, $start, $end, \Wpcb\Support\Time::formatUtc(\Wpcb\Support\Time::nowUtc())
+        )));
     }
 
     public function canFit(
