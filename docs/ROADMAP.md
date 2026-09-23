@@ -83,3 +83,9 @@ Completed.
 - protected mail transport diagnostics
 - privacy-safe administrator test email
 - mail delivery state and redacted failure visibility in Systemstatus
+
+
+### 3.11
+- complete admin CRUD for booking types, form fields, availability rules and exceptions
+- historical booking-type deletion guards
+- cleanup of unused booking-type configuration mappings
