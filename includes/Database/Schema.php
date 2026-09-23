@@ -291,6 +291,55 @@ class Schema {
             KEY created_at (created_at)
         ) {$charset};";
 
+        $sql[] = "CREATE TABLE {$prefix}api_idempotency (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            scope_key varchar(64) NOT NULL,
+            request_hash varchar(64) NOT NULL,
+            status_code int NOT NULL,
+            response_json longtext NOT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY scope_key (scope_key),
+            KEY updated_at (updated_at)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}webhook_endpoints (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            name varchar(190) NOT NULL,
+            url text NOT NULL,
+            events_json longtext NOT NULL,
+            secret_enc longtext NOT NULL,
+            is_active tinyint(1) NOT NULL DEFAULT 1,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            KEY active (is_active)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}webhook_deliveries (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            delivery_id varchar(64) NOT NULL,
+            endpoint_id bigint unsigned NOT NULL,
+            booking_id bigint unsigned NOT NULL,
+            event_id varchar(64) NOT NULL,
+            event_type varchar(80) NOT NULL,
+            status varchar(20) NOT NULL DEFAULT 'pending',
+            attempts int NOT NULL DEFAULT 0,
+            response_code int DEFAULT NULL,
+            last_error text DEFAULT NULL,
+            last_attempt_at datetime DEFAULT NULL,
+            completed_at datetime DEFAULT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY delivery_id (delivery_id),
+            KEY endpoint_status (endpoint_id, status),
+            KEY booking_id (booking_id),
+            KEY event_id (event_id),
+            KEY updated_at (updated_at)
+        ) {$charset};";
+
         foreach ($sql as $statement) {
             dbDelta($statement);
         }
