@@ -2,6 +2,7 @@
 namespace Cemb\Core;
 
 use Cemb\Admin\Admin;
+use Cemb\Admin\BookingAuditPage;
 use Cemb\Database\SchemaMigration;
 use Cemb\Frontend\Shortcodes;
 use Cemb\Frontend\Actions;
@@ -29,6 +30,7 @@ class Plugin {
         load_plugin_textdomain('cemb', false, dirname(CEMB_BASENAME) . '/languages');
         (new BookingTransitionEffects())->boot();
         (new Admin())->boot();
+        (new BookingAuditPage())->boot();
         (new GoogleOAuthController())->boot();
         (new MicrosoftOAuthController())->boot();
         (new CalDavController())->boot();
