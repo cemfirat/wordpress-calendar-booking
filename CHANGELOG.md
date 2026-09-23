@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.5.0
+
+- Add opt-in waiting-list entries for full resource/capacity slots.
+- Reserve promotion capacity under resource locks so one released seat creates at most one active offer.
+- Use encrypted, hashed, expiring one-time offer tokens with scanner-safe GET confirmation and POST-only acceptance.
+- Re-promote waiting customers after expired offers and on released booking capacity.
+- Add administrator visibility plus WordPress privacy export/erase integration.
+
 ## 3.4.0
 
 - Add provider-neutral payment adapters and payment records linked to bookings.
