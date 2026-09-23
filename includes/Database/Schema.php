@@ -64,6 +64,8 @@ class Schema {
             payment_mode varchar(20) NOT NULL DEFAULT 'free',
             price_minor bigint unsigned NOT NULL DEFAULT 0,
             currency char(3) NOT NULL DEFAULT 'EUR',
+            waiting_list_enabled tinyint(1) NOT NULL DEFAULT 0,
+            waiting_list_offer_minutes int NOT NULL DEFAULT 30,
             is_active tinyint(1) NOT NULL DEFAULT 1,
             is_public tinyint(1) NOT NULL DEFAULT 1,
             sort_order int NOT NULL DEFAULT 0,
@@ -376,6 +378,34 @@ class Schema {
             UNIQUE KEY provider_event (provider, provider_event_id),
             KEY payment_id (payment_id),
             KEY created_at (created_at)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}waiting_list (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            entry_uuid varchar(64) NOT NULL,
+            booking_type_id bigint unsigned NOT NULL,
+            resource_id bigint unsigned NOT NULL,
+            slot_start datetime NOT NULL,
+            slot_end datetime NOT NULL,
+            party_size int NOT NULL DEFAULT 1,
+            email varchar(190) NOT NULL,
+            status varchar(30) NOT NULL DEFAULT 'waiting',
+            offer_selector varchar(64) DEFAULT NULL,
+            offer_hash varchar(64) DEFAULT NULL,
+            offer_expires_at datetime DEFAULT NULL,
+            offered_at datetime DEFAULT NULL,
+            accepted_at datetime DEFAULT NULL,
+            accepted_booking_id bigint unsigned DEFAULT NULL,
+            return_url text DEFAULT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY entry_uuid (entry_uuid),
+            UNIQUE KEY offer_selector (offer_selector),
+            KEY slot_status (booking_type_id, resource_id, slot_start, slot_end, status),
+            KEY email (email),
+            KEY offer_expiry (status, offer_expires_at),
+            KEY updated_at (updated_at)
         ) {$charset};";
 
         $sql[] = "CREATE TABLE {$prefix}customer_sessions (
