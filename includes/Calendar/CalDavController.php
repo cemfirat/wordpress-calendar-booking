@@ -213,7 +213,7 @@ final class CalDavController {
 
     private function requireAdmin(): void {
         if (!current_user_can('manage_options')) {
-            wp_die('You are not allowed to manage calendar connections.');
+            wp_die(esc_html__('You are not allowed to manage calendar connections.', 'wordpress-calendar-booking'));
         }
     }
 

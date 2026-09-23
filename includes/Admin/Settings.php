@@ -40,7 +40,7 @@ class Settings {
             'icloud_sync_apple_id' => '',
             'icloud_sync_password_enc' => '',
             'icloud_sync_target_calendar_url' => '',
-            'icloud_sync_target_calendar_name' => 'Website Buchungen',
+            'icloud_sync_target_calendar_name' => __('Website Buchungen', 'wordpress-calendar-booking'),
             'icloud_sync_updates' => 1,
             'icloud_sync_cancellations' => 1,
             'icloud_sync_last_test' => '',

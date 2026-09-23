@@ -17,7 +17,7 @@ final class WaitingListController {
 
     public function join(): void {
         if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
-            wp_die('Method not allowed.', 'Method not allowed', ['response' => 405]);
+            wp_die(esc_html__('Method not allowed.', 'wordpress-calendar-booking'), esc_html__('Method not allowed', 'wordpress-calendar-booking'), ['response' => 405]);
         }
         check_admin_referer('wpcb_waitlist_join', 'wpcb_waitlist_nonce');
         $result = (new WaitingListService())->join([
@@ -31,9 +31,9 @@ final class WaitingListController {
             'phone' => sanitize_text_field(wp_unslash($_POST['phone'] ?? '')),
         ]);
         if (is_wp_error($result)) {
-            wp_die(esc_html($result->get_error_message()), 'Waiting list', ['response' => 400]);
+            wp_die(esc_html($result->get_error_message()), esc_html__('Waiting list', 'wordpress-calendar-booking'), ['response' => 400]);
         }
-        wp_safe_redirect(add_query_arg('wpcb_notice', rawurlencode('Du stehst auf der Warteliste.'), wp_get_referer() ?: home_url('/')));
+        wp_safe_redirect(add_query_arg('wpcb_notice', rawurlencode(__('Du stehst auf der Warteliste.', 'wordpress-calendar-booking')), wp_get_referer() ?: home_url('/')));
         exit;
     }
 
@@ -56,17 +56,17 @@ final class WaitingListController {
 
     public function accept(): void {
         if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
-            wp_die('Method not allowed.', 'Method not allowed', ['response' => 405]);
+            wp_die(esc_html__('Method not allowed.', 'wordpress-calendar-booking'), esc_html__('Method not allowed', 'wordpress-calendar-booking'), ['response' => 405]);
         }
         $id = absint($_POST['wpcb_waitlist_id'] ?? 0);
         $token = sanitize_text_field(wp_unslash($_POST['wpcb_waitlist_token'] ?? ''));
         $nonce = sanitize_text_field(wp_unslash($_POST['wpcb_waitlist_nonce'] ?? ''));
         if (!wp_verify_nonce($nonce, 'wpcb_waitlist_accept|' . hash('sha256', $token))) {
-            wp_die('Security check failed.', 'Security check failed', ['response' => 403]);
+            wp_die(esc_html__('Security check failed.', 'wordpress-calendar-booking'), esc_html__('Security check failed', 'wordpress-calendar-booking'), ['response' => 403]);
         }
         $result = (new WaitingListService())->accept($id, $token);
         if (is_wp_error($result)) {
-            wp_die(esc_html($result->get_error_message()), 'Waiting list', ['response' => 400]);
+            wp_die(esc_html($result->get_error_message()), esc_html__('Waiting list', 'wordpress-calendar-booking'), ['response' => 400]);
         }
         wp_die(
             esc_html__('The slot has been reserved for you. Please check your email to confirm the booking.', 'wordpress-calendar-booking'),

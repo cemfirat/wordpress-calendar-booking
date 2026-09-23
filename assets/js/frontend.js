@@ -2,6 +2,9 @@
   function closest(el, sel){ return el && el.closest ? el.closest(sel) : null; }
   function q(sel, root){ return (root||document).querySelector(sel); }
   function qa(sel, root){ return Array.prototype.slice.call((root||document).querySelectorAll(sel)); }
+  function msg(key, fallback){
+    return (window.wpcbFrontend && wpcbFrontend.i18n && wpcbFrontend.i18n[key]) || fallback;
+  }
   function isPhoneType(text){ text=(text||'').toLowerCase(); return text.indexOf('telefon')!==-1; }
   function isVisitType(text){ text=(text||'').toLowerCase(); return text.indexOf('besuch')!==-1 || text.indexOf('vor ort')!==-1; }
 
@@ -96,7 +99,7 @@
   function fillSlots(form, typeId, preselect){
     var select = q('[data-wpcb-slot-select]', form);
     if(!select) return;
-    select.innerHTML = '<option value="">Lade freie Zeiten ...</option>';
+    select.innerHTML = '<option value="">'+msg('loadingSlots','Loading available times ...')+'</option>';
     var body = new URLSearchParams();
     body.set('action','wpcb_get_slots');
     body.set('nonce', (window.wpcbFrontend && wpcbFrontend.nonce) || '');
@@ -109,15 +112,15 @@
       body: body.toString()
     }).then(function(r){ return r.json(); }).then(function(json){
       if(!json || !json.success){
-        select.innerHTML = '<option value="">Keine freien Zeiten gefunden</option>';
+        select.innerHTML = '<option value="">'+msg('noSlots','No available times found')+'</option>';
         return;
       }
       var items = json.data && json.data.slots ? json.data.slots : [];
       if(!items.length){
-        select.innerHTML = '<option value="">Keine freien Zeiten gefunden</option>';
+        select.innerHTML = '<option value="">'+msg('noSlots','No available times found')+'</option>';
         return;
       }
-      select.innerHTML = '<option value="">Bitte wählen</option>';
+      select.innerHTML = '<option value="">'+msg('choose','Please choose')+'</option>';
       items.forEach(function(slot){
         var opt = document.createElement('option');
         opt.value = slot.value;
@@ -126,7 +129,7 @@
         select.appendChild(opt);
       });
     }).catch(function(){
-      select.innerHTML = '<option value="">Fehler beim Laden der Zeiten</option>';
+      select.innerHTML = '<option value="">'+msg('loadError','Error loading times')+'</option>';
     });
   }
 

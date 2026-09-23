@@ -34,6 +34,12 @@ final class AssetManager {
         wp_localize_script('wpcb-frontend', 'wpcbFrontend', [
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('wpcb_frontend'),
+            'i18n' => [
+                'loadingSlots' => __('Lade freie Zeiten ...', 'wordpress-calendar-booking'),
+                'noSlots' => __('Keine freien Zeiten gefunden', 'wordpress-calendar-booking'),
+                'choose' => __('Bitte wählen', 'wordpress-calendar-booking'),
+                'loadError' => __('Fehler beim Laden der Zeiten', 'wordpress-calendar-booking'),
+            ],
         ]);
     }
 
