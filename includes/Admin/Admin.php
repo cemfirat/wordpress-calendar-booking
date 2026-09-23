@@ -124,112 +124,47 @@ class Admin {
                 (new MailDiagnostics())->run($recipient);
                 break;
             case 'save_type':
-                $table = $wpdb->prefix . 'wpcb_booking_types';
-                $data = [
-                    'name' => sanitize_text_field(wp_unslash($_POST['name'] ?? '')),
-                    'slug' => sanitize_title(wp_unslash($_POST['slug'] ?? '')),
-                    'description' => sanitize_textarea_field(wp_unslash($_POST['description'] ?? '')),
-                    'duration_minutes' => absint($_POST['duration_minutes'] ?? 30),
-                    'buffer_before_minutes' => absint($_POST['buffer_before_minutes'] ?? 0),
-                    'buffer_after_minutes' => absint($_POST['buffer_after_minutes'] ?? 0),
-                    'capacity' => max(1, min(10000, absint($_POST['capacity'] ?? 1))),
-                    'show_remaining_capacity' => empty($_POST['show_remaining_capacity']) ? 0 : 1,
-                    'payment_mode' => in_array(($_POST['payment_mode'] ?? 'free'), ['free', 'required'], true) ? sanitize_key(wp_unslash($_POST['payment_mode'])) : 'free',
-                    'price_minor' => max(0, absint($_POST['price_minor'] ?? 0)),
-                    'currency' => preg_match('/^[A-Z]{3}$/', strtoupper(sanitize_text_field(wp_unslash($_POST['currency'] ?? 'EUR')))) ? strtoupper(sanitize_text_field(wp_unslash($_POST['currency'] ?? 'EUR'))) : 'EUR',
-                    'is_active' => empty($_POST['is_active']) ? 0 : 1,
-                    'is_public' => empty($_POST['is_public']) ? 0 : 1,
-                    'sort_order' => absint($_POST['sort_order'] ?? 0),
-                    'updated_at' => current_time('mysql'),
-                ];
-                if (!empty($_POST['id'])) {
-                    $wpdb->update($table, $data, ['id' => absint($_POST['id'])]);
-                } else {
-                    $data['created_at'] = current_time('mysql');
-                    $wpdb->insert($table, $data);
-                }
-                do_action('wpcb_capacity_changed');
+                (new ConfigurationService())->saveBookingType(
+                    (array)wp_unslash($_POST),
+                    absint($_POST['id'] ?? 0)
+                );
                 break;
             case 'delete_type':
-                $wpdb->delete($wpdb->prefix . 'wpcb_booking_types', ['id' => absint($_POST['id'])]);
+                $result = (new ConfigurationService())->deleteBookingType(absint($_POST['id'] ?? 0));
+                if (is_wp_error($result)) {
+                    wp_safe_redirect(add_query_arg([
+                        'page' => 'wpcb_types',
+                        'wpcb_error' => $result->get_error_message(),
+                    ], admin_url('admin.php')));
+                    exit;
+                }
                 break;
             case 'save_field':
-                $table = $wpdb->prefix . 'wpcb_form_fields';
-                $data = [
-                    'field_key' => sanitize_key(wp_unslash($_POST['field_key'] ?? '')),
-                    'label' => sanitize_text_field(wp_unslash($_POST['label'] ?? '')),
-                    'field_type' => sanitize_text_field(wp_unslash($_POST['field_type'] ?? 'text')),
-                    'options_json' => !empty($_POST['options_raw']) ? wp_json_encode(array_values(array_filter(array_map('sanitize_text_field', array_map('trim', preg_split('/\r\n|\r|\n/', wp_unslash($_POST['options_raw']))))))) : null,
-                    'is_required' => empty($_POST['is_required']) ? 0 : 1,
-                    'is_active' => empty($_POST['is_active']) ? 0 : 1,
-                    'sort_order' => absint($_POST['sort_order'] ?? 0),
-                    'updated_at' => current_time('mysql'),
-                ];
-                if (!empty($_POST['id'])) {
-                    $wpdb->update($table, $data, ['id' => absint($_POST['id'])]);
-                } else {
-                    $data['created_at'] = current_time('mysql');
-                    $wpdb->insert($table, $data);
-                }
+                (new ConfigurationService())->saveField(
+                    (array)wp_unslash($_POST),
+                    absint($_POST['id'] ?? 0)
+                );
                 break;
             case 'delete_field':
-                $wpdb->delete($wpdb->prefix . 'wpcb_form_fields', ['id' => absint($_POST['id'])]);
+                (new ConfigurationService())->deleteField(absint($_POST['id'] ?? 0));
                 break;
             case 'save_rule':
-                $table = $wpdb->prefix . 'wpcb_availability_rules';
-                $scopeType = sanitize_key(wp_unslash($_POST['scope_type'] ?? 'global'));
-                if (!in_array($scopeType, ['global', 'booking_type', 'resource'], true)) {
-                    $scopeType = 'global';
-                }
-                $scopeId = $scopeType === 'resource'
-                    ? absint($_POST['resource_scope_id'] ?? 0)
-                    : absint($_POST['scope_id'] ?? 0);
-                $data = [
-                    'scope_type' => $scopeType,
-                    'scope_id' => $scopeId ?: null,
-                    'weekday' => absint($_POST['weekday'] ?? 1),
-                    'start_time' => sanitize_text_field(wp_unslash($_POST['start_time'] ?? '09:00:00')) . ':00',
-                    'end_time' => sanitize_text_field(wp_unslash($_POST['end_time'] ?? '17:00:00')) . ':00',
-                    'slot_duration_minutes' => absint($_POST['slot_duration_minutes'] ?? 30),
-                    'buffer_before_minutes' => absint($_POST['buffer_before_minutes'] ?? 0),
-                    'buffer_after_minutes' => absint($_POST['buffer_after_minutes'] ?? 0),
-                    'min_notice_minutes' => absint($_POST['min_notice_minutes'] ?? 0),
-                    'max_days_in_advance' => absint($_POST['max_days_in_advance'] ?? 30),
-                    'is_active' => empty($_POST['is_active']) ? 0 : 1,
-                    'updated_at' => current_time('mysql'),
-                ];
-                if (!empty($_POST['id'])) {
-                    $wpdb->update($table, $data, ['id' => absint($_POST['id'])]);
-                } else {
-                    $data['created_at'] = current_time('mysql');
-                    $wpdb->insert($table, $data);
-                }
+                (new ConfigurationService())->saveRule(
+                    (array)wp_unslash($_POST),
+                    absint($_POST['id'] ?? 0)
+                );
                 break;
             case 'delete_rule':
-                $wpdb->delete($wpdb->prefix . 'wpcb_availability_rules', ['id' => absint($_POST['id'])]);
+                (new ConfigurationService())->deleteRule(absint($_POST['id'] ?? 0));
                 break;
             case 'save_exception':
-                $table = $wpdb->prefix . 'wpcb_exceptions';
-                $data = [
-                    'type' => sanitize_text_field(wp_unslash($_POST['type'] ?? 'blocked_range')),
-                    'title' => sanitize_text_field(wp_unslash($_POST['title'] ?? '')),
-                    'date_start' => Time::localToUtc(str_replace('T', ' ', sanitize_text_field(wp_unslash($_POST['date_start'] ?? ''))) . ':00'),
-                    'date_end' => Time::localToUtc(str_replace('T', ' ', sanitize_text_field(wp_unslash($_POST['date_end'] ?? ''))) . ':00'),
-                    'all_day' => empty($_POST['all_day']) ? 0 : 1,
-                    'booking_type_id' => absint($_POST['booking_type_id'] ?? 0) ?: null,
-                    'resource_id' => absint($_POST['resource_id'] ?? 0) ?: null,
-                    'is_active' => empty($_POST['is_active']) ? 0 : 1,
-                    'updated_at' => current_time('mysql'),
-                ];
-                if (!empty($_POST['id'])) {
-                    $wpdb->update($table, $data, ['id' => absint($_POST['id'])]);
-                } else {
-                    $data['created_at'] = current_time('mysql');
-                    $wpdb->insert($table, $data);
-                }
+                (new ConfigurationService())->saveException(
+                    (array)wp_unslash($_POST),
+                    absint($_POST['id'] ?? 0)
+                );
                 break;
             case 'delete_exception':
-                $wpdb->delete($wpdb->prefix . 'wpcb_exceptions', ['id' => absint($_POST['id'])]);
+                (new ConfigurationService())->deleteException(absint($_POST['id'] ?? 0));
                 break;
             case 'save_emails':
                 $templates = [
