@@ -244,11 +244,13 @@ class Mailer {
             file_put_contents($path, $ics);
             $attachments[] = $path;
         }
-        $sent = wp_mail($booking['email'], $subject, $body, $headers, $attachments);
-        foreach ($attachments as $file) {
-            @unlink($file);
+        try {
+            return wp_mail($booking['email'], $subject, $body, $headers, $attachments);
+        } finally {
+            foreach ($attachments as $file) {
+                @unlink($file);
+            }
         }
-        return $sent;
     }
 
     public function sendInternal(array $booking, array $meta): bool {
