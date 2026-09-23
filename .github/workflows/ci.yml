@@ -70,6 +70,10 @@ jobs:
           grep -q 'msgid "Buchungs-Historie"' "$RUNNER_TEMP/wordpress-calendar-booking.pot"
           grep -q 'msgid "Warteliste"' "$RUNNER_TEMP/wordpress-calendar-booking.pot"
           grep -q 'msgid "Zahlungen"' "$RUNNER_TEMP/wordpress-calendar-booking.pot"
+          grep -q 'msgid "Meine Buchungen"' "$RUNNER_TEMP/wordpress-calendar-booking.pot"
+          grep -q 'msgid "Lade freie Zeiten ..."' "$RUNNER_TEMP/wordpress-calendar-booking.pot"
+          ! grep -R -nE "add_(sub)?menu_page\('[^']*[[:alpha:]][^']*'" includes/Admin
+          ! grep -R -nE "wp_die\('[^']*[[:alpha:]][^']*'" includes/Admin includes/Frontend includes/Portal includes/WaitingList
       - uses: actions/upload-artifact@v4
         with:
           name: translation-catalog
@@ -533,7 +537,7 @@ jobs:
   release:
     name: Publish stable release
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: [php, dependency_audit, wordpress, fresh_release, legacy_upgrade, browser_release, uninstall_release]
+    needs: [php, dependency_audit, i18n, wordpress, fresh_release, legacy_upgrade, browser_release, uninstall_release]
     runs-on: ubuntu-latest
     permissions:
       contents: write
