@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.8.0
+Stable tag: 3.8.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,11 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.8.1 =
+* Publish the completed internationalization hardening from the post-3.8.0 source state.
+* Add reproducible POT generation and translation regression checks to CI.
+* Internationalize admin, public booking, customer portal and provider-facing UI with the canonical text domain.
 
 = 3.8.0 =
 * Add explicit safe uninstall behavior: durable data is preserved by default.
