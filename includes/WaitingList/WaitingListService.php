@@ -5,9 +5,13 @@ use Wpcb\Booking\BookingRepository;
 use Wpcb\Booking\BookingStatus;
 use Wpcb\Booking\BookingTypeRepository;
 use Wpcb\Booking\CapacityService;
+use Wpcb\Admin\Settings;
+use Wpcb\Mail\Mailer;
+use Wpcb\Payments\PaymentService;
 use Wpcb\Resources\ResourceLock;
 use Wpcb\Support\Time;
 use Wpcb\Sync\JobRepository;
+use Wpcb\Tokens\TokenService;
 
 final class WaitingListService {
     private WaitingListRepository $entries;
@@ -194,6 +198,27 @@ final class WaitingListService {
                 }
                 return new \WP_Error('wpcb_waitlist_accept_failed', 'The offered slot could not be reserved.');
             }
+
+            $payment = (new PaymentService())->ensureForBooking($bookingId);
+            if (is_wp_error($payment)) {
+                return $payment;
+            }
+
+            $settings = Settings::get();
+            $doi = (new TokenService())->create($bookingId, 'doi', (int)$settings['token_ttl_minutes']);
+            $booking = (array)$bookings->find($bookingId);
+            $confirmUrl = add_query_arg(
+                ['wpcb_action' => 'confirm', 'wpcb_token' => rawurlencode($doi)],
+                home_url('/')
+            );
+            (new Mailer())->sendTemplateOnce(
+                'mail:user:' . $bookingId . ':doi',
+                'doi',
+                $booking,
+                [],
+                ['confirm' => $confirmUrl],
+                false
+            );
 
             do_action('wpcb_waiting_list_accepted', $this->entries->find((int)$fresh->id), $bookings->find($bookingId));
             return $bookingId;
