@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.17.0
+Stable tag: 3.17.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,12 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.17.1 =
+* Monitor all recurring maintenance schedules in Systemstatus.
+* Bound public availability request rate, resource fan-out and returned result cost.
+* Retry definite booking and administrator email transport failures through the leased queue without persisting customer data or one-time action verifiers.
+* Apply the same durable, stale-safe delivery semantics to customer-portal, waiting-list and video-meeting-ready email notifications.
 
 = 3.17.0 =
 * Add deterministic partial refunds for paid recurring series.
