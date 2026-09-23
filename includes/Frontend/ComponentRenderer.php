@@ -49,7 +49,7 @@ class ComponentRenderer {
                     <select class="uk-select" id="wpcb_booking_type_id<?php echo $isModal ? '_modal' : ''; ?>" name="booking_type_id" required data-wpcb-type-select>
                         <option value="">Bitte wählen</option>
                         <?php foreach ($types as $type): ?>
-                            <option value="<?php echo esc_attr($type->id); ?>" data-capacity="<?php echo esc_attr(max(1, (int)($type->capacity ?? 1))); ?>"><?php echo esc_html($type->name); ?></option>
+                            <option value="<?php echo esc_attr($type->id); ?>" data-capacity="<?php echo esc_attr(max(1, (int)($type->capacity ?? 1))); ?>" data-payment-mode="<?php echo esc_attr((string)($type->payment_mode ?? 'free')); ?>"><?php echo esc_html($type->name); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -71,6 +71,32 @@ class ComponentRenderer {
             <?php else: ?>
                 <input type="hidden" name="party_size" value="1">
             <?php endif; ?>
+
+            <div class="wpcb-field uk-margin">
+                <label class="uk-form-label" for="wpcb_recurrence_count<?php echo $isModal ? '_modal' : ''; ?>">Wiederholung</label>
+                <div class="uk-form-controls">
+                    <select class="uk-select" id="wpcb_recurrence_count<?php echo $isModal ? '_modal' : ''; ?>" name="recurrence_count">
+                        <option value="1">Einmaliger Termin</option>
+                        <option value="2">2 Termine</option>
+                        <option value="4">4 Termine</option>
+                        <option value="6">6 Termine</option>
+                        <option value="8">8 Termine</option>
+                        <option value="12">12 Termine</option>
+                    </select>
+                </div>
+            </div>
+            <div class="wpcb-field uk-margin">
+                <label class="uk-form-label" for="wpcb_recurrence_interval<?php echo $isModal ? '_modal' : ''; ?>">Serienabstand</label>
+                <div class="uk-form-controls">
+                    <select class="uk-select" id="wpcb_recurrence_interval<?php echo $isModal ? '_modal' : ''; ?>" name="recurrence_interval">
+                        <option value="1">Wöchentlich</option>
+                        <option value="2">Alle 2 Wochen</option>
+                        <option value="3">Alle 3 Wochen</option>
+                        <option value="4">Alle 4 Wochen</option>
+                    </select>
+                </div>
+                <p class="uk-text-meta">Serien sind derzeit für Terminarten ohne Zahlung verfügbar.</p>
+            </div>
 
             <div class="wpcb-field uk-margin">
                 <label class="uk-form-label" for="wpcb_slot_start<?php echo $isModal ? '_modal' : ''; ?>">Startzeit</label>
