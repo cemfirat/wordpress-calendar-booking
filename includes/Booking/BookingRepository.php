@@ -15,7 +15,7 @@ class BookingRepository {
         $this->logTable = $wpdb->prefix . 'wpcb_booking_status_log';
     }
 
-    public function create(array $data, array $meta = []): int {
+    public function create(array $data, array $meta = [], bool $emitCreated = true): int {
         global $wpdb;
         $status = (string)($data['status'] ?? '');
         if (!in_array($status, BookingStatus::all(), true)) {
@@ -32,7 +32,7 @@ class BookingRepository {
         }
         $this->log($id, null, $data['status'], 'create', 'system', 'Buchung erstellt');
         $created = $this->find($id);
-        if ($created) {
+        if ($emitCreated && $created) {
             do_action('wpcb_booking_created', $created);
         }
         return $id;
