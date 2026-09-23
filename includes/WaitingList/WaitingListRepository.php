@@ -41,6 +41,18 @@ final class WaitingListRepository {
         )) ?: null;
     }
 
+    public function offeredSeats(int $typeId, int $resourceId, string $start, string $end): int {
+        global $wpdb;
+        return max(0, (int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COALESCE(SUM(party_size), 0) FROM {$this->table}
+             WHERE booking_type_id = %d AND resource_id = %d
+               AND slot_start = %s AND slot_end = %s
+               AND status IN ('offered','claiming')
+               AND offer_expires_at >= %s",
+            $typeId, $resourceId, $start, $end, Time::formatUtc(Time::nowUtc())
+        )));
+    }
+
     public function nextWaiting(int $typeId, int $resourceId, string $start, string $end, int $maxPartySize): ?object {
         global $wpdb;
         return $wpdb->get_row($wpdb->prepare(
@@ -80,6 +92,25 @@ final class WaitingListRepository {
         return $row;
     }
 
+    public function claimOffer(int $id, string $selector, string $verifier): ?object {
+        global $wpdb;
+        $row = $this->acceptIfTokenMatches($id, $selector, $verifier);
+        if (!$row) return null;
+        $changed = $wpdb->update($this->table, [
+            'status' => 'claiming',
+            'updated_at' => Time::formatUtc(Time::nowUtc()),
+        ], ['id' => $id, 'status' => 'offered']);
+        return 1 === (int)$changed ? $this->find($id) : null;
+    }
+
+    public function resetClaim(int $id): void {
+        global $wpdb;
+        $wpdb->update($this->table, [
+            'status' => 'offered',
+            'updated_at' => Time::formatUtc(Time::nowUtc()),
+        ], ['id' => $id, 'status' => 'claiming']);
+    }
+
     public function markAccepted(int $id, int $bookingId): bool {
         global $wpdb;
         $now = Time::formatUtc(Time::nowUtc());
@@ -92,7 +123,19 @@ final class WaitingListRepository {
             'offer_expires_at' => null,
             'accepted_at' => $now,
             'updated_at' => $now,
-        ], ['id' => $id, 'status' => 'offered']);
+        ], ['id' => $id, 'status' => 'claiming']);
+    }
+
+    public function waitingSlots(int $limit = 100): array {
+        global $wpdb;
+        return $wpdb->get_results($wpdb->prepare(
+            "SELECT booking_type_id, resource_id, slot_start, slot_end
+             FROM {$this->table}
+             WHERE status = 'waiting'
+             GROUP BY booking_type_id, resource_id, slot_start, slot_end
+             ORDER BY MIN(created_at) ASC LIMIT %d",
+            max(1, min(500, $limit))
+        ));
     }
 
     public function expireOffers(int $limit = 100): array {
