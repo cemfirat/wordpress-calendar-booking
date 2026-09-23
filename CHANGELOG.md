@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.4.0
+
+- Add provider-neutral payment adapters and payment records linked to bookings.
+- Add booking-type payment mode, amount and ISO currency configuration.
+- Create pending payment obligations alongside paid booking reservations and block confirmation until verified payment.
+- Process provider callbacks idempotently without persisting raw callback payloads or card/bank credentials.
+- Expire abandoned payments together with their unconfirmed booking reservations.
+- Map cancellation of paid bookings to deterministic refund-pending/refunded states.
+- Show privacy-safe payment status in wp-admin and the customer portal.
+- Add deterministic fake-adapter integration coverage for amount validation, retries, expiry and refunds.
+
 ## 3.3.0
 
 - Add a secure customer portal through the `[wpcb_customer_portal]` shortcode without requiring WordPress customer accounts.
