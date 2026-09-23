@@ -213,7 +213,7 @@ class Actions {
      */
     public function handleActionPost(): void {
         if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') {
-            wp_die('Method not allowed.', 'Method not allowed', ['response' => 405]);
+            wp_die(esc_html__('Method not allowed.', 'wordpress-calendar-booking'), esc_html__('Method not allowed', 'wordpress-calendar-booking'), ['response' => 405]);
         }
 
         $action = sanitize_key(wp_unslash($_POST['wpcb_link_action'] ?? ''));
@@ -226,8 +226,8 @@ class Actions {
         $nonce = sanitize_text_field(wp_unslash($_POST['wpcb_action_nonce'] ?? ''));
         if (!wp_verify_nonce($nonce, $this->nonceAction($action, $token))) {
             wp_die(
-                __('Die Sicherheitsprüfung ist fehlgeschlagen. Es wurde nichts geändert.', 'wordpress-calendar-booking'),
-                'Sicherheitsprüfung fehlgeschlagen',
+                esc_html__('Die Sicherheitsprüfung ist fehlgeschlagen. Es wurde nichts geändert.', 'wordpress-calendar-booking'),
+                esc_html__('Sicherheitsprüfung fehlgeschlagen', 'wordpress-calendar-booking'),
                 ['response' => 403]
             );
         }
@@ -257,7 +257,7 @@ class Actions {
         $repo = new BookingRepository();
         $booking = $repo->find((int)$tokenRow->booking_id);
         if (!$booking) {
-            return new \WP_Error('wpcb_booking_missing', 'Buchung nicht gefunden.');
+            return new \WP_Error('wpcb_booking_missing', __('Buchung nicht gefunden.', 'wordpress-calendar-booking'));
         }
 
         $settings = Settings::get();
@@ -289,7 +289,7 @@ class Actions {
             $cutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['cancel_min_hours']) . ' hours');
             $start = Time::parseUtc((string)$booking->slot_start);
             if (!$start || $start < $cutoff) {
-                return new \WP_Error('wpcb_cancel_too_late', 'Stornierung ist für diesen Termin nicht mehr möglich.');
+                return new \WP_Error('wpcb_cancel_too_late', __('Stornierung ist für diesen Termin nicht mehr möglich.', 'wordpress-calendar-booking'));
             }
 
             $seriesScope = sanitize_key(wp_unslash($_POST['series_scope'] ?? 'single'));
@@ -314,7 +314,7 @@ class Actions {
             $cutoff = Time::nowUtc()->modify('+' . max(0, (int)$settings['change_min_hours']) . ' hours');
             $start = Time::parseUtc((string)$booking->slot_start);
             if (!$start || $start < $cutoff) {
-                return new \WP_Error('wpcb_update_too_late', 'Änderung ist für diesen Termin nicht mehr möglich.');
+                return new \WP_Error('wpcb_update_too_late', __('Änderung ist für diesen Termin nicht mehr möglich.', 'wordpress-calendar-booking'));
             }
 
             $newSlotToken = sanitize_text_field(wp_unslash($_POST['new_slot_token'] ?? ''));
@@ -325,7 +325,7 @@ class Actions {
                 max(1, (int)($booking->party_size ?? 1))
             );
             if (!$selection) {
-                return new \WP_Error('wpcb_slot_unavailable', 'Der neue Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
+                return new \WP_Error('wpcb_slot_unavailable', __('Der neue Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.', 'wordpress-calendar-booking'));
             }
 
             $seriesScope = sanitize_key(wp_unslash($_POST['series_scope'] ?? 'single'));
@@ -349,7 +349,7 @@ class Actions {
             );
         }
 
-        return new \WP_Error('wpcb_action_unknown', 'Unbekannte Termin-Aktion.');
+        return new \WP_Error('wpcb_action_unknown', __('Unbekannte Termin-Aktion.', 'wordpress-calendar-booking'));
     }
 
     private function renderValidAction(string $action, string $token, object $booking): void {
@@ -443,7 +443,7 @@ class Actions {
                     . '</select></div>';
             }
             $form = $this->actionFormStart($action, $token)
-                . '<p>Aktuell: <strong>' . esc_html($date . ' ' . $time) . '</strong></p>'
+                . '<p>' . esc_html__('Aktuell:', 'wordpress-calendar-booking') . ' <strong>' . esc_html($date . ' ' . $time) . '</strong></p>'
                 . $seriesControl
                 . '<label class="uk-form-label uk-margin-top" for="wpcb-new-slot">' . esc_html__('Neuer Termin', 'wordpress-calendar-booking') . '</label>'
                 . '<div class="uk-form-controls"><select class="uk-select" id="wpcb-new-slot" name="new_slot_token" required>'
@@ -452,7 +452,7 @@ class Actions {
             $this->renderActionScreen(__('Termin ändern', 'wordpress-calendar-booking'), __('Die Änderung wird erst nach dem Absenden gespeichert.', 'wordpress-calendar-booking'), $form);
         }
 
-        $this->renderActionScreen(__(__('Link ungültig', 'wordpress-calendar-booking'), 'wordpress-calendar-booking'), __('Diese Termin-Aktion ist unbekannt.', 'wordpress-calendar-booking'));
+        $this->renderActionScreen(__('Link ungültig', 'wordpress-calendar-booking'), __('Diese Termin-Aktion ist unbekannt.', 'wordpress-calendar-booking'));
     }
 
     private function actionFormStart(string $action, string $token): string {
