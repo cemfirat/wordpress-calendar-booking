@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.16.0
+
+- Let authenticated booking owners resume pending Stripe Checkout payments from the customer portal.
+- Reuse open Checkout Sessions and atomically replace expired session references on the same payment obligation.
+- Serialize checkout preparation to prevent concurrent duplicate replacement sessions.
+- Reject checkout restart after payment settlement or reservation expiry.
+- Preserve the shared payment model for paid recurring series while exposing resume from any owned series occurrence.
+
 ## 3.15.0
 
 - Add one upfront payment obligation for bounded recurring booking series, calculated server-side as unit price × occurrence count.
