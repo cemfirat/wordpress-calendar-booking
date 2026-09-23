@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.2.0
+Stable tag: 3.3.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -18,10 +18,16 @@ Shortcodes:
 [wpcb_calendar]
 [wpcb_booking_form]
 [wpcb_booking_calendar]
+[wpcb_customer_portal]
 
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.3.0 =
+* Add a secure customer portal with one-time magic-link login and encrypted HttpOnly sessions.
+* Let customers view, cancel and reschedule only their own bookings.
+* Add verified email changes, per-session CSRF protection and privacy-aware session cleanup.
 
 = 3.2.0 =
 * Add a versioned REST API for public availability and authenticated administration.
