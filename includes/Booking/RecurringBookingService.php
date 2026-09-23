@@ -191,8 +191,9 @@ final class RecurringBookingService {
             BookingStateMachine::USER_CANCELLED,
             BookingStateMachine::ADMIN_CANCELLED,
         ], true);
+        $requiresWholePaidSeries = $isCancellation || $event === BookingStateMachine::ADMIN_REJECTED;
         $allowPaidSeriesCancellation = false;
-        if ($isCancellation) {
+        if ($requiresWholePaidSeries) {
             $type = $this->types->find((int)$booking->booking_type_id);
             $allowPaidSeriesCancellation = $type
                 && (string)($type->payment_mode ?? 'free') === 'required';
@@ -234,6 +235,8 @@ final class RecurringBookingService {
                 (int)$booking->series_id,
                 (int)$booking->series_occurrence === 0 ? 'cancelled' : 'partially_cancelled'
             );
+        } elseif ($event === BookingStateMachine::ADMIN_REJECTED) {
+            $this->series->markStatus((int)$booking->series_id, 'rejected');
         } elseif ($event === BookingStateMachine::RESERVATION_EXPIRED) {
             $this->series->markStatus((int)$booking->series_id, 'expired');
         }
