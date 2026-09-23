@@ -90,6 +90,10 @@ class ReservationService {
             if ($bookingId < 1) {
                 return new \WP_Error('wpcb_reservation_storage', 'The booking reservation could not be stored.');
             }
+            $created = $this->bookings->find($bookingId);
+            if ($created) {
+                do_action('wpcb_booking_created', $created);
+            }
             return $bookingId;
         } finally {
             $this->locks->release($resourceId);
