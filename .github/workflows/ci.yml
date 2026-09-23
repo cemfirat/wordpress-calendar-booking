@@ -30,9 +30,9 @@ jobs:
           from pathlib import Path
 
           plugin = Path("wordpress-calendar-booking.php").read_text()
-          match = re.search(r"^ \\* Version: ([0-9]+\\.[0-9]+\\.[0-9]+)$", plugin, re.M)
-          assert match, "plugin header version is missing"
-          version = match.group(1)
+          version_lines = [line for line in plugin.splitlines() if line.startswith(" * Version: ")]
+          assert len(version_lines) == 1, "plugin header version is missing or ambiguous"
+          version = version_lines[0].split(": ", 1)[1]
 
           readme = Path("README.md").read_text()
           wp_readme = Path("readme.txt").read_text()
@@ -41,8 +41,8 @@ jobs:
           architecture = Path("docs/ARCHITECTURE.md").read_text()
 
           assert f"**Stable release:** {version}." in readme, "README stable release must match plugin header"
-          assert f"Stable tag: {version}\\n" in wp_readme, "readme.txt stable tag must match plugin header"
-          assert f"## {version}\\n" in changelog, "CHANGELOG must contain current plugin version"
+          assert f"Stable tag: {version}" in wp_readme.splitlines(), "readme.txt stable tag must match plugin header"
+          assert f"## {version}" in changelog.splitlines(), "CHANGELOG must contain current plugin version"
           assert "Paid booking types are intentionally excluded" not in readme, "README contains stale paid-series exclusion"
           assert "partial-refund accounting is intentionally not implemented" not in architecture, "Architecture contains stale refund limitation"
           assert "conservative full-series refund semantics" not in product, "Product definition contains stale refund limitation"
