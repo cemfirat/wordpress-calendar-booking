@@ -271,10 +271,52 @@ class Admin {
 
     public function dashboard(): void {
         $this->formStart();
+        $readiness = (new SetupReadiness())->snapshot();
         $repo = new BookingRepository();
         $bookings = $repo->all(['limit' => 10]);
+
         echo '<h1>' . esc_html__('Kalender & Buchungen', 'wordpress-calendar-booking') . '</h1>';
-        echo '<p>' . esc_html__('Shortcodes:', 'wordpress-calendar-booking') . ' <code>[wpcb_booking_form]</code>, <code>[wpcb_calendar]</code> ' . esc_html__('und', 'wordpress-calendar-booking') . ' <code>[wpcb_booking_calendar]</code></p>';
+
+        $noticeClass = $readiness['ready'] ? 'notice-success' : 'notice-warning';
+        $headline = $readiness['ready']
+            ? __('Bereit für Buchungen', 'wordpress-calendar-booking')
+            : __('Einrichtung unvollständig', 'wordpress-calendar-booking');
+        $summary = $readiness['ready']
+            ? __('Die Kernkonfiguration ist vollständig. Externe Kalenderverbindungen bleiben optional.', 'wordpress-calendar-booking')
+            : __('Vervollständige die offenen Punkte, bevor du die Buchungsseite veröffentlichst oder bewirbst.', 'wordpress-calendar-booking');
+
+        echo '<div class="notice ' . esc_attr($noticeClass) . ' inline"><p><strong>'
+            . esc_html($headline) . '</strong><br>' . esc_html($summary) . '</p></div>';
+
+        echo '<h2>' . esc_html__('Einrichtungsstatus', 'wordpress-calendar-booking') . '</h2>';
+        echo '<table class="widefat striped"><thead><tr><th>'
+            . esc_html__('Schritt', 'wordpress-calendar-booking') . '</th><th>'
+            . esc_html__('Status', 'wordpress-calendar-booking') . '</th><th>'
+            . esc_html__('Hinweis', 'wordpress-calendar-booking') . '</th><th>'
+            . esc_html__('Aktion', 'wordpress-calendar-booking') . '</th></tr></thead><tbody>';
+
+        foreach ($readiness['items'] as $item) {
+            $status = $item['complete']
+                ? __('Bereit', 'wordpress-calendar-booking')
+                : __('Offen', 'wordpress-calendar-booking');
+            $action = $item['complete']
+                ? __('Öffnen', 'wordpress-calendar-booking')
+                : __('Jetzt einrichten', 'wordpress-calendar-booking');
+
+            echo '<tr>';
+            echo '<td><strong>' . esc_html($item['label']) . '</strong></td>';
+            echo '<td>' . esc_html($status) . '</td>';
+            echo '<td>' . esc_html($item['detail']) . '</td>';
+            echo '<td><a class="button' . ($item['complete'] ? '' : ' button-primary') . '" href="'
+                . esc_url($item['url']) . '">' . esc_html($action) . '</a></td>';
+            echo '</tr>';
+        }
+        echo '</tbody></table>';
+
+        echo '<p style="margin-top:14px">' . esc_html__('Shortcodes:', 'wordpress-calendar-booking')
+            . ' <code>[wpcb_booking_form]</code>, <code>[wpcb_calendar]</code> '
+            . esc_html__('und', 'wordpress-calendar-booking') . ' <code>[wpcb_booking_calendar]</code></p>';
+
         echo '<h2>' . esc_html__('Neueste Buchungen', 'wordpress-calendar-booking') . '</h2>';
         echo '<table class="widefat"><thead><tr>';
         foreach ([__('Name','wordpress-calendar-booking'), __('E-Mail','wordpress-calendar-booking'), __('Termin','wordpress-calendar-booking'), __('Status','wordpress-calendar-booking')] as $heading) {
@@ -283,6 +325,9 @@ class Admin {
         echo '</tr></thead><tbody>';
         foreach ($bookings as $b) {
             echo '<tr><td>' . esc_html($b->full_name) . '</td><td>' . esc_html($b->email) . '</td><td>' . esc_html($b->slot_start) . '</td><td>' . esc_html($b->status) . '</td></tr>';
+        }
+        if (!$bookings) {
+            echo '<tr><td colspan="4">' . esc_html__('Noch keine Buchungen.', 'wordpress-calendar-booking') . '</td></tr>';
         }
         echo '</tbody></table>';
         $this->formEnd();
