@@ -371,6 +371,8 @@ class Schema {
             provider varchar(64) NOT NULL DEFAULT '',
             provider_reference varchar(190) DEFAULT NULL,
             amount_minor bigint unsigned NOT NULL,
+            refunded_minor bigint unsigned NOT NULL DEFAULT 0,
+            refund_pending_minor bigint unsigned NOT NULL DEFAULT 0,
             currency char(3) NOT NULL,
             status varchar(30) NOT NULL DEFAULT 'pending',
             expires_at datetime DEFAULT NULL,
