@@ -16,15 +16,18 @@ class ReservationService {
     private BookingRepository $bookings;
     private SlotSelectionService $selection;
     private ResourceLock $locks;
+    private CapacityService $capacity;
 
     public function __construct(
         ?BookingRepository $bookings = null,
         ?SlotSelectionService $selection = null,
-        ?ResourceLock $locks = null
+        ?ResourceLock $locks = null,
+        ?CapacityService $capacity = null
     ) {
         $this->bookings = $bookings ?: new BookingRepository();
         $this->selection = $selection ?: new SlotSelectionService();
         $this->locks = $locks ?: new ResourceLock();
+        $this->capacity = $capacity ?: new CapacityService($this->bookings);
     }
 
     /**
@@ -39,6 +42,7 @@ class ReservationService {
         }
 
         $resourceId = (int)$initial['resource_id'];
+        $partySize = max(1, (int)($customer['party_size'] ?? 1));
         if (!$this->locks->acquire($resourceId, 5)) {
             return new \WP_Error('wpcb_reservation_busy', 'The selected resource is busy. Please try again.');
         }
@@ -60,6 +64,7 @@ class ReservationService {
                 'slot_start' => (string)$slot['start'],
                 'slot_end' => (string)$slot['end'],
                 'status' => BookingStatus::RESERVED_UNCONFIRMED,
+                'party_size' => $partySize,
                 'full_name' => (string)($customer['full_name'] ?? ''),
                 'email' => (string)($customer['email'] ?? ''),
                 'phone' => (string)($customer['phone'] ?? ''),
