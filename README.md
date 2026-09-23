@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.11.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.12.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -122,6 +122,10 @@ Source checkouts require Composer/npm only for development. Release ZIPs already
 The **Kalender & Buchungen** dashboard includes a read-only setup checklist for the core path: public booking type, assigned active resource, effective availability, valid sender/time-zone settings, healthy scheduled queue jobs and a published booking surface. External calendar, payment, webhook and video-meeting connections are optional and do not block core readiness.
 
 Use the linked actions in the checklist to finish missing setup steps before publishing the booking page.
+
+## Booking administration performance
+
+The interactive **Buchungen** administration list is bounded to 50 rows per page. Status, date and booking-type filters are preserved across page navigation, while technical sync/retention metadata is batch-loaded for the visible page. CSV export intentionally remains complete and unpaginated.
 
 ## Configuration maintenance
 
