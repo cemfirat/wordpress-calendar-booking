@@ -279,7 +279,7 @@ final class EmailRetryJobRunner {
     private function sanitizeReturnPath(string $path): string {
         $path = '/' . ltrim($path, '/');
         $path = preg_replace('/[^A-Za-z0-9_\-\.~\/]/', '', $path);
-        return mb_substr($path !== '' ? $path : '/', 0, 500);
+        return substr($path !== '' ? $path : '/', 0, 500);
     }
 
     private function validHash(string $value): bool {
