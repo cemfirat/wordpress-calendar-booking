@@ -155,6 +155,10 @@ class BookingRepository {
             $sql .= ' AND booking_type_id = %d';
             $params[] = (int)$args['booking_type_id'];
         }
+        if (!empty($args['resource_id'])) {
+            $sql .= ' AND resource_id = %d';
+            $params[] = (int)$args['resource_id'];
+        }
         if (!empty($args['from'])) {
             $sql .= ' AND slot_start >= %s';
             $params[] = (string)$args['from'];
@@ -198,7 +202,12 @@ class BookingRepository {
         return $wpdb->get_results($wpdb->prepare($sql, ...$params));
     }
 
-    public function hasConflict(string $start, string $end, ?int $ignoreId = null): bool {
+    public function hasConflict(
+        string $start,
+        string $end,
+        ?int $ignoreId = null,
+        ?int $resourceId = null
+    ): bool {
         global $wpdb;
         $statuses = BookingStatus::activeBlockingStatuses();
         $placeholders = implode(',', array_fill(0, count($statuses), '%s'));
@@ -207,12 +216,65 @@ class BookingRepository {
             AND (status != %s OR reserved_until IS NULL OR reserved_until >= %s)
             AND slot_start < %s
             AND slot_end > %s";
-        $params = array_merge($statuses, [BookingStatus::RESERVED_UNCONFIRMED, Time::formatUtc(Time::nowUtc()), $end, $start]);
+        $params = array_merge(
+            $statuses,
+            [BookingStatus::RESERVED_UNCONFIRMED, Time::formatUtc(Time::nowUtc()), $end, $start]
+        );
+        if ($resourceId !== null && $resourceId > 0) {
+            $sql .= ' AND resource_id = %d';
+            $params[] = $resourceId;
+        }
         if ($ignoreId) {
             $sql .= ' AND id != %d';
             $params[] = $ignoreId;
         }
         return (int)$wpdb->get_var($wpdb->prepare($sql, ...$params)) > 0;
+    }
+
+    public function moveWhenPositionMatches(
+        int $bookingId,
+        string $expectedStatus,
+        ?int $expectedResourceId,
+        string $expectedStart,
+        string $expectedEnd,
+        int $newResourceId,
+        string $newStart,
+        string $newEnd
+    ): bool {
+        global $wpdb;
+        if ($bookingId < 1 || $newResourceId < 1) {
+            return false;
+        }
+
+        $sql = "UPDATE {$this->table}
+                SET resource_id = %d,
+                    slot_start = %s,
+                    slot_end = %s,
+                    updated_at_user = %s,
+                    updated_at = %s
+                WHERE id = %d
+                  AND status = %s
+                  AND slot_start = %s
+                  AND slot_end = %s";
+        $params = [
+            $newResourceId,
+            $newStart,
+            $newEnd,
+            Time::formatUtc(Time::nowUtc()),
+            Time::formatUtc(Time::nowUtc()),
+            $bookingId,
+            $expectedStatus,
+            $expectedStart,
+            $expectedEnd,
+        ];
+        if ($expectedResourceId === null || $expectedResourceId < 1) {
+            $sql .= ' AND (resource_id IS NULL OR resource_id = 0)';
+        } else {
+            $sql .= ' AND resource_id = %d';
+            $params[] = $expectedResourceId;
+        }
+
+        return 1 === (int)$wpdb->query($wpdb->prepare($sql, ...$params));
     }
 
     private function log(int $bookingId, ?string $oldStatus, string $newStatus, string $context, string $changedBy, string $note): void {
