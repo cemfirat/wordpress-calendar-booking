@@ -24,6 +24,7 @@ use Wpcb\Calendar\ProviderDiagnosticsController;
 use Wpcb\Blocks\Integration as BlocksIntegration;
 use Wpcb\Api\RestController;
 use Wpcb\Webhooks\WebhookService;
+use Wpcb\Portal\CustomerPortalController;
 
 class Plugin {
     public function boot(): void {
@@ -47,6 +48,7 @@ class Plugin {
         (new BlocksIntegration())->boot();
         (new RestController())->boot();
         (new WebhookService())->boot();
+        (new CustomerPortalController())->boot();
         (new Shortcodes())->boot();
         (new Actions())->boot();
         (new QueueService())->boot();
