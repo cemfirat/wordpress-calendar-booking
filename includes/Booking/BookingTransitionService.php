@@ -195,6 +195,9 @@ final class BookingTransitionService {
         $this->bookings->logEvent($bookingId, $status, self::RESCHEDULED, $actor, $note);
         $fresh = $this->bookings->find($bookingId);
         $result = $this->result($bookingId, self::RESCHEDULED, $status, $status, $actor, true);
+        $result['previous_resource_id'] = (int)($currentResourceId ?? 0);
+        $result['previous_slot_start'] = (string)$booking->slot_start;
+        $result['previous_slot_end'] = (string)$booking->slot_end;
         do_action('wpcb_booking_event_recorded', $result, $fresh);
         return $result;
     }
