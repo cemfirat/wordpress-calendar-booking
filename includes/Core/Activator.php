@@ -121,9 +121,9 @@ class Activator {
 
         add_option('wpcb_email_templates', [
             'doi_subject' => 'Bitte Terminbuchung bestätigen',
-            'doi_body' => "Hallo {name},\n\nbitte bestätige deine Terminbuchung über diesen Link:\n{bestaetigungslink}\n\nTerminart: {terminart}\nTermin: {datum} {uhrzeit}",
+            'doi_body' => "Hallo {name},\n\nbitte bestätige deine Terminbuchung über diesen Link:\n{bestaetigungslink}\n\nTerminart: {terminart}\nTeilnehmer: {teilnehmer}\nTermin: {datum} {uhrzeit}",
             'confirmed_subject' => 'Termin bestätigt',
-            'confirmed_body' => "Hallo {name},\n\ndein Termin ist bestätigt.\n\nTerminart: {terminart}\nTermin: {datum} {uhrzeit}\nOrt/Kontakt: {ort}\n\nStornieren: {stornolink}\nÄndern: {aenderungslink}",
+            'confirmed_body' => "Hallo {name},\n\ndein Termin ist bestätigt.\n\nTerminart: {terminart}\nTeilnehmer: {teilnehmer}\nTermin: {datum} {uhrzeit}\nOrt/Kontakt: {ort}\n\nStornieren: {stornolink}\nÄndern: {aenderungslink}",
             'pending_subject' => 'Termin wartet auf Freigabe',
             'pending_body' => "Hallo {name},\n\ndeine E-Mail wurde bestätigt. Dein Termin wartet jetzt auf Freigabe.\n\nTerminart: {terminart}\nTermin: {datum} {uhrzeit}",
             'approved_subject' => 'Termin freigegeben',
@@ -137,7 +137,7 @@ class Activator {
             'reminder_subject' => 'Erinnerung an deinen Termin',
             'reminder_body' => "Hallo {name},\n\nhier ist deine Erinnerung an den Termin am {datum} um {uhrzeit}.\nOrt/Kontakt: {ort}",
             'internal_subject' => 'Neue Termin-Aktion',
-            'internal_body' => "Status: {status}\nName: {name}\nE-Mail: {email}\nTerminart: {terminart}\nTermin: {datum} {uhrzeit}\nBetreff: {betreff}\nOrt/Kontakt: {ort}",
+            'internal_body' => "Status: {status}\nName: {name}\nE-Mail: {email}\nTerminart: {terminart}\nTeilnehmer: {teilnehmer}\nTermin: {datum} {uhrzeit}\nBetreff: {betreff}\nOrt/Kontakt: {ort}",
         ]);
     }
 }
