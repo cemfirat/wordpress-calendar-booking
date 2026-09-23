@@ -111,6 +111,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/payment-lifecycle-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run waiting list smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/waiting-list-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run video meeting smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/video-meeting-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Verify GET-safe and POST-only public booking actions
         if: matrix.wordpress == 'latest'
         run: python3 "$GITHUB_WORKSPACE/tests/public-action-flow.py"
