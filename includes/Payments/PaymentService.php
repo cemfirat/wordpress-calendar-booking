@@ -6,6 +6,7 @@ use Wpcb\Booking\BookingStateMachine;
 use Wpcb\Booking\BookingStatus;
 use Wpcb\Booking\BookingTransitionService;
 use Wpcb\Booking\BookingTypeRepository;
+use Wpcb\Support\Time;
 
 final class PaymentService {
     private PaymentRepository $payments;
@@ -69,6 +70,10 @@ final class PaymentService {
         }
         if ((string)$payment->status !== PaymentStatus::PENDING) {
             return $payment;
+        }
+        $expiresAt = Time::parseUtc((string)($payment->expires_at ?? ''));
+        if (!$expiresAt || $expiresAt <= Time::nowUtc()) {
+            return new \WP_Error('wpcb_payment_expired', 'Payment reservation has expired.');
         }
         $result = $adapter->createPayment([
             'payment_id' => (int)$payment->id,
