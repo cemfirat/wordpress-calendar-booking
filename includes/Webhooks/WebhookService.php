@@ -120,9 +120,10 @@ final class WebhookService {
                 continue;
             }
             $deliveryId = (int)($delivery['id'] ?? 0);
-            if ($deliveryId > 0 && !$this->deliveries->markSending($deliveryId)) {
-                $this->jobs->markFailed((int)$job->id, $worker, 0, 'Webhook delivery is already being processed.');
-                continue;
+            if ($deliveryId > 0) {
+                // webhook_jobs owns the lease. The delivery ledger is diagnostic
+                // and may contain a stale "sending" state after a hard crash.
+                $this->deliveries->markSending($deliveryId);
             }
 
             $body = (string)$job->payload_json;
