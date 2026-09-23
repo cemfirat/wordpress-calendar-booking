@@ -47,8 +47,8 @@ The product must remain useful with no Google, Microsoft, Apple, payment, webhoo
 - Resource-scoped reservation locking and atomic capacity checks
 - Double Opt-In and optional administrator approval
 - Cancellation and rescheduling with state-aware validation
-- Bounded recurring booking series with single-occurrence or remaining-series management for free series
-- Paid recurring series with one upfront server-authoritative series payment and conservative full-series refund semantics
+- Bounded recurring booking series with single-occurrence or remaining-series management
+- Paid recurring series with one upfront server-authoritative series payment, resumable Stripe Checkout and deterministic single/remaining-series partial refunds
 - Explicit lifecycle state machine and privacy-conscious audit history
 
 ### Calendar providers
@@ -68,7 +68,7 @@ The product must remain useful with no Google, Microsoft, Apple, payment, webhoo
 - Secure customer portal with self-service booking actions
 - Waiting lists with capacity-safe promotion holds
 - Provider-neutral video meetings with Zoom, Google Meet and Microsoft Teams adapters
-- Provider-neutral payment lifecycle with Stripe Checkout, verified webhooks and paid-series support
+- Provider-neutral payment lifecycle with Stripe Checkout, verified webhooks, portal Checkout resume, paid-series support and cumulative partial-refund accounting
 - Versioned `/wp-json/wpcb/v1` REST API
 - Signed outbound lifecycle webhooks with encrypted secrets and retryable delivery
 
