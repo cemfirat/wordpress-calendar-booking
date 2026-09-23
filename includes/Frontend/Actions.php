@@ -59,7 +59,12 @@ class Actions {
         $tokens = new SlotTokenService();
         $data = array_map(static function ($slot) use ($typeId, $tokens) {
             return [
-                'value' => $tokens->issue($typeId, $slot['start'], $slot['end']),
+                'value' => $tokens->issue(
+                    $typeId,
+                    (string)$slot['start'],
+                    (string)$slot['end'],
+                    (int)$slot['resource_id']
+                ),
                 'label' => $slot['label'],
             ];
         }, $slots);
@@ -284,7 +289,8 @@ class Actions {
                 (string)$selection['start'],
                 (string)$selection['end'],
                 'user',
-                'Booking rescheduled by visitor'
+                'Booking rescheduled by visitor',
+                (int)$selection['resource_id']
             );
         }
 
@@ -347,7 +353,12 @@ class Actions {
                 if ((string)$slot['start'] === (string)$booking->slot_start) {
                     continue;
                 }
-                $value = $slotTokens->issue((int)$booking->booking_type_id, $slot['start'], $slot['end']);
+                $value = $slotTokens->issue(
+                    (int)$booking->booking_type_id,
+                    (string)$slot['start'],
+                    (string)$slot['end'],
+                    (int)$slot['resource_id']
+                );
                 $options .= '<option value="' . esc_attr($value) . '">' . esc_html($slot['label']) . '</option>';
             }
             if ($options === '') {
