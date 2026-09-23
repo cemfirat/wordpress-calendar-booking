@@ -91,7 +91,7 @@ $bookingId = $bookings->create([
     'resource_id' => $resourceId,
     'slot_start' => '2035-04-10 10:00:00',
     'slot_end' => '2035-04-10 10:30:00',
-    'status' => Wpcb\Booking\BookingStatus::CONFIRMED,
+    'status' => Wpcb\Booking\BookingStatus::RESERVED_UNCONFIRMED,
     'party_size' => 1,
     'full_name' => 'Stripe Private Person',
     'email' => 'stripe-private@example.com',
@@ -191,6 +191,14 @@ wpcb_stripe_assert($paidView['state'] === 'paid', 'Return page shows paid only a
 
 $retry = (new Wpcb\Payments\StripeWebhookController())->handle($request);
 wpcb_stripe_assert($retry instanceof WP_REST_Response && $retry->get_status() === 200, 'Duplicate Stripe webhook is idempotent.');
+
+$confirmed = (new Wpcb\Booking\BookingTransitionService())->apply(
+    $bookingId,
+    Wpcb\Booking\BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC,
+    'test',
+    'Stripe confirmation fixture'
+);
+wpcb_stripe_assert(is_array($confirmed) && !empty($confirmed['changed']), 'Paid Stripe reservation can transition to confirmed.');
 
 $bad = new WP_REST_Request('POST', '/wpcb/v1/payments/stripe/webhook');
 $bad->set_body($payload);
