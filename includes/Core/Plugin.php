@@ -25,6 +25,8 @@ use Wpcb\Blocks\Integration as BlocksIntegration;
 use Wpcb\Api\RestController;
 use Wpcb\Webhooks\WebhookService;
 use Wpcb\Portal\CustomerPortalController;
+use Wpcb\Payments\PaymentService;
+use Wpcb\Admin\PaymentAdminPage;
 
 class Plugin {
     public function boot(): void {
@@ -49,6 +51,8 @@ class Plugin {
         (new RestController())->boot();
         (new WebhookService())->boot();
         (new CustomerPortalController())->boot();
+        (new PaymentService())->boot();
+        (new PaymentAdminPage())->boot();
         (new Shortcodes())->boot();
         (new Actions())->boot();
         (new QueueService())->boot();
