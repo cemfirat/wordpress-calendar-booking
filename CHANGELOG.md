@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.11.0
+
+- Complete wp-admin CRUD for booking types, custom form fields, availability rules and exceptions.
+- Add read-only edit links with prefilled forms and explicit nonce-protected POST delete actions.
+- Centralize configuration mutations in a testable administration service.
+- Prevent hard deletion of booking types referenced by historical bookings, recurring series or waiting-list entries.
+- Remove resource/calendar/video mappings, scoped availability rules and exceptions when an unused booking type is deleted.
+- Add integration coverage for editing, deletion cleanup and historical-data guards.
+
 ## 3.10.0
 
 - Add a capability- and nonce-protected mail transport diagnostic to Systemstatus.

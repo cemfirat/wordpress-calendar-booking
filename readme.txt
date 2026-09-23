@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.10.0
+Stable tag: 3.11.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,12 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.11.0 =
+* Add edit and delete actions for booking types, custom form fields, availability rules and exceptions.
+* Prefill existing configuration in the admin forms and keep all mutations nonce-protected POST actions.
+* Protect booking types with historical bookings, recurring series or waiting-list entries from hard deletion.
+* Clean mappings, rules and exceptions when an unused booking type is deleted.
 
 = 3.10.0 =
 * Add a protected mail-transport diagnostic and safe administrator test email.

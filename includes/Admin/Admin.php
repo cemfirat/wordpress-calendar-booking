@@ -124,112 +124,47 @@ class Admin {
                 (new MailDiagnostics())->run($recipient);
                 break;
             case 'save_type':
-                $table = $wpdb->prefix . 'wpcb_booking_types';
-                $data = [
-                    'name' => sanitize_text_field(wp_unslash($_POST['name'] ?? '')),
-                    'slug' => sanitize_title(wp_unslash($_POST['slug'] ?? '')),
-                    'description' => sanitize_textarea_field(wp_unslash($_POST['description'] ?? '')),
-                    'duration_minutes' => absint($_POST['duration_minutes'] ?? 30),
-                    'buffer_before_minutes' => absint($_POST['buffer_before_minutes'] ?? 0),
-                    'buffer_after_minutes' => absint($_POST['buffer_after_minutes'] ?? 0),
-                    'capacity' => max(1, min(10000, absint($_POST['capacity'] ?? 1))),
-                    'show_remaining_capacity' => empty($_POST['show_remaining_capacity']) ? 0 : 1,
-                    'payment_mode' => in_array(($_POST['payment_mode'] ?? 'free'), ['free', 'required'], true) ? sanitize_key(wp_unslash($_POST['payment_mode'])) : 'free',
-                    'price_minor' => max(0, absint($_POST['price_minor'] ?? 0)),
-                    'currency' => preg_match('/^[A-Z]{3}$/', strtoupper(sanitize_text_field(wp_unslash($_POST['currency'] ?? 'EUR')))) ? strtoupper(sanitize_text_field(wp_unslash($_POST['currency'] ?? 'EUR'))) : 'EUR',
-                    'is_active' => empty($_POST['is_active']) ? 0 : 1,
-                    'is_public' => empty($_POST['is_public']) ? 0 : 1,
-                    'sort_order' => absint($_POST['sort_order'] ?? 0),
-                    'updated_at' => current_time('mysql'),
-                ];
-                if (!empty($_POST['id'])) {
-                    $wpdb->update($table, $data, ['id' => absint($_POST['id'])]);
-                } else {
-                    $data['created_at'] = current_time('mysql');
-                    $wpdb->insert($table, $data);
-                }
-                do_action('wpcb_capacity_changed');
+                (new ConfigurationService())->saveBookingType(
+                    (array)wp_unslash($_POST),
+                    absint($_POST['id'] ?? 0)
+                );
                 break;
             case 'delete_type':
-                $wpdb->delete($wpdb->prefix . 'wpcb_booking_types', ['id' => absint($_POST['id'])]);
+                $result = (new ConfigurationService())->deleteBookingType(absint($_POST['id'] ?? 0));
+                if (is_wp_error($result)) {
+                    wp_safe_redirect(add_query_arg([
+                        'page' => 'wpcb_types',
+                        'wpcb_error' => $result->get_error_message(),
+                    ], admin_url('admin.php')));
+                    exit;
+                }
                 break;
             case 'save_field':
-                $table = $wpdb->prefix . 'wpcb_form_fields';
-                $data = [
-                    'field_key' => sanitize_key(wp_unslash($_POST['field_key'] ?? '')),
-                    'label' => sanitize_text_field(wp_unslash($_POST['label'] ?? '')),
-                    'field_type' => sanitize_text_field(wp_unslash($_POST['field_type'] ?? 'text')),
-                    'options_json' => !empty($_POST['options_raw']) ? wp_json_encode(array_values(array_filter(array_map('sanitize_text_field', array_map('trim', preg_split('/\r\n|\r|\n/', wp_unslash($_POST['options_raw']))))))) : null,
-                    'is_required' => empty($_POST['is_required']) ? 0 : 1,
-                    'is_active' => empty($_POST['is_active']) ? 0 : 1,
-                    'sort_order' => absint($_POST['sort_order'] ?? 0),
-                    'updated_at' => current_time('mysql'),
-                ];
-                if (!empty($_POST['id'])) {
-                    $wpdb->update($table, $data, ['id' => absint($_POST['id'])]);
-                } else {
-                    $data['created_at'] = current_time('mysql');
-                    $wpdb->insert($table, $data);
-                }
+                (new ConfigurationService())->saveField(
+                    (array)wp_unslash($_POST),
+                    absint($_POST['id'] ?? 0)
+                );
                 break;
             case 'delete_field':
-                $wpdb->delete($wpdb->prefix . 'wpcb_form_fields', ['id' => absint($_POST['id'])]);
+                (new ConfigurationService())->deleteField(absint($_POST['id'] ?? 0));
                 break;
             case 'save_rule':
-                $table = $wpdb->prefix . 'wpcb_availability_rules';
-                $scopeType = sanitize_key(wp_unslash($_POST['scope_type'] ?? 'global'));
-                if (!in_array($scopeType, ['global', 'booking_type', 'resource'], true)) {
-                    $scopeType = 'global';
-                }
-                $scopeId = $scopeType === 'resource'
-                    ? absint($_POST['resource_scope_id'] ?? 0)
-                    : absint($_POST['scope_id'] ?? 0);
-                $data = [
-                    'scope_type' => $scopeType,
-                    'scope_id' => $scopeId ?: null,
-                    'weekday' => absint($_POST['weekday'] ?? 1),
-                    'start_time' => sanitize_text_field(wp_unslash($_POST['start_time'] ?? '09:00:00')) . ':00',
-                    'end_time' => sanitize_text_field(wp_unslash($_POST['end_time'] ?? '17:00:00')) . ':00',
-                    'slot_duration_minutes' => absint($_POST['slot_duration_minutes'] ?? 30),
-                    'buffer_before_minutes' => absint($_POST['buffer_before_minutes'] ?? 0),
-                    'buffer_after_minutes' => absint($_POST['buffer_after_minutes'] ?? 0),
-                    'min_notice_minutes' => absint($_POST['min_notice_minutes'] ?? 0),
-                    'max_days_in_advance' => absint($_POST['max_days_in_advance'] ?? 30),
-                    'is_active' => empty($_POST['is_active']) ? 0 : 1,
-                    'updated_at' => current_time('mysql'),
-                ];
-                if (!empty($_POST['id'])) {
-                    $wpdb->update($table, $data, ['id' => absint($_POST['id'])]);
-                } else {
-                    $data['created_at'] = current_time('mysql');
-                    $wpdb->insert($table, $data);
-                }
+                (new ConfigurationService())->saveRule(
+                    (array)wp_unslash($_POST),
+                    absint($_POST['id'] ?? 0)
+                );
                 break;
             case 'delete_rule':
-                $wpdb->delete($wpdb->prefix . 'wpcb_availability_rules', ['id' => absint($_POST['id'])]);
+                (new ConfigurationService())->deleteRule(absint($_POST['id'] ?? 0));
                 break;
             case 'save_exception':
-                $table = $wpdb->prefix . 'wpcb_exceptions';
-                $data = [
-                    'type' => sanitize_text_field(wp_unslash($_POST['type'] ?? 'blocked_range')),
-                    'title' => sanitize_text_field(wp_unslash($_POST['title'] ?? '')),
-                    'date_start' => Time::localToUtc(str_replace('T', ' ', sanitize_text_field(wp_unslash($_POST['date_start'] ?? ''))) . ':00'),
-                    'date_end' => Time::localToUtc(str_replace('T', ' ', sanitize_text_field(wp_unslash($_POST['date_end'] ?? ''))) . ':00'),
-                    'all_day' => empty($_POST['all_day']) ? 0 : 1,
-                    'booking_type_id' => absint($_POST['booking_type_id'] ?? 0) ?: null,
-                    'resource_id' => absint($_POST['resource_id'] ?? 0) ?: null,
-                    'is_active' => empty($_POST['is_active']) ? 0 : 1,
-                    'updated_at' => current_time('mysql'),
-                ];
-                if (!empty($_POST['id'])) {
-                    $wpdb->update($table, $data, ['id' => absint($_POST['id'])]);
-                } else {
-                    $data['created_at'] = current_time('mysql');
-                    $wpdb->insert($table, $data);
-                }
+                (new ConfigurationService())->saveException(
+                    (array)wp_unslash($_POST),
+                    absint($_POST['id'] ?? 0)
+                );
                 break;
             case 'delete_exception':
-                $wpdb->delete($wpdb->prefix . 'wpcb_exceptions', ['id' => absint($_POST['id'])]);
+                (new ConfigurationService())->deleteException(absint($_POST['id'] ?? 0));
                 break;
             case 'save_emails':
                 $templates = [
@@ -390,35 +325,60 @@ class Admin {
         global $wpdb;
         $table = $wpdb->prefix . 'wpcb_booking_types';
         $items = $wpdb->get_results("SELECT * FROM {$table} ORDER BY sort_order ASC, name ASC");
+        $editId = absint($_GET['edit_type'] ?? 0);
+        $editing = $editId > 0
+            ? $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $editId))
+            : null;
+
         $this->formStart();
         echo '<h1>' . esc_html__('Terminarten', 'wordpress-calendar-booking') . '</h1>';
         $this->renderTypesTable($items);
-        $this->renderTypeForm();
+        $this->renderTypeForm($editing);
         $this->formEnd();
     }
+
     public function fields(): void {
         global $wpdb;
         $table = $wpdb->prefix . 'wpcb_form_fields';
         $items = $wpdb->get_results("SELECT * FROM {$table} ORDER BY sort_order ASC, id ASC");
+        $editId = absint($_GET['edit_field'] ?? 0);
+        $editing = $editId > 0
+            ? $wpdb->get_row($wpdb->prepare("SELECT * FROM {$table} WHERE id = %d", $editId))
+            : null;
+
         $this->formStart();
         echo '<h1>' . esc_html__('Formularfelder', 'wordpress-calendar-booking') . '</h1>';
         $this->renderFieldsTable($items);
-        $this->renderFieldForm();
+        $this->renderFieldForm($editing);
         $this->formEnd();
     }
+
     public function availability(): void {
         global $wpdb;
-        $rules = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}wpcb_availability_rules ORDER BY scope_type ASC, weekday ASC, start_time ASC");
-        $exceptions = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}wpcb_exceptions ORDER BY date_start DESC");
+        $rulesTable = $wpdb->prefix . 'wpcb_availability_rules';
+        $exceptionsTable = $wpdb->prefix . 'wpcb_exceptions';
+        $rules = $wpdb->get_results("SELECT * FROM {$rulesTable} ORDER BY scope_type ASC, weekday ASC, start_time ASC");
+        $exceptions = $wpdb->get_results("SELECT * FROM {$exceptionsTable} ORDER BY date_start DESC");
+
+        $editRuleId = absint($_GET['edit_rule'] ?? 0);
+        $editingRule = $editRuleId > 0
+            ? $wpdb->get_row($wpdb->prepare("SELECT * FROM {$rulesTable} WHERE id = %d", $editRuleId))
+            : null;
+        $editExceptionId = absint($_GET['edit_exception'] ?? 0);
+        $editingException = $editExceptionId > 0
+            ? $wpdb->get_row($wpdb->prepare("SELECT * FROM {$exceptionsTable} WHERE id = %d", $editExceptionId))
+            : null;
+
         $this->formStart();
         echo '<h1>' . esc_html__('Verfügbarkeit', 'wordpress-calendar-booking') . '</h1>';
         $this->renderRulesTable($rules);
-        $this->renderRuleForm();
+        $this->renderRuleForm($editingRule);
         echo '<hr><h2>' . esc_html__('Ausnahmen / Sperren', 'wordpress-calendar-booking') . '</h2>';
         $this->renderExceptionsTable($exceptions);
-        $this->renderExceptionForm();
+        $this->renderExceptionForm($editingException);
         $this->formEnd();
     }
+
     public function bookings(): void {
         $this->formStart();
         echo '<h1>' . esc_html__('Buchungen', 'wordpress-calendar-booking') . '</h1>';
@@ -650,6 +610,7 @@ class Admin {
             __('Kapazität', 'wordpress-calendar-booking'),
             __('Zahlung', 'wordpress-calendar-booking'),
             __('Aktiv', 'wordpress-calendar-booking'),
+            __('Aktion', 'wordpress-calendar-booking'),
         ] as $heading) {
             echo '<th>' . esc_html($heading) . '</th>';
         }
@@ -658,30 +619,55 @@ class Admin {
             $payment = (string)($i->payment_mode ?? 'free') === 'required'
                 ? number_format(((int)($i->price_minor ?? 0)) / 100, 2, ',', '.') . ' ' . esc_html((string)($i->currency ?? 'EUR'))
                 : esc_html__('Kostenlos', 'wordpress-calendar-booking');
-            echo '<tr><td>' . esc_html($i->name) . '</td><td>' . esc_html($i->slug) . '</td><td>' . (int)$i->duration_minutes . ' ' . esc_html__('Min.', 'wordpress-calendar-booking') . '</td><td>' . max(1, (int)($i->capacity ?? 1)) . '</td><td>' . $payment . '</td><td>' . esc_html($i->is_active ? __('Ja', 'wordpress-calendar-booking') : __('Nein', 'wordpress-calendar-booking')) . '</td></tr>';
+            echo '<tr><td>' . esc_html($i->name) . '</td><td>' . esc_html($i->slug) . '</td><td>'
+                . (int)$i->duration_minutes . ' ' . esc_html__('Min.', 'wordpress-calendar-booking') . '</td><td>'
+                . max(1, (int)($i->capacity ?? 1)) . '</td><td>' . $payment . '</td><td>'
+                . esc_html($i->is_active ? __('Ja', 'wordpress-calendar-booking') : __('Nein', 'wordpress-calendar-booking')) . '</td><td>';
+            echo '<a class="button button-small" href="' . esc_url(add_query_arg([
+                'page' => 'wpcb_types',
+                'edit_type' => (int)$i->id,
+            ], admin_url('admin.php'))) . '">' . esc_html__('Bearbeiten', 'wordpress-calendar-booking') . '</a> ';
+            echo '<form method="post" style="display:inline">';
+            wp_nonce_field('wpcb_admin_action');
+            echo '<input type="hidden" name="wpcb_admin_action" value="delete_type">';
+            echo '<input type="hidden" name="id" value="' . (int)$i->id . '">';
+            echo '<button class="button button-small button-link-delete" type="submit">' . esc_html__('Löschen', 'wordpress-calendar-booking') . '</button></form>';
+            echo '</td></tr>';
         }
         echo '</tbody></table>';
     }
 
-    private function renderTypeForm(): void {
-        echo '<h2>' . esc_html__('Neue Terminart', 'wordpress-calendar-booking') . '</h2><form method="post">';
+    private function renderTypeForm(?object $editing = null): void {
+        $isEdit = $editing !== null;
+        echo '<h2>' . esc_html($isEdit ? __('Terminart bearbeiten', 'wordpress-calendar-booking') : __('Neue Terminart', 'wordpress-calendar-booking')) . '</h2><form method="post">';
         wp_nonce_field('wpcb_admin_action');
-        echo '<input type="hidden" name="wpcb_admin_action" value="save_type"><table class="form-table">';
-        $this->row(__('Name', 'wordpress-calendar-booking'), '<input type="text" name="name" required>');
-        $this->row(__('Slug', 'wordpress-calendar-booking'), '<input type="text" name="slug" required>');
-        $this->row(__('Beschreibung', 'wordpress-calendar-booking'), '<textarea name="description"></textarea>');
-        $this->row(__('Dauer', 'wordpress-calendar-booking'), '<input type="number" name="duration_minutes" value="30">');
-        $this->row(__('Puffer davor', 'wordpress-calendar-booking'), '<input type="number" name="buffer_before_minutes" value="0">');
-        $this->row(__('Puffer danach', 'wordpress-calendar-booking'), '<input type="number" name="buffer_after_minutes" value="0">');
-        $this->row(__('Kapazität', 'wordpress-calendar-booking'), '<input type="number" name="capacity" min="1" max="10000" value="1">');
-        $this->row(__('Restplätze öffentlich', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="show_remaining_capacity" value="1"> ' . esc_html__('anzeigen', 'wordpress-calendar-booking') . '</label>');
-        $this->row(__('Zahlung', 'wordpress-calendar-booking'), '<select name="payment_mode"><option value="free">' . esc_html__('Kostenlos', 'wordpress-calendar-booking') . '</option><option value="required">' . esc_html__('Zahlung erforderlich', 'wordpress-calendar-booking') . '</option></select>');
-        $this->row(__('Preis (Cent)', 'wordpress-calendar-booking'), '<input type="number" name="price_minor" min="0" value="0">');
-        $this->row(__('Währung', 'wordpress-calendar-booking'), '<input type="text" name="currency" maxlength="3" value="EUR">');
-        $this->row(__('Sortierung', 'wordpress-calendar-booking'), '<input type="number" name="sort_order" value="0">');
-        $this->row(__('Aktiv', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="is_active" value="1" checked> ' . esc_html__('aktiv', 'wordpress-calendar-booking') . '</label>');
-        $this->row(__('Öffentlich', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="is_public" value="1" checked> ' . esc_html__('sichtbar', 'wordpress-calendar-booking') . '</label>');
-        echo '</table><p><button class="button button-primary">' . esc_html__('Speichern', 'wordpress-calendar-booking') . '</button></p></form>';
+        echo '<input type="hidden" name="wpcb_admin_action" value="save_type">';
+        if ($isEdit) {
+            echo '<input type="hidden" name="id" value="' . (int)$editing->id . '">';
+        }
+        echo '<table class="form-table">';
+        $this->row(__('Name', 'wordpress-calendar-booking'), '<input type="text" name="name" required value="' . esc_attr((string)($editing->name ?? '')) . '">');
+        $this->row(__('Slug', 'wordpress-calendar-booking'), '<input type="text" name="slug" required value="' . esc_attr((string)($editing->slug ?? '')) . '">');
+        $this->row(__('Beschreibung', 'wordpress-calendar-booking'), '<textarea name="description">' . esc_textarea((string)($editing->description ?? '')) . '</textarea>');
+        $this->row(__('Dauer', 'wordpress-calendar-booking'), '<input type="number" min="1" name="duration_minutes" value="' . esc_attr((string)($editing->duration_minutes ?? 30)) . '">');
+        $this->row(__('Puffer davor', 'wordpress-calendar-booking'), '<input type="number" min="0" name="buffer_before_minutes" value="' . esc_attr((string)($editing->buffer_before_minutes ?? 0)) . '">');
+        $this->row(__('Puffer danach', 'wordpress-calendar-booking'), '<input type="number" min="0" name="buffer_after_minutes" value="' . esc_attr((string)($editing->buffer_after_minutes ?? 0)) . '">');
+        $this->row(__('Kapazität', 'wordpress-calendar-booking'), '<input type="number" name="capacity" min="1" max="10000" value="' . esc_attr((string)($editing->capacity ?? 1)) . '">');
+        $this->row(__('Restplätze öffentlich', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="show_remaining_capacity" value="1" ' . checked((int)($editing->show_remaining_capacity ?? 0), 1, false) . '> ' . esc_html__('anzeigen', 'wordpress-calendar-booking') . '</label>');
+        $paymentMode = (string)($editing->payment_mode ?? 'free');
+        $paymentOptions = '<option value="free" ' . selected($paymentMode, 'free', false) . '>' . esc_html__('Kostenlos', 'wordpress-calendar-booking') . '</option>'
+            . '<option value="required" ' . selected($paymentMode, 'required', false) . '>' . esc_html__('Zahlung erforderlich', 'wordpress-calendar-booking') . '</option>';
+        $this->row(__('Zahlung', 'wordpress-calendar-booking'), '<select name="payment_mode">' . $paymentOptions . '</select>');
+        $this->row(__('Preis (Cent)', 'wordpress-calendar-booking'), '<input type="number" name="price_minor" min="0" value="' . esc_attr((string)($editing->price_minor ?? 0)) . '">');
+        $this->row(__('Währung', 'wordpress-calendar-booking'), '<input type="text" name="currency" maxlength="3" value="' . esc_attr((string)($editing->currency ?? 'EUR')) . '">');
+        $this->row(__('Sortierung', 'wordpress-calendar-booking'), '<input type="number" name="sort_order" value="' . esc_attr((string)($editing->sort_order ?? 0)) . '">');
+        $this->row(__('Aktiv', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="is_active" value="1" ' . checked((int)($editing->is_active ?? 1), 1, false) . '> ' . esc_html__('aktiv', 'wordpress-calendar-booking') . '</label>');
+        $this->row(__('Öffentlich', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="is_public" value="1" ' . checked((int)($editing->is_public ?? 1), 1, false) . '> ' . esc_html__('sichtbar', 'wordpress-calendar-booking') . '</label>');
+        echo '</table><p><button class="button button-primary">' . esc_html__('Speichern', 'wordpress-calendar-booking') . '</button>';
+        if ($isEdit) {
+            echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_types')) . '">' . esc_html__('Abbrechen', 'wordpress-calendar-booking') . '</a>';
+        }
+        echo '</p></form>';
     }
 
     private function renderFieldsTable(array $items): void {
@@ -692,28 +678,58 @@ class Admin {
             __('Typ', 'wordpress-calendar-booking'),
             __('Optionen', 'wordpress-calendar-booking'),
             __('Pflicht', 'wordpress-calendar-booking'),
+            __('Aktion', 'wordpress-calendar-booking'),
         ] as $heading) {
             echo '<th>' . esc_html($heading) . '</th>';
         }
         echo '</tr></thead><tbody>';
         foreach ($items as $i) {
-            echo '<tr><td>' . esc_html($i->field_key) . '</td><td>' . esc_html($i->label) . '</td><td>' . esc_html($i->field_type) . '</td><td>' . esc_html(implode(', ', (array)json_decode((string)($i->options_json ?? ''), true))) . '</td><td>' . esc_html($i->is_required ? __('Ja', 'wordpress-calendar-booking') : __('Nein', 'wordpress-calendar-booking')) . '</td></tr>';
+            $options = json_decode((string)($i->options_json ?? ''), true);
+            $options = is_array($options) ? $options : [];
+            echo '<tr><td>' . esc_html($i->field_key) . '</td><td>' . esc_html($i->label) . '</td><td>'
+                . esc_html($i->field_type) . '</td><td>' . esc_html(implode(', ', $options)) . '</td><td>'
+                . esc_html($i->is_required ? __('Ja', 'wordpress-calendar-booking') : __('Nein', 'wordpress-calendar-booking')) . '</td><td>';
+            echo '<a class="button button-small" href="' . esc_url(add_query_arg([
+                'page' => 'wpcb_fields',
+                'edit_field' => (int)$i->id,
+            ], admin_url('admin.php'))) . '">' . esc_html__('Bearbeiten', 'wordpress-calendar-booking') . '</a> ';
+            echo '<form method="post" style="display:inline">';
+            wp_nonce_field('wpcb_admin_action');
+            echo '<input type="hidden" name="wpcb_admin_action" value="delete_field"><input type="hidden" name="id" value="' . (int)$i->id . '">';
+            echo '<button class="button button-small button-link-delete" type="submit">' . esc_html__('Löschen', 'wordpress-calendar-booking') . '</button></form>';
+            echo '</td></tr>';
         }
         echo '</tbody></table>';
     }
 
-    private function renderFieldForm(): void {
-        echo '<h2>' . esc_html__('Neues Formularfeld', 'wordpress-calendar-booking') . '</h2><form method="post">';
+    private function renderFieldForm(?object $editing = null): void {
+        $isEdit = $editing !== null;
+        $options = $isEdit ? json_decode((string)($editing->options_json ?? ''), true) : [];
+        $options = is_array($options) ? $options : [];
+        echo '<h2>' . esc_html($isEdit ? __('Formularfeld bearbeiten', 'wordpress-calendar-booking') : __('Neues Formularfeld', 'wordpress-calendar-booking')) . '</h2><form method="post">';
         wp_nonce_field('wpcb_admin_action');
-        echo '<input type="hidden" name="wpcb_admin_action" value="save_field"><table class="form-table">';
-        $this->row(__('Key', 'wordpress-calendar-booking'), '<input type="text" name="field_key" required>');
-        $this->row(__('Label', 'wordpress-calendar-booking'), '<input type="text" name="label" required>');
-        $this->row(__('Typ', 'wordpress-calendar-booking'), '<select name="field_type"><option value="text">Text</option><option value="email">' . esc_html__('E-Mail', 'wordpress-calendar-booking') . '</option><option value="textarea">Textarea</option><option value="checkbox">Checkbox</option><option value="select">Select</option><option value="radio">Radio</option></select>');
-        $this->row(__('Optionen', 'wordpress-calendar-booking'), '<textarea name="options_raw" rows="5" class="regular-text" placeholder="' . esc_attr__('Eine Option pro Zeile', 'wordpress-calendar-booking') . '"></textarea>');
-        $this->row(__('Sortierung', 'wordpress-calendar-booking'), '<input type="number" name="sort_order" value="0">');
-        $this->row(__('Pflicht', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="is_required" value="1"> ' . esc_html__('ja', 'wordpress-calendar-booking') . '</label>');
-        $this->row(__('Aktiv', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="is_active" value="1" checked> ' . esc_html__('ja', 'wordpress-calendar-booking') . '</label>');
-        echo '</table><p><button class="button button-primary">' . esc_html__('Speichern', 'wordpress-calendar-booking') . '</button></p></form>';
+        echo '<input type="hidden" name="wpcb_admin_action" value="save_field">';
+        if ($isEdit) {
+            echo '<input type="hidden" name="id" value="' . (int)$editing->id . '">';
+        }
+        echo '<table class="form-table">';
+        $this->row(__('Key', 'wordpress-calendar-booking'), '<input type="text" name="field_key" required value="' . esc_attr((string)($editing->field_key ?? '')) . '">');
+        $this->row(__('Label', 'wordpress-calendar-booking'), '<input type="text" name="label" required value="' . esc_attr((string)($editing->label ?? '')) . '">');
+        $fieldType = (string)($editing->field_type ?? 'text');
+        $fieldOptions = '';
+        foreach (['text' => 'Text', 'email' => __('E-Mail', 'wordpress-calendar-booking'), 'textarea' => 'Textarea', 'checkbox' => 'Checkbox', 'select' => 'Select', 'radio' => 'Radio'] as $value => $label) {
+            $fieldOptions .= '<option value="' . esc_attr($value) . '" ' . selected($fieldType, $value, false) . '>' . esc_html($label) . '</option>';
+        }
+        $this->row(__('Typ', 'wordpress-calendar-booking'), '<select name="field_type">' . $fieldOptions . '</select>');
+        $this->row(__('Optionen', 'wordpress-calendar-booking'), '<textarea name="options_raw" rows="5" class="regular-text" placeholder="' . esc_attr__('Eine Option pro Zeile', 'wordpress-calendar-booking') . '">' . esc_textarea(implode("\n", $options)) . '</textarea>');
+        $this->row(__('Sortierung', 'wordpress-calendar-booking'), '<input type="number" name="sort_order" value="' . esc_attr((string)($editing->sort_order ?? 0)) . '">');
+        $this->row(__('Pflicht', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="is_required" value="1" ' . checked((int)($editing->is_required ?? 0), 1, false) . '> ' . esc_html__('ja', 'wordpress-calendar-booking') . '</label>');
+        $this->row(__('Aktiv', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="is_active" value="1" ' . checked((int)($editing->is_active ?? 1), 1, false) . '> ' . esc_html__('ja', 'wordpress-calendar-booking') . '</label>');
+        echo '</table><p><button class="button button-primary">' . esc_html__('Speichern', 'wordpress-calendar-booking') . '</button>';
+        if ($isEdit) {
+            echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_fields')) . '">' . esc_html__('Abbrechen', 'wordpress-calendar-booking') . '</a>';
+        }
+        echo '</p></form>';
     }
 
     private function renderRulesTable(array $items): void {
@@ -725,44 +741,72 @@ class Admin {
             __('Dauer', 'wordpress-calendar-booking'),
             __('Notice', 'wordpress-calendar-booking'),
             __('Horizont', 'wordpress-calendar-booking'),
+            __('Aktion', 'wordpress-calendar-booking'),
         ] as $heading) {
             echo '<th>' . esc_html($heading) . '</th>';
         }
         echo '</tr></thead><tbody>';
         foreach ($items as $i) {
-            echo '<tr><td>' . esc_html($i->scope_type . ($i->scope_id ? ' #' . $i->scope_id : '')) . '</td><td>' . (int)$i->weekday . '</td><td>' . esc_html(substr($i->start_time, 0, 5) . ' - ' . substr($i->end_time, 0, 5)) . '</td><td>' . (int)$i->slot_duration_minutes . '</td><td>' . (int)$i->min_notice_minutes . '</td><td>' . (int)$i->max_days_in_advance . '</td></tr>';
+            echo '<tr><td>' . esc_html($i->scope_type . ($i->scope_id ? ' #' . $i->scope_id : '')) . '</td><td>'
+                . (int)$i->weekday . '</td><td>' . esc_html(substr($i->start_time, 0, 5) . ' - ' . substr($i->end_time, 0, 5))
+                . '</td><td>' . (int)$i->slot_duration_minutes . '</td><td>' . (int)$i->min_notice_minutes . '</td><td>'
+                . (int)$i->max_days_in_advance . '</td><td>';
+            echo '<a class="button button-small" href="' . esc_url(add_query_arg([
+                'page' => 'wpcb_availability',
+                'edit_rule' => (int)$i->id,
+            ], admin_url('admin.php'))) . '">' . esc_html__('Bearbeiten', 'wordpress-calendar-booking') . '</a> ';
+            echo '<form method="post" style="display:inline">';
+            wp_nonce_field('wpcb_admin_action');
+            echo '<input type="hidden" name="wpcb_admin_action" value="delete_rule"><input type="hidden" name="id" value="' . (int)$i->id . '">';
+            echo '<button class="button button-small button-link-delete" type="submit">' . esc_html__('Löschen', 'wordpress-calendar-booking') . '</button></form>';
+            echo '</td></tr>';
         }
         echo '</tbody></table>';
     }
 
-    private function renderRuleForm(): void {
-        $types = (new BookingTypeRepository())->all(false);
+    private function renderRuleForm(?object $editing = null): void {
+        global $wpdb;
+        $types = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}wpcb_booking_types ORDER BY sort_order ASC, name ASC");
         $resources = (new ResourceRepository())->all(false);
-        echo '<h2>' . esc_html__('Neue Regel', 'wordpress-calendar-booking') . '</h2><form method="post">';
+        $isEdit = $editing !== null;
+        echo '<h2>' . esc_html($isEdit ? __('Regel bearbeiten', 'wordpress-calendar-booking') : __('Neue Regel', 'wordpress-calendar-booking')) . '</h2><form method="post">';
         wp_nonce_field('wpcb_admin_action');
-        echo '<input type="hidden" name="wpcb_admin_action" value="save_rule"><table class="form-table">';
-        $options = '<option value="global">global</option><option value="booking_type">' . esc_html__('Terminart', 'wordpress-calendar-booking') . '</option><option value="resource">' . esc_html__('Ressource', 'wordpress-calendar-booking') . '</option>';
-        $this->row(__('Scope', 'wordpress-calendar-booking'), '<select name="scope_type">' . $options . '</select>');
+        echo '<input type="hidden" name="wpcb_admin_action" value="save_rule">';
+        if ($isEdit) {
+            echo '<input type="hidden" name="id" value="' . (int)$editing->id . '">';
+        }
+        echo '<table class="form-table">';
+        $scopeType = (string)($editing->scope_type ?? 'global');
+        $scopeOptions = '<option value="global" ' . selected($scopeType, 'global', false) . '>global</option>'
+            . '<option value="booking_type" ' . selected($scopeType, 'booking_type', false) . '>' . esc_html__('Terminart', 'wordpress-calendar-booking') . '</option>'
+            . '<option value="resource" ' . selected($scopeType, 'resource', false) . '>' . esc_html__('Ressource', 'wordpress-calendar-booking') . '</option>';
+        $this->row(__('Scope', 'wordpress-calendar-booking'), '<select name="scope_type">' . $scopeOptions . '</select>');
         $typeOptions = '<option value="0">-</option>';
         foreach ($types as $type) {
-            $typeOptions .= '<option value="' . (int)$type->id . '">' . esc_html($type->name) . '</option>';
+            $selectedId = $scopeType === 'booking_type' ? (int)($editing->scope_id ?? 0) : 0;
+            $typeOptions .= '<option value="' . (int)$type->id . '" ' . selected($selectedId, (int)$type->id, false) . '>' . esc_html($type->name) . '</option>';
         }
         $this->row(__('Terminart', 'wordpress-calendar-booking'), '<select name="scope_id">' . $typeOptions . '</select>');
         $resourceOptions = '<option value="0">-</option>';
         foreach ($resources as $resource) {
-            $resourceOptions .= '<option value="' . (int)$resource->id . '">' . esc_html($resource->name) . '</option>';
+            $selectedId = $scopeType === 'resource' ? (int)($editing->scope_id ?? 0) : 0;
+            $resourceOptions .= '<option value="' . (int)$resource->id . '" ' . selected($selectedId, (int)$resource->id, false) . '>' . esc_html($resource->name) . '</option>';
         }
         $this->row(__('Ressource', 'wordpress-calendar-booking'), '<select name="resource_scope_id">' . $resourceOptions . '</select>');
-        $this->row(__('Wochentag (1=Mo)', 'wordpress-calendar-booking'), '<input type="number" name="weekday" value="1" min="1" max="7">');
-        $this->row(__('Startzeit', 'wordpress-calendar-booking'), '<input type="time" name="start_time" value="09:00">');
-        $this->row(__('Endzeit', 'wordpress-calendar-booking'), '<input type="time" name="end_time" value="17:00">');
-        $this->row(__('Slot-Dauer', 'wordpress-calendar-booking'), '<input type="number" name="slot_duration_minutes" value="30">');
-        $this->row(__('Puffer davor', 'wordpress-calendar-booking'), '<input type="number" name="buffer_before_minutes" value="0">');
-        $this->row(__('Puffer danach', 'wordpress-calendar-booking'), '<input type="number" name="buffer_after_minutes" value="15">');
-        $this->row(__('Vorlaufzeit (Min.)', 'wordpress-calendar-booking'), '<input type="number" name="min_notice_minutes" value="120">');
-        $this->row(__('Max. Tage im Voraus', 'wordpress-calendar-booking'), '<input type="number" name="max_days_in_advance" value="30">');
-        $this->row(__('Aktiv', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="is_active" value="1" checked> ' . esc_html__('ja', 'wordpress-calendar-booking') . '</label>');
-        echo '</table><p><button class="button button-primary">' . esc_html__('Speichern', 'wordpress-calendar-booking') . '</button></p></form>';
+        $this->row(__('Wochentag (1=Mo)', 'wordpress-calendar-booking'), '<input type="number" name="weekday" value="' . esc_attr((string)($editing->weekday ?? 1)) . '" min="1" max="7">');
+        $this->row(__('Startzeit', 'wordpress-calendar-booking'), '<input type="time" name="start_time" value="' . esc_attr(substr((string)($editing->start_time ?? '09:00'), 0, 5)) . '">');
+        $this->row(__('Endzeit', 'wordpress-calendar-booking'), '<input type="time" name="end_time" value="' . esc_attr(substr((string)($editing->end_time ?? '17:00'), 0, 5)) . '">');
+        $this->row(__('Slot-Dauer', 'wordpress-calendar-booking'), '<input type="number" min="1" name="slot_duration_minutes" value="' . esc_attr((string)($editing->slot_duration_minutes ?? 30)) . '">');
+        $this->row(__('Puffer davor', 'wordpress-calendar-booking'), '<input type="number" min="0" name="buffer_before_minutes" value="' . esc_attr((string)($editing->buffer_before_minutes ?? 0)) . '">');
+        $this->row(__('Puffer danach', 'wordpress-calendar-booking'), '<input type="number" min="0" name="buffer_after_minutes" value="' . esc_attr((string)($editing->buffer_after_minutes ?? 15)) . '">');
+        $this->row(__('Vorlaufzeit (Min.)', 'wordpress-calendar-booking'), '<input type="number" min="0" name="min_notice_minutes" value="' . esc_attr((string)($editing->min_notice_minutes ?? 120)) . '">');
+        $this->row(__('Max. Tage im Voraus', 'wordpress-calendar-booking'), '<input type="number" min="1" name="max_days_in_advance" value="' . esc_attr((string)($editing->max_days_in_advance ?? 30)) . '">');
+        $this->row(__('Aktiv', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="is_active" value="1" ' . checked((int)($editing->is_active ?? 1), 1, false) . '> ' . esc_html__('ja', 'wordpress-calendar-booking') . '</label>');
+        echo '</table><p><button class="button button-primary">' . esc_html__('Speichern', 'wordpress-calendar-booking') . '</button>';
+        if ($isEdit) {
+            echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_availability')) . '">' . esc_html__('Abbrechen', 'wordpress-calendar-booking') . '</a>';
+        }
+        echo '</p></form>';
     }
 
     private function renderExceptionsTable(array $items): void {
@@ -772,39 +816,72 @@ class Admin {
             __('Typ', 'wordpress-calendar-booking'),
             __('Von', 'wordpress-calendar-booking'),
             __('Bis', 'wordpress-calendar-booking'),
+            __('Aktion', 'wordpress-calendar-booking'),
         ] as $heading) {
             echo '<th>' . esc_html($heading) . '</th>';
         }
         echo '</tr></thead><tbody>';
         foreach ($items as $i) {
-            echo '<tr><td>' . esc_html($i->title) . '</td><td>' . esc_html($i->type) . '</td><td>' . esc_html($i->date_start) . '</td><td>' . esc_html($i->date_end) . '</td></tr>';
+            echo '<tr><td>' . esc_html($i->title) . '</td><td>' . esc_html($i->type) . '</td><td>'
+                . esc_html($i->date_start) . '</td><td>' . esc_html($i->date_end) . '</td><td>';
+            echo '<a class="button button-small" href="' . esc_url(add_query_arg([
+                'page' => 'wpcb_availability',
+                'edit_exception' => (int)$i->id,
+            ], admin_url('admin.php'))) . '">' . esc_html__('Bearbeiten', 'wordpress-calendar-booking') . '</a> ';
+            echo '<form method="post" style="display:inline">';
+            wp_nonce_field('wpcb_admin_action');
+            echo '<input type="hidden" name="wpcb_admin_action" value="delete_exception"><input type="hidden" name="id" value="' . (int)$i->id . '">';
+            echo '<button class="button button-small button-link-delete" type="submit">' . esc_html__('Löschen', 'wordpress-calendar-booking') . '</button></form>';
+            echo '</td></tr>';
         }
         echo '</tbody></table>';
     }
 
-    private function renderExceptionForm(): void {
-        $types = (new BookingTypeRepository())->all(false);
+    private function renderExceptionForm(?object $editing = null): void {
+        global $wpdb;
+        $types = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}wpcb_booking_types ORDER BY sort_order ASC, name ASC");
         $resources = (new ResourceRepository())->all(false);
-        echo '<h2>' . esc_html__('Neue Ausnahme / Sperre', 'wordpress-calendar-booking') . '</h2><form method="post">';
+        $isEdit = $editing !== null;
+        echo '<h2>' . esc_html($isEdit ? __('Ausnahme bearbeiten', 'wordpress-calendar-booking') : __('Neue Ausnahme / Sperre', 'wordpress-calendar-booking')) . '</h2><form method="post">';
         wp_nonce_field('wpcb_admin_action');
-        echo '<input type="hidden" name="wpcb_admin_action" value="save_exception"><table class="form-table">';
-        $this->row(__('Typ', 'wordpress-calendar-booking'), '<select name="type"><option value="holiday">' . esc_html__('Feiertag', 'wordpress-calendar-booking') . '</option><option value="blocked_day">' . esc_html__('Gesperrter Tag', 'wordpress-calendar-booking') . '</option><option value="blocked_range">' . esc_html__('Gesperrter Zeitraum', 'wordpress-calendar-booking') . '</option><option value="vacation">' . esc_html__('Urlaub', 'wordpress-calendar-booking') . '</option></select>');
-        $this->row(__('Titel', 'wordpress-calendar-booking'), '<input type="text" name="title" required>');
-        $this->row(__('Von', 'wordpress-calendar-booking'), '<input type="datetime-local" name="date_start" required>');
-        $this->row(__('Bis', 'wordpress-calendar-booking'), '<input type="datetime-local" name="date_end" required>');
+        echo '<input type="hidden" name="wpcb_admin_action" value="save_exception">';
+        if ($isEdit) {
+            echo '<input type="hidden" name="id" value="' . (int)$editing->id . '">';
+        }
+        echo '<table class="form-table">';
+        $exceptionType = (string)($editing->type ?? 'blocked_range');
+        $typeSelect = '';
+        foreach ([
+            'holiday' => __('Feiertag', 'wordpress-calendar-booking'),
+            'blocked_day' => __('Gesperrter Tag', 'wordpress-calendar-booking'),
+            'blocked_range' => __('Gesperrter Zeitraum', 'wordpress-calendar-booking'),
+            'vacation' => __('Urlaub', 'wordpress-calendar-booking'),
+        ] as $value => $label) {
+            $typeSelect .= '<option value="' . esc_attr($value) . '" ' . selected($exceptionType, $value, false) . '>' . esc_html($label) . '</option>';
+        }
+        $this->row(__('Typ', 'wordpress-calendar-booking'), '<select name="type">' . $typeSelect . '</select>');
+        $this->row(__('Titel', 'wordpress-calendar-booking'), '<input type="text" name="title" required value="' . esc_attr((string)($editing->title ?? '')) . '">');
+        $localStart = $isEdit ? Time::utcToLocal((string)$editing->date_start) : '';
+        $localEnd = $isEdit ? Time::utcToLocal((string)$editing->date_end) : '';
+        $this->row(__('Von', 'wordpress-calendar-booking'), '<input type="datetime-local" name="date_start" required value="' . esc_attr($localStart ? str_replace(' ', 'T', substr($localStart, 0, 16)) : '') . '">');
+        $this->row(__('Bis', 'wordpress-calendar-booking'), '<input type="datetime-local" name="date_end" required value="' . esc_attr($localEnd ? str_replace(' ', 'T', substr($localEnd, 0, 16)) : '') . '">');
         $typeOptions = '<option value="0">' . esc_html__('alle Terminarten', 'wordpress-calendar-booking') . '</option>';
         foreach ($types as $type) {
-            $typeOptions .= '<option value="' . (int)$type->id . '">' . esc_html($type->name) . '</option>';
+            $typeOptions .= '<option value="' . (int)$type->id . '" ' . selected((int)($editing->booking_type_id ?? 0), (int)$type->id, false) . '>' . esc_html($type->name) . '</option>';
         }
         $this->row(__('Terminart', 'wordpress-calendar-booking'), '<select name="booking_type_id">' . $typeOptions . '</select>');
         $resourceOptions = '<option value="0">' . esc_html__('alle Ressourcen', 'wordpress-calendar-booking') . '</option>';
         foreach ($resources as $resource) {
-            $resourceOptions .= '<option value="' . (int)$resource->id . '">' . esc_html($resource->name) . '</option>';
+            $resourceOptions .= '<option value="' . (int)$resource->id . '" ' . selected((int)($editing->resource_id ?? 0), (int)$resource->id, false) . '>' . esc_html($resource->name) . '</option>';
         }
         $this->row(__('Ressource', 'wordpress-calendar-booking'), '<select name="resource_id">' . $resourceOptions . '</select>');
-        $this->row(__('Ganztägig', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="all_day" value="1" checked> ' . esc_html__('ja', 'wordpress-calendar-booking') . '</label>');
-        $this->row(__('Aktiv', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="is_active" value="1" checked> ' . esc_html__('ja', 'wordpress-calendar-booking') . '</label>');
-        echo '</table><p><button class="button button-primary">' . esc_html__('Speichern', 'wordpress-calendar-booking') . '</button></p></form>';
+        $this->row(__('Ganztägig', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="all_day" value="1" ' . checked((int)($editing->all_day ?? 1), 1, false) . '> ' . esc_html__('ja', 'wordpress-calendar-booking') . '</label>');
+        $this->row(__('Aktiv', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="is_active" value="1" ' . checked((int)($editing->is_active ?? 1), 1, false) . '> ' . esc_html__('ja', 'wordpress-calendar-booking') . '</label>');
+        echo '</table><p><button class="button button-primary">' . esc_html__('Speichern', 'wordpress-calendar-booking') . '</button>';
+        if ($isEdit) {
+            echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_availability')) . '">' . esc_html__('Abbrechen', 'wordpress-calendar-booking') . '</a>';
+        }
+        echo '</p></form>';
     }
 
     public function schedulerHealth(): void {
