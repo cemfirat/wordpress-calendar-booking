@@ -101,3 +101,9 @@ Completed.
 - encrypted Stripe API and webhook signing secrets
 - verified/idempotent Stripe payment webhooks
 - administrator-triggered Stripe refunds
+
+### 3.14
+- secure customer-portal payment resume flow
+- reuse open Stripe Checkout sessions
+- replace expired Stripe sessions on the same pending payment record
+- reject checkout restart after settlement or local reservation expiry
