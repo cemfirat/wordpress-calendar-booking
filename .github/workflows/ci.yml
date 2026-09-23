@@ -50,6 +50,32 @@ jobs:
       - name: Audit frontend dependencies
         run: npm audit --omit=dev --audit-level=high
 
+  i18n:
+    name: Translation catalog generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: wp-cli:2.12.0
+          coverage: none
+      - name: Generate translation catalog
+        run: |
+          set -euo pipefail
+          wp i18n make-pot . "$RUNNER_TEMP/wordpress-calendar-booking.pot" \
+            --domain=wordpress-calendar-booking \
+            --exclude=vendor,node_modules,tests,dist,_bootstrap
+          test -s "$RUNNER_TEMP/wordpress-calendar-booking.pot"
+          grep -q 'msgid "Buchungs-Historie"' "$RUNNER_TEMP/wordpress-calendar-booking.pot"
+          grep -q 'msgid "Warteliste"' "$RUNNER_TEMP/wordpress-calendar-booking.pot"
+          grep -q 'msgid "Zahlungen"' "$RUNNER_TEMP/wordpress-calendar-booking.pot"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: translation-catalog
+          path: ${{ runner.temp }}/wordpress-calendar-booking.pot
+          retention-days: 7
+
   wordpress:
     name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }}
     runs-on: ubuntu-latest
