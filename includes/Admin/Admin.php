@@ -775,52 +775,64 @@ class Admin {
     public function schedulerHealth(): void {
         $this->formStart();
         $health = (new SchedulerHealth())->snapshot();
-        echo '<h1>Systemstatus</h1>';
+        echo '<h1>' . esc_html__('Systemstatus', 'wordpress-calendar-booking') . '</h1>';
         if ($health['healthy']) {
-            echo '<div class="notice notice-success inline"><p>WP-Cron und Queue-Verarbeitung wirken gesund.</p></div>';
+            echo '<div class="notice notice-success inline"><p>' . esc_html__('WP-Cron und Queue-Verarbeitung wirken gesund.', 'wordpress-calendar-booking') . '</p></div>';
         } else {
-            echo '<div class="notice notice-warning inline"><p><strong>Scheduler-Warnungen:</strong></p><ul>';
+            echo '<div class="notice notice-warning inline"><p><strong>' . esc_html__('Scheduler-Warnungen:', 'wordpress-calendar-booking') . '</strong></p><ul>';
             foreach ($health['warnings'] as $warning) {
                 echo '<li>' . esc_html($warning) . '</li>';
             }
             echo '</ul></div>';
         }
         echo '<table class="widefat striped" style="max-width:900px"><tbody>';
-        echo '<tr><th>Letzter Queue-Lauf (UTC)</th><td>' . esc_html($health['last_queue_run'] ?: 'noch keiner') . '</td></tr>';
-        echo '<tr><th>Nächster Queue-Lauf (UTC)</th><td>' . esc_html($health['next_queue_run'] ?: 'nicht geplant') . '</td></tr>';
-        echo '<tr><th>Letzter Stundenlauf (UTC)</th><td>' . esc_html($health['last_reminder_run'] ?: 'noch keiner') . '</td></tr>';
-        echo '<tr><th>Nächster Stundenlauf (UTC)</th><td>' . esc_html($health['next_reminder_run'] ?: 'nicht geplant') . '</td></tr>';
-        echo '<tr><th>Queue pending / running / failed</th><td>'
+        $never = __('noch keiner', 'wordpress-calendar-booking');
+        $notScheduled = __('nicht geplant', 'wordpress-calendar-booking');
+        echo '<tr><th>' . esc_html__('Letzter Queue-Lauf (UTC)', 'wordpress-calendar-booking') . '</th><td>' . esc_html($health['last_queue_run'] ?: $never) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Nächster Queue-Lauf (UTC)', 'wordpress-calendar-booking') . '</th><td>' . esc_html($health['next_queue_run'] ?: $notScheduled) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Letzter Stundenlauf (UTC)', 'wordpress-calendar-booking') . '</th><td>' . esc_html($health['last_reminder_run'] ?: $never) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Nächster Stundenlauf (UTC)', 'wordpress-calendar-booking') . '</th><td>' . esc_html($health['next_reminder_run'] ?: $notScheduled) . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Queue pending / running / failed', 'wordpress-calendar-booking') . '</th><td>'
             . (int)$health['counts']['pending'] . ' / '
             . (int)$health['counts']['running'] . ' / '
             . (int)$health['counts']['failed'] . '</td></tr>';
-        echo '<tr><th>Abgelaufene Leases</th><td>' . (int)$health['stale_leases'] . '</td></tr>';
+        echo '<tr><th>' . esc_html__('Abgelaufene Leases', 'wordpress-calendar-booking') . '</th><td>' . (int)$health['stale_leases'] . '</td></tr>';
         echo '</tbody></table>';
 
         echo '<div style="margin-top:16px">';
         echo '<form method="post" style="display:inline-block;margin-right:8px">';
         wp_nonce_field('wpcb_admin_action');
         echo '<input type="hidden" name="wpcb_admin_action" value="process_sync_queue">';
-        echo '<button class="button button-primary">Sync-Queue jetzt ausführen</button></form>';
+        echo '<button class="button button-primary">' . esc_html__('Sync-Queue jetzt ausführen', 'wordpress-calendar-booking') . '</button></form>';
         echo '<form method="post" style="display:inline-block">';
         wp_nonce_field('wpcb_admin_action');
         echo '<input type="hidden" name="wpcb_admin_action" value="run_hourly_tasks">';
-        echo '<button class="button">Stündliche Aufgaben jetzt ausführen</button></form>';
+        echo '<button class="button">' . esc_html__('Stündliche Aufgaben jetzt ausführen', 'wordpress-calendar-booking') . '</button></form>';
         echo '</div>';
-        echo '<p class="description">Für zuverlässige Produktion sollte WP-Cron durch einen echten System-Cron angestoßen werden. Siehe <code>docs/OPERATIONS.md</code>.</p>';
+        echo '<p class="description">' . wp_kses_post(__('Für zuverlässige Produktion sollte WP-Cron durch einen echten System-Cron angestoßen werden. Siehe <code>docs/OPERATIONS.md</code>.', 'wordpress-calendar-booking')) . '</p>';
         $this->formEnd();
     }
 
     public function syncLog(): void {
         $this->formStart();
-        echo '<h1>Sync-Protokoll</h1>';
+        echo '<h1>' . esc_html__('Sync-Protokoll', 'wordpress-calendar-booking') . '</h1>';
         $repo = new JobRepository();
         $logs = $repo->recentLogs(100);
-        echo '<table class="widefat striped"><thead><tr><th>Zeit</th><th>Booking</th><th>Level</th><th>Meldung</th></tr></thead><tbody>';
+        echo '<table class="widefat striped"><thead><tr>';
+        foreach ([
+            __('Zeit', 'wordpress-calendar-booking'),
+            __('Booking', 'wordpress-calendar-booking'),
+            __('Level', 'wordpress-calendar-booking'),
+            __('Meldung', 'wordpress-calendar-booking'),
+        ] as $heading) {
+            echo '<th>' . esc_html($heading) . '</th>';
+        }
+        echo '</tr></thead><tbody>';
         foreach ($logs as $log) {
             echo '<tr><td>' . esc_html($log->created_at) . '</td><td>' . (int)$log->booking_id . '</td><td>' . esc_html($log->level) . '</td><td>' . esc_html($log->message) . '</td></tr>';
         }
         echo '</tbody></table>';
         $this->formEnd();
     }
+
 }
