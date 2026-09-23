@@ -28,6 +28,28 @@ jobs:
       - name: Check PHP syntax
         run: find . -name '*.php' -not -path './.git/*' -not -path './vendor/*' -print0 | xargs -0 -n1 php -l
 
+  dependency_audit:
+    name: Dependency security audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+          coverage: none
+      - name: Install production PHP dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --no-dev
+      - name: Audit PHP dependencies
+        run: composer audit --no-dev
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install production frontend dependencies
+        run: npm install --ignore-scripts --no-fund
+      - name: Audit frontend dependencies
+        run: npm audit --omit=dev --audit-level=high
+
   wordpress:
     name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }}
     runs-on: ubuntu-latest
@@ -485,7 +507,7 @@ jobs:
   release:
     name: Publish stable release
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: [php, wordpress, fresh_release, legacy_upgrade, browser_release, uninstall_release]
+    needs: [php, dependency_audit, wordpress, fresh_release, legacy_upgrade, browser_release, uninstall_release]
     runs-on: ubuntu-latest
     permissions:
       contents: write
