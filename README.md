@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.svg" alt="Cem Firat logo" width="120" />
+</p>
+
 # WordPress Calendar Booking
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
