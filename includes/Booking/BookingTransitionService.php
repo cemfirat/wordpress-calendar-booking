@@ -53,7 +53,8 @@ final class BookingTransitionService {
                 (string)$booking->slot_start,
                 (string)$booking->slot_end,
                 $bookingId,
-                !empty($booking->resource_id) ? (int)$booking->resource_id : null
+                !empty($booking->resource_id) ? (int)$booking->resource_id : null,
+                max(1, (int)($booking->party_size ?? 1))
             )
         ) {
             return new \WP_Error('wpcb_slot_unavailable', 'The booked slot is no longer available.');
@@ -159,7 +160,8 @@ final class BookingTransitionService {
                 $newStart,
                 $newEnd,
                 $bookingId,
-                $targetResourceId
+                $targetResourceId,
+                max(1, (int)($booking->party_size ?? 1))
             )) {
                 return new \WP_Error('wpcb_slot_unavailable', 'The replacement slot is no longer available.');
             }

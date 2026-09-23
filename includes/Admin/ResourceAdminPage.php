@@ -39,6 +39,7 @@ final class ResourceAdminPage {
                     'slug' => wp_unslash($_POST['slug'] ?? ''),
                     'public_label' => wp_unslash($_POST['public_label'] ?? ''),
                     'description' => wp_unslash($_POST['description'] ?? ''),
+                    'capacity' => max(1, min(10000, absint($_POST['capacity'] ?? 1))),
                     'is_active' => !empty($_POST['is_active']),
                     'is_public' => !empty($_POST['is_public']),
                     'sort_order' => (int)($_POST['sort_order'] ?? 0),
@@ -175,13 +176,14 @@ final class ResourceAdminPage {
 
     private function resourceForm(?object $resource, bool $isDefault): void {
         $id = $resource ? (int)$resource->id : 0;
-        echo '<form method="post" style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto;gap:8px;align-items:end">';
+        echo '<form method="post" style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto auto;gap:8px;align-items:end">';
         wp_nonce_field('wpcb_resource_action');
         echo '<input type="hidden" name="wpcb_resource_action" value="save_resource">';
         echo '<input type="hidden" name="resource_id" value="' . $id . '">';
         echo '<label>Name<br><input class="regular-text" type="text" name="name" required value="' . esc_attr((string)($resource->name ?? '')) . '"></label>';
         echo '<label>Slug<br><input class="regular-text" type="text" name="slug" required value="' . esc_attr((string)($resource->slug ?? '')) . '"></label>';
         echo '<label>Öffentliches Label<br><input class="regular-text" type="text" name="public_label" value="' . esc_attr((string)($resource->public_label ?? '')) . '"></label>';
+        echo '<label>Kapazität<br><input type="number" min="1" max="10000" name="capacity" value="' . esc_attr((string)($resource->capacity ?? 1)) . '"></label>';
         echo '<label>Sortierung<br><input type="number" name="sort_order" value="' . esc_attr((string)($resource->sort_order ?? 0)) . '"></label>';
         echo '<span><label><input type="checkbox" name="is_active" value="1" ' . checked($resource ? (int)$resource->is_active : 1, 1, false) . '> aktiv</label><br>';
         echo '<label><input type="checkbox" name="is_public" value="1" ' . checked($resource ? (int)$resource->is_public : 0, 1, false) . '> öffentlich</label></span>';

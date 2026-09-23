@@ -101,6 +101,8 @@
     body.set('action','wpcb_get_slots');
     body.set('nonce', (window.wpcbFrontend && wpcbFrontend.nonce) || '');
     body.set('type_id', typeId || '');
+    var partySize = q('[data-wpcb-party-size]', form);
+    body.set('party_size', partySize ? partySize.value || '1' : '1');
     fetch((window.wpcbFrontend && wpcbFrontend.ajaxUrl) || '/wp-admin/admin-ajax.php', {
       method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'},
@@ -132,7 +134,18 @@
     var form = closest(e.target, '[data-wpcb-booking-form]');
     if(!form) return;
     if(e.target.matches('[data-wpcb-type-select]')){
+      var partyInput = q('[data-wpcb-party-size]', form);
+      var selected = e.target.options[e.target.selectedIndex];
+      if(partyInput && selected){
+        var cap = parseInt(selected.getAttribute('data-capacity') || '1', 10);
+        partyInput.max = String(Math.max(1, cap));
+        if(parseInt(partyInput.value || '1', 10) > cap) partyInput.value = String(Math.max(1, cap));
+      }
       fillSlots(form, e.target.value, '');
+    }
+    if(e.target.matches('[data-wpcb-party-size]')){
+      var typeSelect = q('[data-wpcb-type-select]', form);
+      if(typeSelect && typeSelect.value) fillSlots(form, typeSelect.value, '');
     }
     updateConditional(form);
   });

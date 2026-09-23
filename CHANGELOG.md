@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.1.0
+
+- Add explicit resources/staff, booking-type assignments and resource-specific availability/exceptions.
+- Route external calendar busy-time blocking and write-back per resource.
+- Narrow reservation serialization to resource-specific locks while preserving post-lock availability revalidation.
+- Add configurable booking-type/resource capacity and participant counts.
+- Keep slots available until seat capacity is exhausted and prevent last-seat overselling under concurrency.
+- Optionally show remaining capacity without exposing other participant identities.
+- Include participant count in administration, mail-template placeholders and ICS descriptions.
+- Add integration and parallel race coverage for resources and group capacity.
+
 ## 3.0.0
 
 - Normalize all historical abbreviated identifiers to the WordPress Calendar Booking naming scheme before first production deployment.

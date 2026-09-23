@@ -3,6 +3,7 @@ namespace Wpcb\Availability;
 
 use Wpcb\Booking\BookingRepository;
 use Wpcb\Booking\BookingTypeRepository;
+use Wpcb\Booking\CapacityService;
 use Wpcb\Calendar\IcloudProvider;
 use Wpcb\Calendar\PublicBusyPresenter;
 use Wpcb\Calendar\ConnectionBusyService;
@@ -17,6 +18,7 @@ class SlotService {
     private PublicBusyPresenter $publicBusy;
     private ConnectionBusyService $connectionBusy;
     private ResourceRepository $resources;
+    private CapacityService $capacity;
 
     public function __construct() {
         $this->repo = new AvailabilityRepository();
@@ -26,6 +28,7 @@ class SlotService {
         $this->publicBusy = new PublicBusyPresenter();
         $this->connectionBusy = new ConnectionBusyService();
         $this->resources = new ResourceRepository();
+        $this->capacity = new CapacityService($this->bookings, $this->types, $this->resources);
     }
 
     /**
@@ -33,7 +36,7 @@ class SlotService {
      * not learn staff/resource names or capacity unless every assigned
      * resource has an explicitly enabled public label.
      */
-    public function getSlots(int $typeId, int $days = 14, ?int $ignoreBookingId = null): array {
+    public function getSlots(int $typeId, int $days = 14, ?int $ignoreBookingId = null, int $partySize = 1): array {
         if (!$this->types->find($typeId)) {
             return [];
         }
@@ -53,7 +56,7 @@ class SlotService {
         $out = [];
         foreach ($resources as $resource) {
             $resourceId = (int)$resource->id;
-            foreach ($this->getSlotsForResource($typeId, $resourceId, $days, $ignoreBookingId) as $slot) {
+            foreach ($this->getSlotsForResource($typeId, $resourceId, $days, $ignoreBookingId, $partySize) as $slot) {
                 if ($exposeResourceLabels) {
                     $slot['resource_label'] = $labels[$resourceId];
                     $slot['label'] .= ' — ' . $labels[$resourceId];
@@ -82,7 +85,8 @@ class SlotService {
         int $typeId,
         int $resourceId,
         int $days = 14,
-        ?int $ignoreBookingId = null
+        ?int $ignoreBookingId = null,
+        int $partySize = 1
     ): array {
         $type = $this->types->find($typeId);
         if (!$type || !$this->resources->isAssignedToBookingType($resourceId, $typeId)) {
@@ -124,7 +128,8 @@ class SlotService {
                         $day->format('Y-m-d'),
                         $calendarEvents,
                         $exceptions,
-                        $ignoreBookingId
+                        $ignoreBookingId,
+                        $partySize
                     )
                 );
             }
@@ -210,7 +215,8 @@ class SlotService {
         string $start,
         string $end,
         ?int $ignoreBookingId = null,
-        ?int $resourceId = null
+        ?int $resourceId = null,
+        int $partySize = 1
     ): bool {
         $startUtc = Time::parseUtc($start);
         $endUtc = Time::parseUtc($end);
@@ -226,8 +232,8 @@ class SlotService {
         }
 
         $slots = $resourceId
-            ? $this->getSlotsForResource($typeId, $resourceId, $daysFromToday + 1, $ignoreBookingId)
-            : $this->getSlots($typeId, $daysFromToday + 1, $ignoreBookingId);
+            ? $this->getSlotsForResource($typeId, $resourceId, $daysFromToday + 1, $ignoreBookingId, $partySize)
+            : $this->getSlots($typeId, $daysFromToday + 1, $ignoreBookingId, $partySize);
 
         foreach ($slots as $slot) {
             if (($slot['start'] ?? null) === $start
@@ -245,7 +251,8 @@ class SlotService {
         string $start,
         string $end,
         ?int $ignoreId = null,
-        ?int $resourceId = null
+        ?int $resourceId = null,
+        int $partySize = 1
     ): bool {
         $type = $this->types->find($typeId);
         if (!$type || !Time::parseUtc($start) || !Time::parseUtc($end)) {
@@ -254,7 +261,7 @@ class SlotService {
 
         if (!$resourceId) {
             foreach ($this->resources->forBookingType($typeId, true) as $resource) {
-                if ($this->slotAvailable($typeId, $start, $end, $ignoreId, (int)$resource->id)) {
+                if ($this->slotAvailable($typeId, $start, $end, $ignoreId, (int)$resource->id, $partySize)) {
                     return true;
                 }
             }
@@ -272,7 +279,7 @@ class SlotService {
             return false;
         }
 
-        if ($this->bookings->hasConflict($bufferedStart, $bufferedEnd, $ignoreId, $resourceId)) {
+        if (!$this->capacity->canFit($typeId, $resourceId, $bufferedStart, $bufferedEnd, max(1, $partySize), $ignoreId)) {
             return false;
         }
 
@@ -295,7 +302,8 @@ class SlotService {
         string $date,
         array $calendarEvents,
         array $exceptions,
-        ?int $ignoreBookingId = null
+        ?int $ignoreBookingId = null,
+        int $partySize = 1
     ): array {
         $duration = (int)($type->duration_minutes ?: $rule->slot_duration_minutes);
         $bufferBefore = (int)($type->buffer_before_minutes ?: $rule->buffer_before_minutes);
@@ -330,12 +338,14 @@ class SlotService {
                 continue;
             }
             if ($this->isBlockedByBookings(
+                (int)$type->id,
                 $slotStart,
                 $slotEnd,
                 $bufferBefore,
                 $bufferAfter,
                 $ignoreBookingId,
-                $resourceId
+                $resourceId,
+                $partySize
             )) {
                 continue;
             }
@@ -343,31 +353,48 @@ class SlotService {
                 continue;
             }
 
-            $free[] = [
+            $slot = [
                 'resource_id' => $resourceId,
                 'start' => $slotStart,
                 'end' => $slotEnd,
                 'label' => $localStart->format('d.m.Y H:i') . ' ' . Time::bookingTimezoneName(),
                 'timezone' => Time::bookingTimezoneName(),
             ];
+            if (!empty($type->show_remaining_capacity)) {
+                $bufferedStart = Time::addMinutes($slotStart, -$bufferBefore);
+                $bufferedEnd = Time::addMinutes($slotEnd, $bufferAfter);
+                if ($bufferedStart && $bufferedEnd) {
+                    $slot['remaining_capacity'] = $this->capacity->remaining(
+                        (int)$type->id,
+                        $resourceId,
+                        $bufferedStart,
+                        $bufferedEnd,
+                        $ignoreBookingId
+                    );
+                    $slot['label'] .= ' — ' . (int)$slot['remaining_capacity'] . ' frei';
+                }
+            }
+            $free[] = $slot;
         }
 
         return $free;
     }
 
     private function isBlockedByBookings(
+        int $typeId,
         string $start,
         string $end,
         int $bufferBefore,
         int $bufferAfter,
         ?int $ignoreBookingId = null,
-        ?int $resourceId = null
+        ?int $resourceId = null,
+        int $partySize = 1
     ): bool {
         $bufferedStart = Time::addMinutes($start, -$bufferBefore);
         $bufferedEnd = Time::addMinutes($end, $bufferAfter);
-        return !$bufferedStart || !$bufferedEnd
+        return !$bufferedStart || !$bufferedEnd || !$resourceId
             ? true
-            : $this->bookings->hasConflict($bufferedStart, $bufferedEnd, $ignoreBookingId, $resourceId);
+            : !$this->capacity->canFit($typeId, $resourceId, $bufferedStart, $bufferedEnd, max(1, $partySize), $ignoreBookingId);
     }
 
     private function isBlockedByCalendar(

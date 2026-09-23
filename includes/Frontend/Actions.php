@@ -55,7 +55,8 @@ class Actions {
         if (!$typeId) {
             wp_send_json_error(['message' => 'Terminart fehlt.'], 400);
         }
-        $slots = (new SlotService())->getSlots($typeId, 21);
+        $partySize = max(1, min(10000, absint($_REQUEST['party_size'] ?? 1)));
+        $slots = (new SlotService())->getSlots($typeId, 21, null, $partySize);
         $tokens = new SlotTokenService();
         $data = array_map(static function ($slot) use ($typeId, $tokens) {
             return [
@@ -108,6 +109,8 @@ class Actions {
         $fullName = $this->formatter->displayName([], $meta);
         if (!$phone && !empty($meta['who_calls']) && $meta['who_calls'] === 'Ich rufe an') $phone = (string)$settings['own_phone'];
 
+        $partySize = max(1, min(10000, absint($_POST['party_size'] ?? 1)));
+
         $bookingId = (new ReservationService())->reserve(
             $slotToken,
             $typeId,
@@ -118,6 +121,7 @@ class Actions {
                 'notes' => isset($meta['message']) ? (string)$meta['message'] : '',
                 'source' => 'frontend',
                 'lang' => 'de',
+                'party_size' => $partySize,
             ],
             $meta
         );
@@ -278,7 +282,8 @@ class Actions {
             $selection = (new SlotSelectionService())->resolve(
                 $newSlotToken,
                 (int)$booking->booking_type_id,
-                (int)$booking->id
+                (int)$booking->id,
+                max(1, (int)($booking->party_size ?? 1))
             );
             if (!$selection) {
                 return new \WP_Error('wpcb_slot_unavailable', 'Der neue Slot ist ungültig, abgelaufen oder nicht mehr verfügbar.');
@@ -342,7 +347,12 @@ class Actions {
                 $this->renderActionScreen('Änderung nicht mehr möglich', 'Die Änderungsfrist für diesen Termin ist abgelaufen.');
             }
 
-            $slots = (new SlotService())->getSlots((int)$booking->booking_type_id, 14, (int)$booking->id);
+            $slots = (new SlotService())->getSlots(
+                (int)$booking->booking_type_id,
+                14,
+                (int)$booking->id,
+                max(1, (int)($booking->party_size ?? 1))
+            );
             if (!$slots) {
                 $this->renderActionScreen('Keine freien Alternativen', 'Aktuell ist kein alternativer Termin verfügbar.');
             }

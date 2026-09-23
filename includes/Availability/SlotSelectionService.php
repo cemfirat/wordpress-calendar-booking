@@ -18,7 +18,7 @@ class SlotSelectionService {
         $this->slots = $slots ?: new SlotService();
     }
 
-    public function resolve(string $token, ?int $expectedTypeId = null, ?int $ignoreBookingId = null): ?array {
+    public function resolve(string $token, ?int $expectedTypeId = null, ?int $ignoreBookingId = null, int $partySize = 1): ?array {
         $payload = $this->tokens->verify($token);
         if (!$payload) {
             return null;
@@ -31,7 +31,8 @@ class SlotSelectionService {
             $payload['start'],
             $payload['end'],
             $ignoreBookingId,
-            (int)$payload['resource_id']
+            (int)$payload['resource_id'],
+            max(1, $partySize)
         )) {
             return null;
         }

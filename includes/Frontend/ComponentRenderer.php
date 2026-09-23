@@ -49,11 +49,28 @@ class ComponentRenderer {
                     <select class="uk-select" id="wpcb_booking_type_id<?php echo $isModal ? '_modal' : ''; ?>" name="booking_type_id" required data-wpcb-type-select>
                         <option value="">Bitte wählen</option>
                         <?php foreach ($types as $type): ?>
-                            <option value="<?php echo esc_attr($type->id); ?>"><?php echo esc_html($type->name); ?></option>
+                            <option value="<?php echo esc_attr($type->id); ?>" data-capacity="<?php echo esc_attr(max(1, (int)($type->capacity ?? 1))); ?>"><?php echo esc_html($type->name); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
             </div>
+
+            <?php
+            $maxPartySize = 1;
+            foreach ($types as $type) {
+                $maxPartySize = max($maxPartySize, max(1, (int)($type->capacity ?? 1)));
+            }
+            ?>
+            <?php if ($maxPartySize > 1): ?>
+                <div class="wpcb-field uk-margin">
+                    <label class="uk-form-label" for="wpcb_party_size<?php echo $isModal ? '_modal' : ''; ?>">Teilnehmer</label>
+                    <div class="uk-form-controls">
+                        <input class="uk-input" type="number" id="wpcb_party_size<?php echo $isModal ? '_modal' : ''; ?>" name="party_size" value="1" min="1" max="<?php echo (int)$maxPartySize; ?>" required data-wpcb-party-size>
+                    </div>
+                </div>
+            <?php else: ?>
+                <input type="hidden" name="party_size" value="1">
+            <?php endif; ?>
 
             <div class="wpcb-field uk-margin">
                 <label class="uk-form-label" for="wpcb_slot_start<?php echo $isModal ? '_modal' : ''; ?>">Startzeit</label>

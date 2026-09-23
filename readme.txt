@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.0.0
+Stable tag: 3.1.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -22,6 +22,11 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.1.0 =
+* Add explicit resource and staff scheduling with resource-specific availability and calendar routing.
+* Add configurable group capacity, participant counts, remaining-capacity display and concurrency-safe seat reservations.
+* Keep capacity 1 equivalent to exclusive single-booking behavior.
 
 = 3.0.0 =
 * Normalize the plugin filename, technical prefix, PHP namespace, hooks, shortcodes, block namespace, database/options prefix and text domain.

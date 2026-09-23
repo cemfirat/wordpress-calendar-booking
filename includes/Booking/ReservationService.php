@@ -16,23 +16,27 @@ class ReservationService {
     private BookingRepository $bookings;
     private SlotSelectionService $selection;
     private ResourceLock $locks;
+    private CapacityService $capacity;
 
     public function __construct(
         ?BookingRepository $bookings = null,
         ?SlotSelectionService $selection = null,
-        ?ResourceLock $locks = null
+        ?ResourceLock $locks = null,
+        ?CapacityService $capacity = null
     ) {
         $this->bookings = $bookings ?: new BookingRepository();
         $this->selection = $selection ?: new SlotSelectionService();
         $this->locks = $locks ?: new ResourceLock();
+        $this->capacity = $capacity ?: new CapacityService($this->bookings);
     }
 
     /**
      * @return int|\WP_Error Booking ID on success.
      */
     public function reserve(string $slotToken, int $expectedTypeId, array $customer, array $meta = []) {
+        $partySize = max(1, (int)($customer['party_size'] ?? 1));
         $initial = $expectedTypeId > 0
-            ? $this->selection->resolve($slotToken, $expectedTypeId)
+            ? $this->selection->resolve($slotToken, $expectedTypeId, null, $partySize)
             : null;
         if (!$initial || empty($initial['resource_id'])) {
             return new \WP_Error('wpcb_slot_unavailable', 'The selected slot is invalid, expired or no longer available.');
@@ -46,9 +50,18 @@ class ReservationService {
         try {
             // The second check is the important one: it runs after all other
             // reservation writers using this service have been serialized.
-            $slot = $this->selection->resolve($slotToken, $expectedTypeId);
+            $slot = $this->selection->resolve($slotToken, $expectedTypeId, null, $partySize);
             if (!$slot) {
                 return new \WP_Error('wpcb_slot_unavailable', 'The selected slot is no longer available.');
+            }
+            if (!$this->capacity->canFit(
+                (int)$slot['type_id'],
+                $resourceId,
+                (string)$slot['start'],
+                (string)$slot['end'],
+                $partySize
+            )) {
+                return new \WP_Error('wpcb_capacity_unavailable', 'The selected slot does not have enough remaining capacity.');
             }
 
             $settings = Settings::get();
@@ -60,6 +73,7 @@ class ReservationService {
                 'slot_start' => (string)$slot['start'],
                 'slot_end' => (string)$slot['end'],
                 'status' => BookingStatus::RESERVED_UNCONFIRMED,
+                'party_size' => $partySize,
                 'full_name' => (string)($customer['full_name'] ?? ''),
                 'email' => (string)($customer['email'] ?? ''),
                 'phone' => (string)($customer['phone'] ?? ''),
