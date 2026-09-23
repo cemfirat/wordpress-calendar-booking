@@ -79,6 +79,34 @@ async function waitForActionMail(action) {
     return actionUrlFromMailbox(action);
 }
 
+function portalLoginUrlFromMailbox() {
+    const messages = mailbox();
+    for (let i = messages.length - 1; i >= 0; i -= 1) {
+        const body = decodeMailHtml(messages[i].message);
+        const matches = body.match(/https?:\/\/[^\s<>"']+/g) || [];
+        for (const raw of matches) {
+            const candidate = raw.replace(/[),.;]+$/, '');
+            try {
+                const url = new URL(candidate);
+                if (url.searchParams.get('wpcb_portal_action') === 'login' && url.searchParams.get('wpcb_token')) {
+                    return url.toString();
+                }
+            } catch {
+                // Ignore unrelated text fragments.
+            }
+        }
+    }
+    return '';
+}
+
+async function waitForPortalLoginMail() {
+    await expect.poll(
+        () => portalLoginUrlFromMailbox(),
+        { timeout: 10000, intervals: [100, 200, 500] }
+    ).not.toBe('');
+    return portalLoginUrlFromMailbox();
+}
+
 async function waitForBookingStatus(status) {
     await expect.poll(
         () => bookingStatus().status || '',
@@ -196,6 +224,7 @@ test('canonical release ZIP passes the complete booking lifecycle in a browser',
         await visitorPage.goto(shortcodeUrl, { waitUntil: 'networkidle' });
         await expect(visitorPage.locator('[data-wpcb-booking-calendar]')).toBeVisible();
         await expect(visitorPage.locator('.wpcb-booking-form-wrap [data-wpcb-booking-form]')).toBeVisible();
+        await expect(visitorPage.locator('.wpcb-portal-login')).toBeVisible();
 
         // The calendar modal is keyboard-operable and restores focus to its trigger.
         const modalTrigger = visitorPage.locator('[data-wpcb-open-toolbar-modal]').first();
@@ -264,6 +293,32 @@ test('canonical release ZIP passes the complete booking lifecycle in a browser',
         ]);
         const confirmed = await waitForBookingStatus('confirmed');
         const originalStart = confirmed.slot_start;
+
+        // Customer portal login is scanner-safe: GET only shows confirmation,
+        // then an explicit POST creates the HttpOnly customer session.
+        await visitorPage.goto(shortcodeUrl, { waitUntil: 'networkidle' });
+        const portalLogin = visitorPage.locator('.wpcb-portal-login form');
+        await portalLogin.locator('input[name="email"]').fill(testEmail);
+        await Promise.all([
+            visitorPage.waitForNavigation(),
+            portalLogin.getByRole('button', { name: 'Anmeldelink senden' }).click(),
+        ]);
+        const portalUrl = await waitForPortalLoginMail();
+        await visitorPage.goto(portalUrl, { waitUntil: 'domcontentloaded' });
+        await expect(visitorPage.getByRole('heading', { name: 'Kundenportal öffnen' })).toBeVisible();
+        await Promise.all([
+            visitorPage.waitForNavigation(),
+            visitorPage.getByRole('button', { name: 'Bestätigen' }).click(),
+        ]);
+        await expect(visitorPage.getByRole('heading', { name: 'Meine Buchungen' })).toBeVisible();
+        await expect(visitorPage.getByText(testEmail)).toBeVisible();
+
+        const logoutForm = visitorPage.locator('form:has(input[name="action"][value="wpcb_portal_logout"])');
+        await Promise.all([
+            visitorPage.waitForNavigation(),
+            logoutForm.getByRole('button', { name: 'Abmelden' }).click(),
+        ]);
+        await expect(visitorPage.locator('.wpcb-portal-login')).toBeVisible();
 
         // Public rendering must stay busy-only and never expose stored customer PII.
         await visitorPage.goto(shortcodeUrl, { waitUntil: 'networkidle' });
