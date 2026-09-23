@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.6.0
+Stable tag: 3.7.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,11 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.7.0 =
+* Add bounded weekly recurring customer booking series.
+* Preserve local wall-clock cadence across DST offset changes with server-side occurrence validation.
+* Add single-occurrence or remaining-series cancellation/rescheduling and all-or-nothing reservation tests.
 
 = 3.6.0 =
 * Add provider-neutral Zoom, Google Meet and Microsoft Teams video meeting integrations.
