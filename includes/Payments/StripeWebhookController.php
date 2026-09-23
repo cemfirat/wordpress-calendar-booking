@@ -37,7 +37,7 @@ final class StripeWebhookController {
             'checkout.session.completed' => (($object['payment_status'] ?? '') === 'paid' ? 'paid' : ''),
             'checkout.session.async_payment_succeeded' => 'paid',
             'checkout.session.expired', 'checkout.session.async_payment_failed' => 'failed',
-            'charge.refunded' => 'refunded',
+            'charge.refunded' => 'refund_total',
             default => '',
         };
         if ($mapped === '') {

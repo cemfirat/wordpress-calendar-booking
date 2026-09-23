@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.17.0
+
+- Add deterministic partial refunds for paid recurring series using the immutable original payment snapshot.
+- Allocate integer minor units across occurrences so all allocations sum exactly to the original charge.
+- Support cancelling one occurrence or the selected occurrence plus the remaining series.
+- Track cumulative refunded and queued refund amounts atomically and prevent refunds beyond the original payment.
+- Serialize provider refund processing per payment and use stable Stripe idempotency keys with explicit partial amounts.
+- Accept cumulative Stripe refund totals idempotently and keep privacy-safe per-occurrence audit context.
+- Show queued/refunded amounts in wp-admin and show customer cancellation scope plus refund preview before mutation.
+
 ## 3.16.0
 
 - Let authenticated booking owners resume pending Stripe Checkout payments from the customer portal.

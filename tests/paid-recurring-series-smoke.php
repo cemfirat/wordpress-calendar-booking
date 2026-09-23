@@ -24,6 +24,7 @@ function wpcb_paid_series_assert($condition, string $message): void {
 
 final class WpcbPaidSeriesAdapter implements PaymentAdapterInterface {
     public array $contexts = [];
+    public array $refundContexts = [];
 
     public function code(): string {
         return 'series_fake';
@@ -38,7 +39,10 @@ final class WpcbPaidSeriesAdapter implements PaymentAdapterInterface {
     }
 
     public function refund(array $context) {
-        return ['provider_event_id' => 'series-refund-' . (int)$context['payment_id']];
+        $this->refundContexts[] = $context;
+        return [
+            'provider_event_id' => 'series-refund-' . (int)$context['payment_id'] . '-' . count($this->refundContexts),
+        ];
     }
 }
 
@@ -130,60 +134,110 @@ wpcb_paid_series_assert(!is_wp_error($confirmed), 'Paid series confirms after ve
 $members = (new BookingSeriesRepository())->members($seriesId, 0);
 wpcb_paid_series_assert(count(array_filter($members, fn($b) => (string)$b->status === BookingStatus::CONFIRMED)) === 3, 'Paid series cannot be partially confirmed.');
 
-$partial = (new BookingTransitionService())->apply(
-    (int)$members[1]->id,
-    BookingStateMachine::USER_CANCELLED,
-    'ci',
-    'Unsupported paid partial cancellation'
+wpcb_paid_series_assert(
+    $payments->refundAmountForBooking((int)$members[0]->id, false) === 2500,
+    'Single-occurrence refund preview uses the immutable per-occurrence allocation.'
 );
 wpcb_paid_series_assert(
-    is_wp_error($partial) && $partial->get_error_code() === 'wpcb_paid_series_partial_refund_unsupported',
-    'Single-occurrence cancellation of a paid series fails closed.'
+    $payments->refundAmountForBooking((int)$members[0]->id, true) === 7500,
+    'Remaining-series refund preview sums only active occurrence allocations.'
+);
+
+$partial = (new BookingTransitionService())->apply(
+    (int)$members[0]->id,
+    BookingStateMachine::USER_CANCELLED,
+    'ci',
+    'Cancel one paid series occurrence'
+);
+wpcb_paid_series_assert(!is_wp_error($partial) && !empty($partial['changed']), 'Single-occurrence cancellation of a paid series succeeds.');
+
+$partialPending = $payments->paymentForBooking((int)$members[1]->id);
+wpcb_paid_series_assert(
+    $partialPending
+    && (string)$partialPending->status === PaymentStatus::REFUND_PENDING
+    && (int)$partialPending->refund_pending_minor === 2500
+    && (int)$partialPending->refunded_minor === 0,
+    'Single cancellation queues exactly one occurrence allocation.'
+);
+
+$partialRefunded = $payments->refund((int)$partialPending->id, $adapter);
+wpcb_paid_series_assert(
+    !is_wp_error($partialRefunded)
+    && (string)$partialRefunded->status === PaymentStatus::PAID
+    && (int)$partialRefunded->refunded_minor === 2500
+    && (int)$partialRefunded->refund_pending_minor === 0,
+    'Partial refund returns the payment to paid with cumulative refunded amount preserved.'
+);
+wpcb_paid_series_assert(
+    (int)$adapter->refundContexts[0]['amount_minor'] === 2500,
+    'Payment adapter receives only the queued partial refund amount.'
+);
+
+$members = (new BookingSeriesRepository())->members($seriesId, 0);
+wpcb_paid_series_assert((string)$members[0]->status === BookingStatus::CANCELLED, 'Only the selected occurrence is cancelled by the single-occurrence action.');
+wpcb_paid_series_assert(
+    $payments->refundAmountForBooking((int)$members[1]->id, true) === 5000,
+    'Remaining-series preview excludes the already cancelled/refunded occurrence.'
 );
 
 $remainingPartial = $seriesService->applyRemaining(
     (int)$members[1]->id,
     BookingStateMachine::USER_CANCELLED,
     'ci',
-    'Unsupported paid remaining-series cancellation'
+    'Cancel remaining paid series'
 );
-wpcb_paid_series_assert(
-    is_wp_error($remainingPartial) && $remainingPartial->get_error_code() === 'wpcb_paid_series_partial_refund_unsupported',
-    'Partial remaining-series cancellation of a paid series fails closed.'
-);
+wpcb_paid_series_assert(!is_wp_error($remainingPartial), 'Remaining paid-series cancellation succeeds after a previous partial refund.');
 
-
-$partialReject = (new BookingTransitionService())->apply(
-    (int)$members[1]->id,
-    BookingStateMachine::ADMIN_REJECTED,
-    'ci',
-    'Unsupported paid partial rejection'
-);
-wpcb_paid_series_assert(
-    is_wp_error($partialReject) && $partialReject->get_error_code() === 'wpcb_paid_series_partial_refund_unsupported',
-    'Single-occurrence rejection of a paid series fails closed before any refund state can be created.'
-);
-
-$cancelled = $seriesService->applyRemaining(
-    (int)$members[0]->id,
-    BookingStateMachine::USER_CANCELLED,
-    'ci',
-    'Cancel complete paid recurring series'
-);
-wpcb_paid_series_assert(!is_wp_error($cancelled), 'Complete paid series can be cancelled from its first occurrence.');
 $members = (new BookingSeriesRepository())->members($seriesId, 0);
-wpcb_paid_series_assert(count(array_filter($members, fn($b) => (string)$b->status === BookingStatus::CANCELLED)) === 3, 'Complete paid-series cancellation affects every occurrence.');
+wpcb_paid_series_assert(
+    count(array_filter($members, fn($b) => (string)$b->status === BookingStatus::CANCELLED)) === 3,
+    'Single plus remaining-series cancellation covers every occurrence exactly once.'
+);
+$seriesState = (new BookingSeriesRepository())->find($seriesId);
+wpcb_paid_series_assert($seriesState && (string)$seriesState->status === 'cancelled', 'Series status becomes cancelled when all occurrences are cancelled.');
 
-$refundPending = $payments->paymentForBooking((int)$members[2]->id);
-wpcb_paid_series_assert($refundPending && (string)$refundPending->status === PaymentStatus::REFUND_PENDING, 'Complete paid-series cancellation creates one full refund obligation.');
-$refunded = $payments->refund((int)$refundPending->id, $adapter);
-wpcb_paid_series_assert(!is_wp_error($refunded) && (string)$refunded->status === PaymentStatus::REFUNDED, 'Full series payment refunds idempotently through the payment adapter.');
+$remainingPending = $payments->paymentForBooking((int)$members[2]->id);
+wpcb_paid_series_assert(
+    $remainingPending
+    && (string)$remainingPending->status === PaymentStatus::REFUND_PENDING
+    && (int)$remainingPending->refund_pending_minor === 5000
+    && (int)$remainingPending->refunded_minor === 2500,
+    'Remaining cancellation queues only the two still-unrefunded allocations.'
+);
+$fullyRefunded = $payments->refund((int)$remainingPending->id, $adapter);
+wpcb_paid_series_assert(
+    !is_wp_error($fullyRefunded)
+    && (string)$fullyRefunded->status === PaymentStatus::REFUNDED
+    && (int)$fullyRefunded->refunded_minor === 7500
+    && (int)$fullyRefunded->refund_pending_minor === 0,
+    'Final partial refund reaches the exact original series total without over-refunding.'
+);
+wpcb_paid_series_assert(
+    count($adapter->refundContexts) === 2
+    && (int)$adapter->refundContexts[1]['amount_minor'] === 5000,
+    'Remaining-series refund is sent as one bounded provider refund.'
+);
 
-$contexts = $wpdb->get_col($wpdb->prepare(
-    "SELECT context FROM {$wpdb->prefix}wpcb_booking_status_log WHERE booking_id = %d ORDER BY id ASC",
-    (int)$members[2]->id
-));
-wpcb_paid_series_assert(in_array('payment_paid', $contexts, true) && in_array('payment_refund_pending', $contexts, true) && in_array('payment_refunded', $contexts, true), 'Each occurrence receives privacy-safe series payment audit events.');
+$overRefund = $payments->applyProviderEvent(
+    'series_fake',
+    'series-refund-too-large',
+    (string)$fullyRefunded->provider_reference,
+    'refunded',
+    1,
+    'EUR'
+);
+wpcb_paid_series_assert(is_wp_error($overRefund), 'Refund processing rejects any amount beyond the immutable original payment total.');
+
+foreach ($members as $member) {
+    $contexts = $wpdb->get_col($wpdb->prepare(
+        "SELECT context FROM {$wpdb->prefix}wpcb_booking_status_log WHERE booking_id = %d ORDER BY id ASC",
+        (int)$member->id
+    ));
+    wpcb_paid_series_assert(
+        in_array('payment_paid', $contexts, true) && in_array('payment_refund_pending', $contexts, true),
+        'Every cancelled occurrence receives privacy-safe payment audit context.'
+    );
+}
 
 function wpcb_paid_series_cleanup(int $seriesId): void {
     global $wpdb;

@@ -128,6 +128,94 @@ final class PaymentRepository {
         );
     }
 
+    public function queueRefund(int $paymentId, int $amountMinor): bool {
+        global $wpdb;
+        if ($paymentId < 1 || $amountMinor < 1) {
+            return false;
+        }
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$this->table}
+             SET refund_pending_minor = refund_pending_minor + %d,
+                 status = %s,
+                 updated_at = %s
+             WHERE id = %d
+               AND status IN (%s, %s)
+               AND refunded_minor + refund_pending_minor + %d <= amount_minor",
+            $amountMinor,
+            PaymentStatus::REFUND_PENDING,
+            Time::formatUtc(Time::nowUtc()),
+            $paymentId,
+            PaymentStatus::PAID,
+            PaymentStatus::REFUND_PENDING,
+            $amountMinor
+        ));
+        return $updated === 1;
+    }
+
+    public function completeRefund(int $paymentId, int $amountMinor): bool {
+        global $wpdb;
+        if ($paymentId < 1 || $amountMinor < 1) {
+            return false;
+        }
+        $payment = $this->find($paymentId);
+        if (!$payment || (string)$payment->status !== PaymentStatus::REFUND_PENDING) {
+            return false;
+        }
+        $refunded = (int)($payment->refunded_minor ?? 0);
+        $pending = (int)($payment->refund_pending_minor ?? 0);
+        $total = (int)$payment->amount_minor;
+        if ($pending < $amountMinor || $refunded + $amountMinor > $total) {
+            return false;
+        }
+
+        $nextRefunded = $refunded + $amountMinor;
+        $nextPending = $pending - $amountMinor;
+        $nextStatus = $nextRefunded >= $total
+            ? PaymentStatus::REFUNDED
+            : ($nextPending > 0 ? PaymentStatus::REFUND_PENDING : PaymentStatus::PAID);
+        $now = Time::formatUtc(Time::nowUtc());
+        $fields = [
+            'refunded_minor' => $nextRefunded,
+            'refund_pending_minor' => $nextPending,
+            'status' => $nextStatus,
+            'updated_at' => $now,
+        ];
+        if ($nextStatus === PaymentStatus::REFUNDED) {
+            $fields['refunded_at'] = $now;
+        }
+        return 1 === $wpdb->update(
+            $this->table,
+            $fields,
+            [
+                'id' => $paymentId,
+                'status' => PaymentStatus::REFUND_PENDING,
+                'refunded_minor' => $refunded,
+                'refund_pending_minor' => $pending,
+            ]
+        );
+    }
+
+    public function syncRefundTotal(int $paymentId, int $totalRefundedMinor): bool {
+        global $wpdb;
+        $payment = $this->find($paymentId);
+        if (!$payment || $totalRefundedMinor < 0 || $totalRefundedMinor > (int)$payment->amount_minor) {
+            return false;
+        }
+        $currentRefunded = (int)($payment->refunded_minor ?? 0);
+        if ($totalRefundedMinor < $currentRefunded) {
+            return false;
+        }
+        $delta = $totalRefundedMinor - $currentRefunded;
+        $currentPending = (int)($payment->refund_pending_minor ?? 0);
+        if ($delta > $currentPending) {
+            return false;
+        }
+        if ($delta === 0) {
+            return true;
+        }
+        return $this->completeRefund($paymentId, $delta);
+    }
+
     public function setStatus(int $paymentId, string $expected, string $status): bool {
         global $wpdb;
         if (!in_array($expected, PaymentStatus::all(), true) || !in_array($status, PaymentStatus::all(), true)) {
@@ -189,8 +277,9 @@ final class PaymentRepository {
     public function recent(int $limit = 200): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
-            "SELECT id, payment_uuid, booking_id, provider, amount_minor, currency, status,
-                    expires_at, paid_at, refunded_at, created_at, updated_at
+            "SELECT id, payment_uuid, booking_id, provider, amount_minor, refunded_minor,
+                    refund_pending_minor, currency, status, expires_at, paid_at, refunded_at,
+                    created_at, updated_at
              FROM {$this->table} ORDER BY id DESC LIMIT %d",
             max(1, min(500, $limit))
         ));
