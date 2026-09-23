@@ -33,6 +33,7 @@ class Settings {
             'show_calendar_limit' => 20,
             'retention_enabled' => 0,
             'retention_days' => 365,
+            'delete_data_on_uninstall' => 0,
             'visit_address' => '',
             'own_phone' => '',
             'icloud_sync_enabled' => 0,
