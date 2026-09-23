@@ -6,6 +6,7 @@ use Wpcb\Availability\SlotService;
 use Wpcb\Tokens\SlotTokenService;
 use Wpcb\Resources\ResourceLock;
 use Wpcb\Support\Time;
+use Wpcb\Payments\PaymentService;
 
 final class RecurringBookingService {
     private BookingRepository $bookings;
@@ -53,13 +54,6 @@ final class RecurringBookingService {
         if (!$type) {
             return new \WP_Error('wpcb_series_type_missing', 'Booking type not found.');
         }
-        if ((string)($type->payment_mode ?? 'free') !== 'free') {
-            return new \WP_Error(
-                'wpcb_series_payment_unsupported',
-                'Recurring bookings are currently available only for booking types without payment.'
-            );
-        }
-
         $anchor = $this->tokens->verify($slotToken);
         if (!$anchor || (int)$anchor['type_id'] !== $typeId) {
             return new \WP_Error('wpcb_series_anchor_invalid', 'The first recurring slot is invalid or expired.');
@@ -183,11 +177,31 @@ final class RecurringBookingService {
         $members = $this->series->members((int)$booking->series_id, (int)$booking->series_occurrence);
         $transitions = new BookingTransitionService($this->bookings);
         $changed = [];
+        $isCancellation = in_array($event, [
+            BookingStateMachine::USER_CANCELLED,
+            BookingStateMachine::ADMIN_CANCELLED,
+        ], true);
+        $allowPaidSeriesCancellation = false;
+        if ($isCancellation) {
+            $validation = (new PaymentService())->validateSeriesCancellation($bookingId, true);
+            if (is_wp_error($validation)) {
+                return $validation;
+            }
+            $type = $this->types->find((int)$booking->booking_type_id);
+            $allowPaidSeriesCancellation = $type
+                && (string)($type->payment_mode ?? 'free') === 'required';
+        }
         foreach ($members as $member) {
             if (in_array((string)$member->status, BookingStatus::terminalStatuses(), true)) {
                 continue;
             }
-            $result = $transitions->apply((int)$member->id, $event, $actor, $note);
+            $result = $transitions->apply(
+                (int)$member->id,
+                $event,
+                $actor,
+                $note,
+                $allowPaidSeriesCancellation
+            );
             if (is_wp_error($result)) {
                 return $result;
             }
@@ -196,8 +210,13 @@ final class RecurringBookingService {
             }
         }
 
-        if ($event === BookingStateMachine::USER_CANCELLED || $event === BookingStateMachine::ADMIN_CANCELLED) {
-            $this->series->markStatus((int)$booking->series_id, 'partially_cancelled');
+        if ($isCancellation) {
+            $this->series->markStatus(
+                (int)$booking->series_id,
+                (int)$booking->series_occurrence === 0 ? 'cancelled' : 'partially_cancelled'
+            );
+        } elseif ($event === BookingStateMachine::RESERVATION_EXPIRED) {
+            $this->series->markStatus((int)$booking->series_id, 'expired');
         }
         return ['series_id' => (int)$booking->series_id, 'changed_booking_ids' => $changed];
     }
