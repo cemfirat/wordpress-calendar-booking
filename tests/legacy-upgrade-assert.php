@@ -40,6 +40,10 @@ wpcb_legacy_assert((int)get_option('wpcb_token_storage_version', 0) === Wpcb\Tok
 wpcb_legacy_assert((int)get_option('wpcb_secret_storage_version', 0) === Wpcb\Security\SecretMigration::currentVersion(), 'Legacy secret storage migration is complete.');
 wpcb_legacy_assert((int)get_option('wpcb_time_storage_version', 0) >= 2, 'Legacy time storage migration is complete.');
 wpcb_legacy_assert((int)get_option('wpcb_booking_status_version', 0) >= 2, 'Legacy booking status migration is complete.');
+wpcb_legacy_assert((int)get_option('wpcb_resource_model_version', 0) === Wpcb\Resources\ResourceMigration::currentVersion(), 'Legacy resource model migration is complete.');
+$default_resource_id = (int)get_option('wpcb_default_resource_id', 0);
+wpcb_legacy_assert($default_resource_id > 0, 'Legacy migration creates a default resource.');
+wpcb_legacy_assert((int)$booking->resource_id === $default_resource_id, 'Legacy booking is assigned to the default resource.');
 
 wpcb_legacy_assert(class_exists('Sabre\\VObject\\Reader'), 'Upgrade ZIP contains Composer runtime dependencies.');
 wpcb_legacy_assert(is_file(WPCB_DIR . 'assets/vendor/uikit/uikit.min.css'), 'Upgrade ZIP contains built UIkit fallback assets.');
