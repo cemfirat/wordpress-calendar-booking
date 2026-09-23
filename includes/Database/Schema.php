@@ -14,6 +14,8 @@ class Schema {
             booking_uuid varchar(64) NOT NULL,
             booking_type_id bigint unsigned NOT NULL,
             resource_id bigint unsigned DEFAULT NULL,
+            series_id bigint unsigned DEFAULT NULL,
+            series_occurrence int DEFAULT NULL,
             slot_start datetime NOT NULL,
             slot_end datetime NOT NULL,
             status varchar(50) NOT NULL,
@@ -38,7 +40,26 @@ class Schema {
             KEY slot_end (slot_end),
             KEY booking_type_id (booking_type_id),
             KEY resource_id (resource_id),
+            KEY series_occurrence (series_id, series_occurrence),
             KEY reserved_until (reserved_until)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}booking_series (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            series_uuid varchar(64) NOT NULL,
+            booking_type_id bigint unsigned NOT NULL,
+            resource_id bigint unsigned NOT NULL,
+            frequency varchar(20) NOT NULL DEFAULT 'weekly',
+            interval_count int NOT NULL DEFAULT 1,
+            occurrence_count int NOT NULL,
+            timezone varchar(100) NOT NULL,
+            status varchar(30) NOT NULL DEFAULT 'active',
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY series_uuid (series_uuid),
+            KEY type_resource (booking_type_id, resource_id),
+            KEY status (status)
         ) {$charset};";
 
         $sql[] = "CREATE TABLE {$prefix}booking_meta (
