@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.15.0
+Stable tag: 3.16.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,11 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.16.0 =
+* Let authenticated customers safely resume pending Stripe Checkout payments from the customer portal.
+* Reuse an open Stripe Checkout Session and replace an expired session on the same payment obligation.
+* Serialize checkout preparation and reject resume after settlement or local reservation expiry.
 
 = 3.15.0 =
 * Add one upfront server-calculated payment obligation for bounded recurring booking series.

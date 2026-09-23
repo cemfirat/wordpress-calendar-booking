@@ -114,3 +114,9 @@ Completed.
 - server-authoritative series amount/currency snapshot
 - series-wide payment confirmation and expiry
 - full-series cancellation/refund with partial-refund scopes failing closed
+
+
+### 3.16
+- authenticated customer-portal Stripe Checkout resume
+- reuse open provider sessions and atomically replace expired ones
+- serialized checkout preparation with settlement/expiry fail-closed behavior

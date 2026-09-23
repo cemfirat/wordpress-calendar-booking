@@ -100,6 +100,34 @@ final class PaymentRepository {
         return $updated === 1 || ($updated === 0 && ($p = $this->find($paymentId)) && (string)$p->provider === $provider && (string)$p->provider_reference === $reference);
     }
 
+    public function replaceProviderReference(int $paymentId, string $provider, string $expectedReference, string $newReference): bool {
+        global $wpdb;
+        $provider = sanitize_key($provider);
+        $expectedReference = sanitize_text_field($expectedReference);
+        $newReference = sanitize_text_field($newReference);
+        if ($paymentId < 1 || $provider === '' || $expectedReference === '' || $newReference === '') {
+            return false;
+        }
+        $updated = $wpdb->query($wpdb->prepare(
+            "UPDATE {$this->table}
+             SET provider_reference = %s, updated_at = %s
+             WHERE id = %d AND status = %s AND provider = %s AND provider_reference = %s",
+            $newReference,
+            Time::formatUtc(Time::nowUtc()),
+            $paymentId,
+            PaymentStatus::PENDING,
+            $provider,
+            $expectedReference
+        ));
+        return $updated === 1 || (
+            $updated === 0
+            && ($payment = $this->find($paymentId))
+            && (string)$payment->status === PaymentStatus::PENDING
+            && (string)$payment->provider === $provider
+            && (string)$payment->provider_reference === $newReference
+        );
+    }
+
     public function setStatus(int $paymentId, string $expected, string $status): bool {
         global $wpdb;
         if (!in_array($expected, PaymentStatus::all(), true) || !in_array($status, PaymentStatus::all(), true)) {

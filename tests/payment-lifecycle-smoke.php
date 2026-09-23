@@ -52,7 +52,7 @@ $bookingId = $bookings->create([
     'resource_id' => $resourceId,
     'slot_start' => '2034-03-10 10:00:00',
     'slot_end' => '2034-03-10 10:30:00',
-    'status' => Wpcb\Booking\BookingStatus::CONFIRMED,
+    'status' => Wpcb\Booking\BookingStatus::RESERVED_UNCONFIRMED,
     'party_size' => 1,
     'full_name' => 'Payment Person',
     'email' => 'payment@example.com',
@@ -120,6 +120,13 @@ wpcb_payment_assert(is_object($paid) && $paid->status === 'paid', 'Verified prov
 $retry = $service->applyProviderEvent('fake', 'evt-paid-1', (string)$started->provider_reference, 'paid', 12900, 'EUR');
 wpcb_payment_assert(is_object($retry) && $retry->status === 'paid', 'Duplicate provider callback is idempotent.');
 wpcb_payment_assert($service->canConfirm($bookingId), 'Paid booking is eligible for customer confirmation.');
+$confirmed = (new Wpcb\Booking\BookingTransitionService())->apply(
+    $bookingId,
+    Wpcb\Booking\BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC,
+    'test',
+    'Payment confirmation fixture'
+);
+wpcb_payment_assert(is_array($confirmed) && !empty($confirmed['changed']), 'Paid reserved booking can transition to confirmed.');
 
 $cancelled = (new Wpcb\Booking\BookingTransitionService())->apply(
     $bookingId,

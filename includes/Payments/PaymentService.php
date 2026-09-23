@@ -8,6 +8,7 @@ use Wpcb\Booking\BookingStateMachine;
 use Wpcb\Booking\BookingStatus;
 use Wpcb\Booking\BookingTransitionService;
 use Wpcb\Booking\BookingTypeRepository;
+use Wpcb\Support\Time;
 
 final class PaymentService {
     private PaymentRepository $payments;
@@ -128,25 +129,67 @@ final class PaymentService {
         if ((string)$payment->status !== PaymentStatus::PENDING) {
             return $payment;
         }
-        $result = $adapter->createPayment([
-            'payment_id' => (int)$payment->id,
-            'payment_uuid' => (string)$payment->payment_uuid,
-            'amount_minor' => (int)$payment->amount_minor,
-            'currency' => (string)$payment->currency,
-            'expires_at' => (string)$payment->expires_at,
-        ]);
-        if (is_wp_error($result)) {
-            return $result;
+
+        $lockName = 'wpcb_pay_checkout_' . (int)$payment->id;
+        if (!$this->acquireLock($lockName, 5)) {
+            return new \WP_Error('wpcb_payment_checkout_busy', 'Payment checkout is already being prepared.');
         }
-        $reference = sanitize_text_field((string)($result['provider_reference'] ?? ''));
-        if ($reference === '' || !$this->payments->attachProvider((int)$payment->id, $adapter->code(), $reference)) {
-            return new \WP_Error('wpcb_payment_provider_reference', 'Payment provider reference could not be stored.');
+
+        try {
+            $payment = $this->payments->find((int)$payment->id);
+            if (!$payment || (string)$payment->status !== PaymentStatus::PENDING) {
+                return $payment ?: new \WP_Error('wpcb_payment_missing', 'Payment no longer exists.');
+            }
+            $expiresAt = Time::parseUtc((string)($payment->expires_at ?? ''));
+            $ownerBooking = $this->bookings->find((int)$payment->booking_id);
+            $bookingExpiresAt = $ownerBooking ? Time::parseUtc((string)($ownerBooking->reserved_until ?? '')) : null;
+            if (!$expiresAt || $expiresAt <= Time::nowUtc()
+                || !$ownerBooking || (string)$ownerBooking->status !== BookingStatus::RESERVED_UNCONFIRMED
+                || !$bookingExpiresAt || $bookingExpiresAt <= Time::nowUtc()
+            ) {
+                return new \WP_Error('wpcb_payment_expired', 'Payment reservation has expired.');
+            }
+
+            $result = $adapter->createPayment([
+                'payment_id' => (int)$payment->id,
+                'payment_uuid' => (string)$payment->payment_uuid,
+                'amount_minor' => (int)$payment->amount_minor,
+                'currency' => (string)$payment->currency,
+                'expires_at' => (string)$payment->expires_at,
+                'provider_reference' => (string)($payment->provider_reference ?? ''),
+            ]);
+            if (is_wp_error($result)) {
+                return $result;
+            }
+            $reference = sanitize_text_field((string)($result['provider_reference'] ?? ''));
+            $oldReference = sanitize_text_field((string)($payment->provider_reference ?? ''));
+            $provider = sanitize_key($adapter->code());
+            if ($reference === '') {
+                return new \WP_Error('wpcb_payment_provider_reference', 'Payment provider reference could not be stored.');
+            }
+            if ($oldReference === '') {
+                $storedReference = $this->payments->attachProvider((int)$payment->id, $provider, $reference);
+            } elseif (hash_equals($oldReference, $reference)) {
+                $storedReference = true;
+            } else {
+                $storedReference = $this->payments->replaceProviderReference(
+                    (int)$payment->id,
+                    $provider,
+                    $oldReference,
+                    $reference
+                );
+            }
+            if (!$storedReference) {
+                return new \WP_Error('wpcb_payment_provider_reference', 'Payment provider reference could not be stored.');
+            }
+            $stored = $this->payments->find((int)$payment->id);
+            if ($stored && !empty($result['checkout_url'])) {
+                $stored->checkout_url = esc_url_raw((string)$result['checkout_url']);
+            }
+            return $stored;
+        } finally {
+            $this->releaseLock($lockName);
         }
-        $stored = $this->payments->find((int)$payment->id);
-        if ($stored && !empty($result['checkout_url'])) {
-            $stored->checkout_url = esc_url_raw((string)$result['checkout_url']);
-        }
-        return $stored;
     }
 
     /**
@@ -272,6 +315,18 @@ final class PaymentService {
             $this->payments->setStatus((int)$payment->id, PaymentStatus::PAID, PaymentStatus::REFUND_PENDING);
             $this->logScopeEvent($booking, 'payment_refund_pending', 'Booking lifecycle requires payment refund');
         }
+    }
+
+    private function acquireLock(string $name, int $timeoutSeconds): bool {
+        global $wpdb;
+        return 1 === (int)$wpdb->get_var(
+            $wpdb->prepare('SELECT GET_LOCK(%s, %d)', $name, max(0, $timeoutSeconds))
+        );
+    }
+
+    private function releaseLock(string $name): void {
+        global $wpdb;
+        $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $name));
     }
 
     public function refund(int $paymentId, PaymentAdapterInterface $adapter) {

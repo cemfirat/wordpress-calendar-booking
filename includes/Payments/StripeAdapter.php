@@ -21,10 +21,37 @@ final class StripeAdapter implements PaymentAdapterInterface {
         }
 
         $paymentUuid = sanitize_text_field((string)($context['payment_uuid'] ?? ''));
+        $existingReference = sanitize_text_field((string)($context['provider_reference'] ?? ''));
         $amount = (int)($context['amount_minor'] ?? 0);
         $currency = strtolower(sanitize_text_field((string)($context['currency'] ?? '')));
         if ($paymentUuid === '' || $amount < 1 || !preg_match('/^[a-z]{3}$/', $currency)) {
             return new \WP_Error('wpcb_stripe_context_invalid', 'Stripe checkout context is invalid.');
+        }
+
+        if ($existingReference !== '') {
+            $existing = $this->request(
+                'GET',
+                '/v1/checkout/sessions/' . rawurlencode($existingReference),
+                [],
+                $secret
+            );
+            if (is_wp_error($existing)) {
+                return $existing;
+            }
+            $status = sanitize_key((string)($existing['status'] ?? ''));
+            if ($status === 'open') {
+                $url = $this->checkoutUrl((string)($existing['url'] ?? ''));
+                if ($url === '') {
+                    return new \WP_Error('wpcb_stripe_checkout_invalid', 'Stripe returned an invalid checkout session.');
+                }
+                return [
+                    'provider_reference' => $existingReference,
+                    'checkout_url' => $url,
+                ];
+            }
+            if ($status !== 'expired') {
+                return new \WP_Error('wpcb_stripe_checkout_not_resumable', 'Stripe checkout cannot be resumed yet.');
+            }
         }
 
         $body = [
@@ -51,9 +78,8 @@ final class StripeAdapter implements PaymentAdapterInterface {
             return $result;
         }
         $reference = sanitize_text_field((string)($result['id'] ?? ''));
-        $url = esc_url_raw((string)($result['url'] ?? ''));
-        $host = strtolower((string)wp_parse_url($url, PHP_URL_HOST));
-        if ($reference === '' || $url === '' || ($host !== 'checkout.stripe.com' && !str_ends_with($host, '.stripe.com'))) {
+        $url = $this->checkoutUrl((string)($result['url'] ?? ''));
+        if ($reference === '' || $url === '') {
             return new \WP_Error('wpcb_stripe_checkout_invalid', 'Stripe returned an invalid checkout session.');
         }
 
@@ -91,6 +117,14 @@ final class StripeAdapter implements PaymentAdapterInterface {
             return new \WP_Error('wpcb_stripe_refund_invalid', 'Stripe returned an invalid refund.');
         }
         return ['provider_event_id' => 'stripe-refund:' . $refundId];
+    }
+
+    private function checkoutUrl(string $value): string {
+        $url = esc_url_raw($value);
+        $host = strtolower((string)wp_parse_url($url, PHP_URL_HOST));
+        return $url !== '' && ($host === 'checkout.stripe.com' || str_ends_with($host, '.stripe.com'))
+            ? $url
+            : '';
     }
 
     private function request(string $method, string $path, array $body, string $secret) {
