@@ -1,5 +1,21 @@
 # Architecture
 
+## Naming convention
+
+The canonical product name is **WordPress Calendar Booking** and the canonical plugin slug/text domain is `wordpress-calendar-booking`.
+
+Technical identifiers use one derived prefix consistently:
+
+- PHP namespace: `Wpcb\\...`
+- PHP constants: `WPCB_*`
+- WordPress hooks, options, cron events and database tables: `wpcb_*`
+- frontend handles, CSS classes and data attributes: `wpcb-*`
+- Gutenberg block namespace: `wpcb/*`
+- shortcodes: `wpcb_*`
+- main plugin file: `wordpress-calendar-booking.php`
+
+Do not introduce a second product abbreviation or identifier prefix.
+
 ## Core rule
 
 The booking domain owns availability. Calendar providers only contribute busy intervals and optional write-back events.
