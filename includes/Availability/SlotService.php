@@ -36,7 +36,7 @@ class SlotService {
      * not learn staff/resource names or capacity unless every assigned
      * resource has an explicitly enabled public label.
      */
-    public function getSlots(int $typeId, int $days = 14, ?int $ignoreBookingId = null): array {
+    public function getSlots(int $typeId, int $days = 14, ?int $ignoreBookingId = null, int $partySize = 1): array {
         if (!$this->types->find($typeId)) {
             return [];
         }
@@ -56,7 +56,7 @@ class SlotService {
         $out = [];
         foreach ($resources as $resource) {
             $resourceId = (int)$resource->id;
-            foreach ($this->getSlotsForResource($typeId, $resourceId, $days, $ignoreBookingId) as $slot) {
+            foreach ($this->getSlotsForResource($typeId, $resourceId, $days, $ignoreBookingId, $partySize) as $slot) {
                 if ($exposeResourceLabels) {
                     $slot['resource_label'] = $labels[$resourceId];
                     $slot['label'] .= ' — ' . $labels[$resourceId];
@@ -85,7 +85,8 @@ class SlotService {
         int $typeId,
         int $resourceId,
         int $days = 14,
-        ?int $ignoreBookingId = null
+        ?int $ignoreBookingId = null,
+        int $partySize = 1
     ): array {
         $type = $this->types->find($typeId);
         if (!$type || !$this->resources->isAssignedToBookingType($resourceId, $typeId)) {
@@ -127,7 +128,8 @@ class SlotService {
                         $day->format('Y-m-d'),
                         $calendarEvents,
                         $exceptions,
-                        $ignoreBookingId
+                        $ignoreBookingId,
+                        $partySize
                     )
                 );
             }
@@ -213,7 +215,8 @@ class SlotService {
         string $start,
         string $end,
         ?int $ignoreBookingId = null,
-        ?int $resourceId = null
+        ?int $resourceId = null,
+        int $partySize = 1
     ): bool {
         $startUtc = Time::parseUtc($start);
         $endUtc = Time::parseUtc($end);
@@ -299,7 +302,8 @@ class SlotService {
         string $date,
         array $calendarEvents,
         array $exceptions,
-        ?int $ignoreBookingId = null
+        ?int $ignoreBookingId = null,
+        int $partySize = 1
     ): array {
         $duration = (int)($type->duration_minutes ?: $rule->slot_duration_minutes);
         $bufferBefore = (int)($type->buffer_before_minutes ?: $rule->buffer_before_minutes);
@@ -340,7 +344,8 @@ class SlotService {
                 $bufferBefore,
                 $bufferAfter,
                 $ignoreBookingId,
-                $resourceId
+                $resourceId,
+                $partySize
             )) {
                 continue;
             }
@@ -388,7 +393,7 @@ class SlotService {
         $bufferedEnd = Time::addMinutes($end, $bufferAfter);
         return !$bufferedStart || !$bufferedEnd || !$resourceId
             ? true
-            : !$this->capacity->canFit($typeId, $resourceId, $bufferedStart, $bufferedEnd, 1, $ignoreBookingId);
+            : !$this->capacity->canFit($typeId, $resourceId, $bufferedStart, $bufferedEnd, max(1, $partySize), $ignoreBookingId);
     }
 
     private function isBlockedByCalendar(
