@@ -108,6 +108,8 @@ class Actions {
         $fullName = $this->formatter->displayName([], $meta);
         if (!$phone && !empty($meta['who_calls']) && $meta['who_calls'] === 'Ich rufe an') $phone = (string)$settings['own_phone'];
 
+        $partySize = max(1, min(10000, absint($_POST['party_size'] ?? 1)));
+
         $bookingId = (new ReservationService())->reserve(
             $slotToken,
             $typeId,
