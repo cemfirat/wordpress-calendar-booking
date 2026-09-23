@@ -15,6 +15,7 @@ use Wpcb\Reliability\SchedulerHealth;
 use Wpcb\Reliability\DeliveryRepository;
 use Wpcb\Resources\ResourceRepository;
 use Wpcb\Mail\MailDiagnostics;
+use Wpcb\Mail\EmailRetryJobRunner;
 
 class Admin {
     public function boot(): void {
@@ -606,11 +607,19 @@ class Admin {
         $items = $repo->search($filters, 200);
         $types = $repo->effectTypes();
 
+        $retryKeys = [];
+        foreach ($items as $item) {
+            if ((string)$item->channel === 'email') {
+                $retryKeys[] = EmailRetryJobRunner::jobKey((string)$item->idempotency_key);
+            }
+        }
+        $retryJobs = (new JobRepository())->findByIdempotencyKeys($retryKeys);
+
         echo '<form method="get" style="margin:12px 0;padding:12px;background:#fff;border:1px solid #ccd0d4">';
         echo '<input type="hidden" name="page" value="wpcb_delivery_log">';
         echo '<label>' . esc_html__('Buchung', 'wordpress-calendar-booking') . ' <input type="number" min="1" name="booking_id" value="' . esc_attr($filters['booking_id'] ?: '') . '"></label> ';
         echo '<label>' . esc_html__('Status', 'wordpress-calendar-booking') . ' <select name="delivery_status"><option value="">' . esc_html__('alle', 'wordpress-calendar-booking') . '</option>';
-        foreach (['pending','sending','sent','failed'] as $status) {
+        foreach (['pending','sending','sent','failed','uncertain'] as $status) {
             echo '<option value="' . esc_attr($status) . '" ' . selected($filters['status'], $status, false) . '>' . esc_html($status) . '</option>';
         }
         echo '</select></label> <label>' . esc_html__('Typ', 'wordpress-calendar-booking') . ' <select name="delivery_type"><option value="">' . esc_html__('alle', 'wordpress-calendar-booking') . '</option>';
@@ -623,7 +632,7 @@ class Admin {
         }
         echo '</select></label> <button class="button">' . esc_html__('Filtern', 'wordpress-calendar-booking') . '</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_delivery_log')) . '">' . esc_html__('Zurücksetzen', 'wordpress-calendar-booking') . '</a></form>';
 
-        echo '<p class="description">' . esc_html__('Das Protokoll enthält keine Nachrichtentexte, OAuth-Tokens oder Kalender-Zugangsdaten.', 'wordpress-calendar-booking') . '</p>';
+        echo '<p class="description">' . esc_html__('Das Protokoll enthält keine Nachrichtentexte, Aktionslink-Tokens, OAuth-Tokens oder Kalender-Zugangsdaten. Der Status uncertain wird nicht automatisch erneut versendet, damit ein unklarer Transportzustand keine Doppelzustellung erzeugt.', 'wordpress-calendar-booking') . '</p>';
         echo '<table class="widefat striped"><thead><tr>';
         foreach ([
             __('Versuch (UTC)', 'wordpress-calendar-booking'),
@@ -631,6 +640,8 @@ class Admin {
             __('Empfänger', 'wordpress-calendar-booking'),
             __('Typ', 'wordpress-calendar-booking'),
             __('Status', 'wordpress-calendar-booking'),
+            __('Versuche', 'wordpress-calendar-booking'),
+            __('Retry / nächster Versuch', 'wordpress-calendar-booking'),
             __('Provider', 'wordpress-calendar-booking'),
             __('Fehlercode', 'wordpress-calendar-booking'),
             __('Idempotency-Key', 'wordpress-calendar-booking'),
@@ -640,7 +651,31 @@ class Admin {
         echo '</tr></thead><tbody>';
         foreach ($items as $item) {
             $attemptAt = (string)($item->last_attempt_at ?: $item->created_at);
-            echo '<tr><td>' . esc_html($attemptAt) . '</td><td>' . (int)$item->booking_id . '</td><td>' . esc_html((string)$item->recipient_class) . '</td><td>' . esc_html((string)$item->effect_type) . '</td><td>' . esc_html((string)$item->status) . '</td><td>' . esc_html((string)$item->provider_code) . '</td><td>' . esc_html((string)$item->last_error_code) . '</td><td><code>' . esc_html((string)$item->idempotency_key) . '</code></td></tr>';
+            $retry = $retryJobs[EmailRetryJobRunner::jobKey((string)$item->idempotency_key)] ?? null;
+            $retryLabel = '';
+            if ($retry) {
+                if ((string)$retry->status === 'pending') {
+                    $retryLabel = sprintf(
+                        __('pending · %s UTC', 'wordpress-calendar-booking'),
+                        (string)$retry->available_at
+                    );
+                } elseif ((string)$retry->status === 'running') {
+                    $retryLabel = __('läuft', 'wordpress-calendar-booking');
+                } elseif ((string)$retry->status === 'failed') {
+                    $retryLabel = __('terminal fehlgeschlagen', 'wordpress-calendar-booking');
+                } elseif ((string)$retry->status === 'done') {
+                    $retryLabel = __('abgeschlossen', 'wordpress-calendar-booking');
+                }
+            } elseif ((string)$item->status === 'uncertain') {
+                $retryLabel = __('manuelle Prüfung erforderlich', 'wordpress-calendar-booking');
+            }
+
+            echo '<tr><td>' . esc_html($attemptAt) . '</td><td>' . (int)$item->booking_id . '</td><td>'
+                . esc_html((string)$item->recipient_class) . '</td><td>' . esc_html((string)$item->effect_type) . '</td><td>'
+                . esc_html((string)$item->status) . '</td><td>' . (int)$item->attempts . '</td><td>'
+                . esc_html($retryLabel) . '</td><td>' . esc_html((string)$item->provider_code) . '</td><td>'
+                . esc_html((string)$item->last_error_code) . '</td><td><code>'
+                . esc_html((string)$item->idempotency_key) . '</code></td></tr>';
         }
         echo '</tbody></table>';
         $this->formEnd();
