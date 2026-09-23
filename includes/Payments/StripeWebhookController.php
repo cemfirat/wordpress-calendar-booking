@@ -34,7 +34,8 @@ final class StripeWebhookController {
         $type = (string)$event['type'];
         $object = $event['data']['object'];
         $mapped = match ($type) {
-            'checkout.session.completed' => 'paid',
+            'checkout.session.completed' => (($object['payment_status'] ?? '') === 'paid' ? 'paid' : ''),
+            'checkout.session.async_payment_succeeded' => 'paid',
             'checkout.session.expired', 'checkout.session.async_payment_failed' => 'failed',
             'charge.refunded' => 'refunded',
             default => '',
