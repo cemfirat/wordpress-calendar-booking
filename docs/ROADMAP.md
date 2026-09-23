@@ -91,3 +91,9 @@ Completed.
 - complete admin CRUD for booking types, form fields, availability rules and exceptions
 - historical booking-type deletion guards
 - cleanup of unused booking-type configuration mappings
+
+
+### 3.12
+- bounded/paginated administrator booking list
+- batch metadata loading for admin booking pages
+- filtered counts without changing complete CSV export semantics
