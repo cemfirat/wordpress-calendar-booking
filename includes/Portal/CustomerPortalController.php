@@ -344,7 +344,7 @@ final class CustomerPortalController {
             $url = add_query_arg('wpcb_booking', (int)$booking->id, $returnUrl);
             $html .= '<div><a class="uk-card uk-card-default uk-card-body uk-display-block" href="' . esc_url($url) . '">';
             $html .= '<strong>' . esc_html($type ? (string)$type->name : ('Buchung #' . (int)$booking->id)) . '</strong>';
-            $html .= '<div>' . esc_html(Time::toLocal((string)$booking->slot_start, 'd.m.Y H:i')) . '</div>';
+            $html .= '<div>' . esc_html(Time::display((string)$booking->slot_start, 'd.m.Y H:i')) . '</div>';
             $html .= '<div class="uk-text-meta">' . esc_html((string)$booking->status) . ' · ' . max(1, (int)$booking->party_size) . ' Person(en)</div>';
             $html .= '</a></div>';
         }
@@ -358,7 +358,7 @@ final class CustomerPortalController {
         $html .= '<div class="uk-card uk-card-default uk-card-body">';
         $html .= '<h3>' . esc_html($type ? (string)$type->name : ('Buchung #' . (int)$booking->id)) . '</h3>';
         $html .= '<dl class="uk-description-list">';
-        $html .= '<dt>Termin</dt><dd>' . esc_html(Time::toLocal((string)$booking->slot_start, 'd.m.Y H:i')) . ' – ' . esc_html(Time::toLocal((string)$booking->slot_end, 'H:i')) . '</dd>';
+        $html .= '<dt>Termin</dt><dd>' . esc_html(Time::display((string)$booking->slot_start, 'd.m.Y H:i')) . ' – ' . esc_html(Time::display((string)$booking->slot_end, 'H:i')) . '</dd>';
         $html .= '<dt>Status</dt><dd>' . esc_html((string)$booking->status) . '</dd>';
         $html .= '<dt>Teilnehmer</dt><dd>' . max(1, (int)$booking->party_size) . '</dd>';
         $html .= '</dl>';
