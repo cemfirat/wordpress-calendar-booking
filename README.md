@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.11.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.10.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -102,7 +102,7 @@ The asset build copies the pinned UIkit fallback from npm into `assets/vendor/ui
 - Product definition: [docs/PRODUCT.md](docs/PRODUCT.md)
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
 - Roadmap: [docs/ROADMAP.md](docs/ROADMAP.md)
-- Initial issue backlog: [docs/GITHUB-ISSUES.md](docs/GITHUB-ISSUES.md)
+- Historical issue backlog: [docs/GITHUB-ISSUES.md](docs/GITHUB-ISSUES.md)
 - Contributing: [CONTRIBUTING.md](CONTRIBUTING.md)
 
 ## License
@@ -122,10 +122,6 @@ Source checkouts require Composer/npm only for development. Release ZIPs already
 The **Kalender & Buchungen** dashboard includes a read-only setup checklist for the core path: public booking type, assigned active resource, effective availability, valid sender/time-zone settings, healthy scheduled queue jobs and a published booking surface. External calendar, payment, webhook and video-meeting connections are optional and do not block core readiness.
 
 Use the linked actions in the checklist to finish missing setup steps before publishing the booking page.
-
-## Configuration maintenance
-
-Booking types, custom form fields, availability rules and exceptions can be edited directly from their wp-admin tables. Delete actions are POST-only and nonce-protected. Booking types that already have bookings, recurring series or waiting-list history cannot be hard-deleted; deactivate them instead so historical records remain resolvable.
 
 ## Mail transport diagnostics
 
