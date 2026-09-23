@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.9.0
+
+- Add a first-run setup readiness dashboard for the core booking path.
+- Check active public booking types, assigned resources, effective availability, sender/time-zone settings, scheduler/queue state and a published booking surface.
+- Link incomplete checks directly to the relevant WordPress administration screen.
+- Keep calendar providers, payments, webhooks and video meetings optional for core readiness.
+- Add integration coverage for readiness transitions without loading customer or provider-secret data.
+
 ## 3.8.1
 
 - Ship the internationalization hardening merged after the immutable 3.8.0 release was published.
