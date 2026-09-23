@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.14.0
+
+- Add a read-only Stripe Checkout return-status screen for successful and cancelled browser returns.
+- Carry only the technical payment UUID in Stripe return URLs; customer PII is never added to return URLs.
+- Keep verified Stripe webhooks as the sole authority for payment state and never confirm payments or bookings from GET requests.
+- Show pending, paid, failed, expired and refund states using only server-side payment records.
+- Add deterministic integration coverage for return URL privacy and non-mutating status lookups.
+
 ## 3.13.0
 
 - Add a production Stripe Checkout adapter behind the provider-neutral payment contract.

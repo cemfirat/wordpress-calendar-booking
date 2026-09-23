@@ -120,6 +120,23 @@ wpcb_stripe_assert((string)($checkoutRequest['line_items[0][price_data][unit_amo
 wpcb_stripe_assert((string)($checkoutRequest['line_items[0][price_data][currency]'] ?? '') === 'eur', 'Stripe checkout uses the server-side currency.');
 
 $payment = (new Wpcb\Payments\PaymentRepository())->forBooking($bookingId);
+wpcb_stripe_assert($payment !== null, 'Stripe payment record exists for return-flow checks.');
+$successUrl = (string)($checkoutRequest['success_url'] ?? '');
+$cancelUrl = (string)($checkoutRequest['cancel_url'] ?? '');
+wpcb_stripe_assert(strpos($successUrl, 'wpcb_payment_return=success') !== false && strpos($successUrl, rawurlencode((string)$payment->payment_uuid)) !== false, 'Stripe success return carries only the technical payment UUID.');
+wpcb_stripe_assert(strpos($cancelUrl, 'wpcb_payment_return=cancelled') !== false && strpos($cancelUrl, rawurlencode((string)$payment->payment_uuid)) !== false, 'Stripe cancel return carries only the technical payment UUID.');
+foreach (['stripe-private@example.com', 'Stripe Private Person', '+43123456789', 'PRIVATE STRIPE NOTE'] as $private) {
+    wpcb_stripe_assert(strpos($successUrl . $cancelUrl, $private) === false, 'Stripe return URLs contain no customer PII.');
+}
+$returnController = new Wpcb\Payments\StripeReturnController();
+$beforeReturn = (new Wpcb\Payments\PaymentRepository())->forBooking($bookingId);
+$pendingView = $returnController->viewModel((string)$payment->payment_uuid, 'success');
+$cancelView = $returnController->viewModel((string)$payment->payment_uuid, 'cancelled');
+$afterReturn = (new Wpcb\Payments\PaymentRepository())->forBooking($bookingId);
+wpcb_stripe_assert($pendingView['state'] === 'pending' && $cancelView['state'] === 'pending', 'Success/cancel return pages do not claim payment before webhook confirmation.');
+wpcb_stripe_assert((string)$beforeReturn->status === (string)$afterReturn->status && (string)$afterReturn->status === 'pending', 'Read-only return status lookup does not mutate payment state.');
+wpcb_stripe_assert($returnController->viewModel('not-a-payment', 'success')['state'] === 'unknown', 'Malformed payment UUID returns a generic safe state.');
+
 $payload = wp_json_encode([
     'id' => 'evt_wpcb_paid_1',
     'type' => 'checkout.session.completed',
@@ -169,6 +186,8 @@ $response = (new Wpcb\Payments\StripeWebhookController())->handle($request);
 wpcb_stripe_assert($response instanceof WP_REST_Response && $response->get_status() === 200, 'Verified Stripe webhook is accepted.');
 $paid = (new Wpcb\Payments\PaymentRepository())->forBooking($bookingId);
 wpcb_stripe_assert($paid && $paid->status === 'paid', 'Completed Stripe Checkout marks the payment paid.');
+$paidView = $returnController->viewModel((string)$payment->payment_uuid, 'success');
+wpcb_stripe_assert($paidView['state'] === 'paid', 'Return page shows paid only after verified webhook state exists.');
 
 $retry = (new Wpcb\Payments\StripeWebhookController())->handle($request);
 wpcb_stripe_assert($retry instanceof WP_REST_Response && $retry->get_status() === 200, 'Duplicate Stripe webhook is idempotent.');
