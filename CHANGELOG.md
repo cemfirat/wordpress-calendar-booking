@@ -2,6 +2,9 @@
 
 ## 3.11.0
 
+- Paginate the interactive administrator booking list with bounded 50-row pages.
+- Add filtered booking counts and batch-load sync/retention metadata for the current page.
+- Preserve booking filters across pagination while keeping CSV export complete and unpaginated.
 - Complete wp-admin CRUD for booking types, custom form fields, availability rules and exceptions.
 - Add read-only edit links with prefilled forms and explicit nonce-protected POST delete actions.
 - Centralize configuration mutations in a testable administration service.
