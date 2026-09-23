@@ -143,7 +143,7 @@ final class WaitingListRepository {
         $now = Time::formatUtc(Time::nowUtc());
         $rows = $wpdb->get_results($wpdb->prepare(
             "SELECT * FROM {$this->table}
-             WHERE status = 'offered' AND offer_expires_at < %s
+             WHERE status IN ('offered','claiming') AND offer_expires_at < %s
              ORDER BY offer_expires_at ASC LIMIT %d",
             $now, max(1, min(500, $limit))
         ));
@@ -156,7 +156,7 @@ final class WaitingListRepository {
                 'offer_expires_at' => null,
                 'offered_at' => null,
                 'updated_at' => $now,
-            ], ['id' => (int)$row->id, 'status' => 'offered']);
+            ], ['id' => (int)$row->id]);
         }
         return $rows;
     }
