@@ -31,7 +31,7 @@ jobs:
           changelog = Path("CHANGELOG.md").read_text()
           section_311 = changelog.split("## 3.11.0\n", 1)[1].split("\n## ", 1)[0]
           assert "Paginate the interactive administrator booking list" not in section_311, "3.11.0 section must not contain pagination"
-          assert "## 3.12.0" in changelog and "Paginate the interactive administrator booking list" in changelog.split("## 3.12.0\n", 1)[1].split("\n## ", 1)[0]
+          assert "## 3.13.0" in changelog and "Paginate the interactive administrator booking list" in changelog.split("## 3.13.0\n", 1)[1].split("\n## ", 1)[0]
 
           roadmap = Path("docs/ROADMAP.md").read_text()
           road_311 = roadmap.split("### 3.11\n", 1)[1].split("\n### ", 1)[0]
@@ -667,11 +667,11 @@ jobs:
           import os, pathlib
           p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/wordpress-calendar-booking.php"
           text = p.read_text()
-          text = text.replace(" * Version: 3.13.0", " * Version: 3.12.0")
-          text = text.replace("define('WPCB_VERSION', '3.13.0');", "define('WPCB_VERSION', '3.12.0');")
+          text = text.replace(" * Version: 3.14.0", " * Version: 3.13.0")
+          text = text.replace("define('WPCB_VERSION', '3.14.0');", "define('WPCB_VERSION', '3.13.0');")
           p.write_text(text)
           PY
-          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-3.12.0.zip" wordpress-calendar-booking)
+          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-3.13.0.zip" wordpress-calendar-booking)
       - name: Install synthetic old version
         run: |
           set -euo pipefail
@@ -679,9 +679,9 @@ jobs:
           wp core download --path="$WP_ROOT" --version=latest
           wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
           wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBUpdater --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
-          wp plugin install "$RUNNER_TEMP/calendar-booking-3.12.0.zip" --activate --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.12.0"
-      - name: Discover real public v3.13.0 release
+          wp plugin install "$RUNNER_TEMP/calendar-booking-3.13.0.zip" --activate --path="$WP_ROOT"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.13.0"
+      - name: Discover real public v3.14.0 release
         run: |
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
@@ -698,7 +698,7 @@ jobs:
                   echo $updates->response[$basename]->new_version;
               }
             ' --path="$WP_ROOT")"
-            if [ "$version" = "3.13.0" ]; then
+            if [ "$version" = "3.14.0" ]; then
               found=1
               break
             fi
@@ -710,6 +710,6 @@ jobs:
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
           wp plugin update wordpress-calendar-booking --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.13.0"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.14.0"
           wp plugin is-active wordpress-calendar-booking --path="$WP_ROOT"
-          echo "PASS: synthetic 3.12.0 updated through the public GitHub release to 3.13.0."
+          echo "PASS: synthetic 3.13.0 updated through the public GitHub release to 3.14.0."
