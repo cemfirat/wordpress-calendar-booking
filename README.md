@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.6.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.7.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -141,3 +141,10 @@ Payment adapters receive only a technical payment identifier, amount, currency a
 ## Video meetings
 
 Version 3.6 adds provider-neutral video meeting orchestration for Zoom, Google Meet and Microsoft Teams. Meeting credentials are encrypted at rest, meeting creation/update/cancellation runs through the idempotent retry queue, and join links are included only in customer/admin communication after a booking is confirmed. Public availability never contains meeting URLs.
+
+
+## Recurring bookings
+
+Version 3.7 adds bounded weekly booking series for free booking types. The first signed canonical slot anchors the series; every later occurrence is regenerated and revalidated on the server before any booking is stored. Series preserve the configured local wall-clock time across UTC offset changes, reject ambiguous/non-existent DST wall times, and can be cancelled or rescheduled for one occurrence or the selected occurrence plus all remaining appointments.
+
+Series creation is all-or-nothing. If any occurrence is no longer bookable, no partial series is stored. Paid booking types are intentionally excluded until payment authorization, expiry and refund behavior for a whole series is specified explicitly.
