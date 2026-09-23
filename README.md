@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.4.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.5.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -55,7 +55,7 @@ For delegated Microsoft accounts the plugin requests `Calendars.ReadBasic` when 
 One semantic component/render layer serves:
 
 - YOOtheme Pro native Builder elements when YOOtheme is installed
-- Shortcodes (`[wpcb_booking_form]`, `[wpcb_calendar]`, `[wpcb_booking_calendar]`, `[wpcb_customer_portal]`)
+- Shortcodes (`[wpcb_booking_form]`, `[wpcb_calendar]`, `[wpcb_booking_calendar]`, `[wpcb_customer_portal]`, `[wpcb_waiting_list]`)
 - Native dynamic Gutenberg blocks for the Booking Form and Availability Calendar
 - UIkit fallback assets when no compatible UIkit/YOOtheme runtime is present
 
@@ -136,3 +136,10 @@ Authenticated customers can see only bookings matching their verified session em
 Version 3.4 adds a provider-neutral payment lifecycle foundation. Booking types can be configured as free or payment-required with a price and ISO currency. Paid reservations receive a separate pending payment record; booking confirmation remains blocked until the payment is verified.
 
 Payment adapters receive only a technical payment identifier, amount, currency and expiry. Raw card numbers, CVC/CVV values, bank credentials and full provider callback payloads are never stored by the plugin. Provider callbacks are idempotent, expired pending payments release unconfirmed reservations, and cancelling a paid booking moves its payment into an explicit refund workflow.
+
+
+## Waiting lists
+
+Version 3.5 adds opt-in waiting lists for full booking slots. Promotion is FIFO within a slot, uses the same resource lock as normal reservations, and creates temporary capacity holds so direct bookings cannot consume offered seats. Offer notifications are queued with idempotency keys, and accepting an offer requires a one-time token plus an explicit POST.
+
+Waiting-list records contain only the requested slot/resource, party size and email address. They participate in WordPress privacy export/erase and terminal records are cleaned by retention maintenance. The shortcode `[wpcb_waiting_list]` can be configured with a booking type, resource and exact UTC slot when a theme or integration wants to expose a waiting-list form.
