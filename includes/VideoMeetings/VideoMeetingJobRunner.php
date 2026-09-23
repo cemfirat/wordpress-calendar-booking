@@ -3,6 +3,7 @@ namespace Wpcb\VideoMeetings;
 
 use Wpcb\Booking\BookingRepository;
 use Wpcb\Reliability\DeliveryRepository;
+use Wpcb\Admin\Settings;
 
 final class VideoMeetingJobRunner {
     private VideoMeetingConnectionRepository $connections;
@@ -20,7 +21,7 @@ final class VideoMeetingJobRunner {
     public function run(string $operation, int $bookingId, int $connectionId): array {
         $booking = $this->bookings->find($bookingId);
         $connection = $this->connections->find($connectionId, true);
-        if (!$booking || !$connection || empty($connection->is_active)) {
+        if (!$booking || !$connection || ($operation !== 'delete' && empty($connection->is_active))) {
             return ['ok' => false, 'message' => 'Meeting booking or connection is unavailable.'];
         }
         $provider = $this->providers->get((string)$connection->provider);
@@ -97,5 +98,26 @@ final class VideoMeetingJobRunner {
         );
         if ($sent) $deliveries->markSent((int)$delivery['id']);
         else $deliveries->markFailed((int)$delivery['id'], 'wp_mail returned false before accepting the meeting message.', 'wp_mail_false');
+
+        $settings = Settings::get();
+        $recipients = array_values(array_filter(array_map('sanitize_email', array_map('trim', explode(',', (string)($settings['notification_emails'] ?? ''))))));
+        if (empty($settings['notifications_enabled']) || !$recipients) return;
+
+        $internalKey = 'mail:internal:' . $bookingId . ':video-ready:' . $connectionId . ':' . hash('sha256', $joinUrl);
+        $internal = $deliveries->begin($bookingId, $internalKey, 'email', 'video_meeting_ready', 'internal', 'wp_mail');
+        if (empty($internal['should_run']) || !$deliveries->markSending((int)$internal['id'])) return;
+        $internalSent = wp_mail(
+            $recipients,
+            __('Video meeting ready', 'wordpress-calendar-booking'),
+            sprintf(
+                '<p>%s</p><p><a href="%s">%s</a></p>',
+                esc_html(sprintf(__('Video meeting for booking #%d is ready.', 'wordpress-calendar-booking'), $bookingId)),
+                esc_url($joinUrl),
+                esc_html__('Open video meeting', 'wordpress-calendar-booking')
+            ),
+            ['Content-Type: text/html; charset=UTF-8']
+        );
+        if ($internalSent) $deliveries->markSent((int)$internal['id']);
+        else $deliveries->markFailed((int)$internal['id'], 'wp_mail returned false before accepting the internal meeting message.', 'wp_mail_false');
     }
 }
