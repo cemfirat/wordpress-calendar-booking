@@ -352,20 +352,41 @@ class Admin {
     }
 
     public function types(): void {
-        global $wpdb; $table = $wpdb->prefix . 'wpcb_booking_types'; $items = $wpdb->get_results("SELECT * FROM {$table} ORDER BY sort_order ASC, name ASC");
-        $this->formStart(); echo '<h1>Terminarten</h1>'; $this->renderTypesTable($items); $this->renderTypeForm(); $this->formEnd();
+        global $wpdb;
+        $table = $wpdb->prefix . 'wpcb_booking_types';
+        $items = $wpdb->get_results("SELECT * FROM {$table} ORDER BY sort_order ASC, name ASC");
+        $this->formStart();
+        echo '<h1>' . esc_html__('Terminarten', 'wordpress-calendar-booking') . '</h1>';
+        $this->renderTypesTable($items);
+        $this->renderTypeForm();
+        $this->formEnd();
     }
     public function fields(): void {
-        global $wpdb; $table = $wpdb->prefix . 'wpcb_form_fields'; $items = $wpdb->get_results("SELECT * FROM {$table} ORDER BY sort_order ASC, id ASC");
-        $this->formStart(); echo '<h1>Formularfelder</h1>'; $this->renderFieldsTable($items); $this->renderFieldForm(); $this->formEnd();
+        global $wpdb;
+        $table = $wpdb->prefix . 'wpcb_form_fields';
+        $items = $wpdb->get_results("SELECT * FROM {$table} ORDER BY sort_order ASC, id ASC");
+        $this->formStart();
+        echo '<h1>' . esc_html__('Formularfelder', 'wordpress-calendar-booking') . '</h1>';
+        $this->renderFieldsTable($items);
+        $this->renderFieldForm();
+        $this->formEnd();
     }
     public function availability(): void {
-        global $wpdb; $rules = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}wpcb_availability_rules ORDER BY scope_type ASC, weekday ASC, start_time ASC"); $exceptions = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}wpcb_exceptions ORDER BY date_start DESC");
-        $this->formStart(); echo '<h1>Verfügbarkeit</h1>'; $this->renderRulesTable($rules); $this->renderRuleForm(); echo '<hr><h2>Ausnahmen / Sperren</h2>'; $this->renderExceptionsTable($exceptions); $this->renderExceptionForm(); $this->formEnd();
+        global $wpdb;
+        $rules = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}wpcb_availability_rules ORDER BY scope_type ASC, weekday ASC, start_time ASC");
+        $exceptions = $wpdb->get_results("SELECT * FROM {$wpdb->prefix}wpcb_exceptions ORDER BY date_start DESC");
+        $this->formStart();
+        echo '<h1>' . esc_html__('Verfügbarkeit', 'wordpress-calendar-booking') . '</h1>';
+        $this->renderRulesTable($rules);
+        $this->renderRuleForm();
+        echo '<hr><h2>' . esc_html__('Ausnahmen / Sperren', 'wordpress-calendar-booking') . '</h2>';
+        $this->renderExceptionsTable($exceptions);
+        $this->renderExceptionForm();
+        $this->formEnd();
     }
     public function bookings(): void {
         $this->formStart();
-        echo '<h1>Buchungen</h1>';
+        echo '<h1>' . esc_html__('Buchungen', 'wordpress-calendar-booking') . '</h1>';
         $repo = new BookingRepository();
         $machine = new BookingStateMachine();
         $filters = $this->bookingFilters($_GET);
@@ -374,17 +395,17 @@ class Admin {
         $types = (new BookingTypeRepository())->all(false);
         echo '<form method="get" style="margin:12px 0;padding:12px;background:#fff;border:1px solid #ccd0d4">';
         echo '<input type="hidden" name="page" value="wpcb_bookings">';
-        echo '<label>Von <input type="date" name="from" value="' . esc_attr($filters['from_date'] ?? '') . '"></label> ';
-        echo '<label>Bis <input type="date" name="to" value="' . esc_attr($filters['to_date'] ?? '') . '"></label> ';
-        echo '<label>Status <select name="status"><option value="">alle</option>';
+        echo '<label>' . esc_html__('Von', 'wordpress-calendar-booking') . ' <input type="date" name="from" value="' . esc_attr($filters['from_date'] ?? '') . '"></label> ';
+        echo '<label>' . esc_html__('Bis', 'wordpress-calendar-booking') . ' <input type="date" name="to" value="' . esc_attr($filters['to_date'] ?? '') . '"></label> ';
+        echo '<label>' . esc_html__('Status', 'wordpress-calendar-booking') . ' <select name="status"><option value="">' . esc_html__('alle', 'wordpress-calendar-booking') . '</option>';
         foreach (\Wpcb\Booking\BookingStatus::all() as $status) {
             echo '<option value="' . esc_attr($status) . '" ' . selected($filters['status'] ?? '', $status, false) . '>' . esc_html($status) . '</option>';
         }
-        echo '</select></label> <label>Terminart <select name="booking_type_id"><option value="0">alle</option>';
+        echo '</select></label> <label>' . esc_html__('Terminart', 'wordpress-calendar-booking') . ' <select name="booking_type_id"><option value="0">' . esc_html__('alle', 'wordpress-calendar-booking') . '</option>';
         foreach ($types as $type) {
             echo '<option value="' . (int)$type->id . '" ' . selected((int)($filters['booking_type_id'] ?? 0), (int)$type->id, false) . '>' . esc_html($type->name) . '</option>';
         }
-        echo '</select></label> <button class="button">Filtern</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_bookings')) . '">Zurücksetzen</a></form>';
+        echo '</select></label> <button class="button">' . esc_html__('Filtern', 'wordpress-calendar-booking') . '</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_bookings')) . '">' . esc_html__('Zurücksetzen', 'wordpress-calendar-booking') . '</a></form>';
         $exportArgs = [
             'action' => 'wpcb_export_bookings',
             '_wpnonce' => wp_create_nonce('wpcb_export_bookings'),
@@ -393,17 +414,30 @@ class Admin {
             'status' => $filters['status'] ?? '',
             'booking_type_id' => (int)($filters['booking_type_id'] ?? 0),
         ];
-        echo '<p><a class="button button-primary" href="' . esc_url(add_query_arg($exportArgs, admin_url('admin-post.php'))) . '">CSV exportieren</a></p>';
-        echo '<table class="widefat striped"><thead><tr><th>ID</th><th>Name</th><th>E-Mail</th><th>Termin</th><th>Status</th><th>Aufbewahrung</th><th>Sync</th><th>Aktion</th></tr></thead><tbody>';
+        echo '<p><a class="button button-primary" href="' . esc_url(add_query_arg($exportArgs, admin_url('admin-post.php'))) . '">' . esc_html__('CSV exportieren', 'wordpress-calendar-booking') . '</a></p>';
+        echo '<table class="widefat striped"><thead><tr>';
+        foreach ([
+            __('ID', 'wordpress-calendar-booking'),
+            __('Name', 'wordpress-calendar-booking'),
+            __('E-Mail', 'wordpress-calendar-booking'),
+            __('Termin', 'wordpress-calendar-booking'),
+            __('Status', 'wordpress-calendar-booking'),
+            __('Aufbewahrung', 'wordpress-calendar-booking'),
+            __('Sync', 'wordpress-calendar-booking'),
+            __('Aktion', 'wordpress-calendar-booking'),
+        ] as $heading) {
+            echo '<th>' . esc_html($heading) . '</th>';
+        }
+        echo '</tr></thead><tbody>';
         foreach ($items as $item) {
             $meta = $repo->getMeta((int)$item->id);
             $events = $machine->adminEventsFor((string)$item->status);
             $retained = $privacy->isRetained((int)$item->id);
-            echo '<tr><td>' . (int)$item->id . '</td><td>' . esc_html($item->full_name) . '</td><td>' . esc_html($item->email) . '</td><td>' . esc_html($item->slot_start) . '<br><small>' . max(1,(int)($item->party_size ?? 1)) . ' Teilnehmer</small></td><td>' . esc_html($item->status) . '</td><td>';
+            echo '<tr><td>' . (int)$item->id . '</td><td>' . esc_html($item->full_name) . '</td><td>' . esc_html($item->email) . '</td><td>' . esc_html($item->slot_start) . '<br><small>' . max(1,(int)($item->party_size ?? 1)) . ' ' . esc_html__('Teilnehmer', 'wordpress-calendar-booking') . '</small></td><td>' . esc_html($item->status) . '</td><td>';
             echo '<form method="post">';
             wp_nonce_field('wpcb_admin_action');
             echo '<input type="hidden" name="wpcb_admin_action" value="booking_retention"><input type="hidden" name="id" value="' . (int)$item->id . '">';
-            echo '<label><input type="checkbox" name="retain" value="1" ' . checked($retained, true, false) . '> behalten</label> <button class="button button-small">Speichern</button></form>';
+            echo '<label><input type="checkbox" name="retain" value="1" ' . checked($retained, true, false) . '> ' . esc_html__('behalten', 'wordpress-calendar-booking') . '</label> <button class="button button-small">' . esc_html__('Speichern', 'wordpress-calendar-booking') . '</button></form>';
             echo '</td><td>' . esc_html((string)($meta['sync_status'] ?? '')) . (!empty($meta['sync_error']) ? '<br><small>' . esc_html((string)$meta['sync_error']) . '</small>' : '') . '</td><td>';
             if ($events) {
                 echo '<form method="post">';
@@ -412,18 +446,19 @@ class Admin {
                 foreach ($events as $event => $label) {
                     echo '<option value="' . esc_attr($event) . '">' . esc_html($label) . '</option>';
                 }
-                echo '</select> <button class="button">Ausführen</button></form>';
+                echo '</select> <button class="button">' . esc_html__('Ausführen', 'wordpress-calendar-booking') . '</button></form>';
             } else {
-                echo '<span class="description">Keine Aktion verfügbar</span>';
+                echo '<span class="description">' . esc_html__('Keine Aktion verfügbar', 'wordpress-calendar-booking') . '</span>';
             }
             echo '</td></tr>';
         }
         echo '</tbody></table>';
         $this->formEnd();
     }
+
     public function exportBookings(): void {
         if (!current_user_can('manage_options')) {
-            wp_die('Nicht erlaubt.', 403);
+            wp_die(esc_html__('Nicht erlaubt.', 'wordpress-calendar-booking'), '', ['response' => 403]);
         }
         check_admin_referer('wpcb_export_bookings');
         $filters = $this->bookingFilters($_GET);
@@ -450,10 +485,10 @@ class Admin {
         header('Content-Disposition: attachment; filename="calendar-bookings-' . gmdate('Y-m-d-His') . '.csv"');
         $out = fopen('php://output', 'wb');
         if (!$out) {
-            wp_die('CSV-Ausgabe konnte nicht geöffnet werden.');
+            wp_die(esc_html__('CSV-Ausgabe konnte nicht geöffnet werden.', 'wordpress-calendar-booking'));
         }
         fwrite($out, "\xEF\xBB\xBF");
-        fputcsv($out, ['ID', 'Terminart-ID', 'Start (UTC)', 'Ende (UTC)', 'Status', 'Name', 'E-Mail', 'Telefon', 'Notiz', 'Quelle', 'Sprache', 'Erstellt (UTC)']);
+        fputcsv($out, [__('ID', 'wordpress-calendar-booking'), __('Terminart-ID', 'wordpress-calendar-booking'), __('Start (UTC)', 'wordpress-calendar-booking'), __('Ende (UTC)', 'wordpress-calendar-booking'), __('Status', 'wordpress-calendar-booking'), __('Name', 'wordpress-calendar-booking'), __('E-Mail', 'wordpress-calendar-booking'), __('Telefon', 'wordpress-calendar-booking'), __('Notiz', 'wordpress-calendar-booking'), __('Quelle', 'wordpress-calendar-booking'), __('Sprache', 'wordpress-calendar-booking'), __('Erstellt (UTC)', 'wordpress-calendar-booking')]);
         foreach ($items as $item) {
             fputcsv($out, [
                 (int)$item->id,
@@ -499,7 +534,7 @@ class Admin {
 
     public function deliveryLog(): void {
         $this->formStart();
-        echo '<h1>Versandprotokoll</h1>';
+        echo '<h1>' . esc_html__('Versandprotokoll', 'wordpress-calendar-booking') . '</h1>';
         $repo = new DeliveryRepository();
         $filters = [
             'booking_id' => absint($_GET['booking_id'] ?? 0),
@@ -512,23 +547,36 @@ class Admin {
 
         echo '<form method="get" style="margin:12px 0;padding:12px;background:#fff;border:1px solid #ccd0d4">';
         echo '<input type="hidden" name="page" value="wpcb_delivery_log">';
-        echo '<label>Buchung <input type="number" min="1" name="booking_id" value="' . esc_attr($filters['booking_id'] ?: '') . '"></label> ';
-        echo '<label>Status <select name="delivery_status"><option value="">alle</option>';
+        echo '<label>' . esc_html__('Buchung', 'wordpress-calendar-booking') . ' <input type="number" min="1" name="booking_id" value="' . esc_attr($filters['booking_id'] ?: '') . '"></label> ';
+        echo '<label>' . esc_html__('Status', 'wordpress-calendar-booking') . ' <select name="delivery_status"><option value="">' . esc_html__('alle', 'wordpress-calendar-booking') . '</option>';
         foreach (['pending','sending','sent','failed'] as $status) {
             echo '<option value="' . esc_attr($status) . '" ' . selected($filters['status'], $status, false) . '>' . esc_html($status) . '</option>';
         }
-        echo '</select></label> <label>Typ <select name="delivery_type"><option value="">alle</option>';
+        echo '</select></label> <label>' . esc_html__('Typ', 'wordpress-calendar-booking') . ' <select name="delivery_type"><option value="">' . esc_html__('alle', 'wordpress-calendar-booking') . '</option>';
         foreach ($types as $type) {
             echo '<option value="' . esc_attr($type) . '" ' . selected($filters['effect_type'], $type, false) . '>' . esc_html($type) . '</option>';
         }
-        echo '</select></label> <label>Empfänger <select name="recipient_class"><option value="">alle</option>';
-        foreach (['customer' => 'Kunde', 'admin' => 'Admin'] as $value => $label) {
+        echo '</select></label> <label>' . esc_html__('Empfänger', 'wordpress-calendar-booking') . ' <select name="recipient_class"><option value="">' . esc_html__('alle', 'wordpress-calendar-booking') . '</option>';
+        foreach (['customer' => __('Kunde', 'wordpress-calendar-booking'), 'admin' => __('Admin', 'wordpress-calendar-booking')] as $value => $label) {
             echo '<option value="' . esc_attr($value) . '" ' . selected($filters['recipient_class'], $value, false) . '>' . esc_html($label) . '</option>';
         }
-        echo '</select></label> <button class="button">Filtern</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_delivery_log')) . '">Zurücksetzen</a></form>';
+        echo '</select></label> <button class="button">' . esc_html__('Filtern', 'wordpress-calendar-booking') . '</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_delivery_log')) . '">' . esc_html__('Zurücksetzen', 'wordpress-calendar-booking') . '</a></form>';
 
-        echo '<p class="description">Das Protokoll enthält keine Nachrichtentexte, OAuth-Tokens oder Kalender-Zugangsdaten.</p>';
-        echo '<table class="widefat striped"><thead><tr><th>Versuch (UTC)</th><th>Buchung</th><th>Empfänger</th><th>Typ</th><th>Status</th><th>Provider</th><th>Fehlercode</th><th>Idempotency-Key</th></tr></thead><tbody>';
+        echo '<p class="description">' . esc_html__('Das Protokoll enthält keine Nachrichtentexte, OAuth-Tokens oder Kalender-Zugangsdaten.', 'wordpress-calendar-booking') . '</p>';
+        echo '<table class="widefat striped"><thead><tr>';
+        foreach ([
+            __('Versuch (UTC)', 'wordpress-calendar-booking'),
+            __('Buchung', 'wordpress-calendar-booking'),
+            __('Empfänger', 'wordpress-calendar-booking'),
+            __('Typ', 'wordpress-calendar-booking'),
+            __('Status', 'wordpress-calendar-booking'),
+            __('Provider', 'wordpress-calendar-booking'),
+            __('Fehlercode', 'wordpress-calendar-booking'),
+            __('Idempotency-Key', 'wordpress-calendar-booking'),
+        ] as $heading) {
+            echo '<th>' . esc_html($heading) . '</th>';
+        }
+        echo '</tr></thead><tbody>';
         foreach ($items as $item) {
             $attemptAt = (string)($item->last_attempt_at ?: $item->created_at);
             echo '<tr><td>' . esc_html($attemptAt) . '</td><td>' . (int)$item->booking_id . '</td><td>' . esc_html((string)$item->recipient_class) . '</td><td>' . esc_html((string)$item->effect_type) . '</td><td>' . esc_html((string)$item->status) . '</td><td>' . esc_html((string)$item->provider_code) . '</td><td>' . esc_html((string)$item->last_error_code) . '</td><td><code>' . esc_html((string)$item->idempotency_key) . '</code></td></tr>';
