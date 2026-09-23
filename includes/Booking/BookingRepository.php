@@ -183,34 +183,113 @@ class BookingRepository {
 
     public function all(array $args = []): array {
         global $wpdb;
-        $sql = "SELECT * FROM {$this->table} WHERE 1=1";
+        [$where, $params] = $this->filterWhere($args);
+        $sql = "SELECT * FROM {$this->table}{$where} ORDER BY slot_start ASC, id ASC";
+
+        if (array_key_exists('limit', $args)) {
+            $sql .= ' LIMIT %d OFFSET %d';
+            $params[] = max(1, min(1000, (int)$args['limit']));
+            $params[] = max(0, (int)($args['offset'] ?? 0));
+        }
+
+        return $params
+            ? $wpdb->get_results($wpdb->prepare($sql, ...$params))
+            : $wpdb->get_results($sql);
+    }
+
+    public function count(array $args = []): int {
+        global $wpdb;
+        [$where, $params] = $this->filterWhere($args);
+        $sql = "SELECT COUNT(*) FROM {$this->table}{$where}";
+
+        return (int)($params
+            ? $wpdb->get_var($wpdb->prepare($sql, ...$params))
+            : $wpdb->get_var($sql));
+    }
+
+    /**
+     * Batch-load booking meta for a bounded set of bookings.
+     *
+     * @return array<int,array<string,mixed>>
+     */
+    public function metaForBookings(array $bookingIds, array $keys = []): array {
+        global $wpdb;
+
+        $bookingIds = array_values(array_unique(array_filter(
+            array_map('intval', $bookingIds),
+            static fn(int $id): bool => $id > 0
+        )));
+        if (!$bookingIds) {
+            return [];
+        }
+        $bookingIds = array_slice($bookingIds, 0, 1000);
+
+        $keys = array_values(array_unique(array_filter(array_map(
+            static fn($key): string => sanitize_key((string)$key),
+            $keys
+        ))));
+        $keys = array_slice($keys, 0, 50);
+
+        $idPlaceholders = implode(',', array_fill(0, count($bookingIds), '%d'));
+        $sql = "SELECT booking_id, meta_key, meta_value
+                FROM {$this->metaTable}
+                WHERE booking_id IN ({$idPlaceholders})";
+        $params = $bookingIds;
+
+        if ($keys) {
+            $keyPlaceholders = implode(',', array_fill(0, count($keys), '%s'));
+            $sql .= " AND meta_key IN ({$keyPlaceholders})";
+            $params = array_merge($params, $keys);
+        }
+
+        $sql .= ' ORDER BY booking_id ASC, id ASC';
+        $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params));
+        $meta = [];
+
+        foreach ($rows as $row) {
+            $bookingId = (int)$row->booking_id;
+            if (!isset($meta[$bookingId])) {
+                $meta[$bookingId] = [];
+            }
+            $decoded = json_decode((string)$row->meta_value, true);
+            $meta[$bookingId][(string)$row->meta_key] =
+                (json_last_error() === JSON_ERROR_NONE && is_array($decoded))
+                    ? $decoded
+                    : maybe_unserialize($row->meta_value);
+        }
+
+        return $meta;
+    }
+
+    /**
+     * @return array{0:string,1:array}
+     */
+    private function filterWhere(array $args): array {
+        $where = ' WHERE 1=1';
         $params = [];
+
         if (!empty($args['status'])) {
-            $sql .= ' AND status = %s';
-            $params[] = $args['status'];
+            $where .= ' AND status = %s';
+            $params[] = (string)$args['status'];
         }
         if (!empty($args['booking_type_id'])) {
-            $sql .= ' AND booking_type_id = %d';
+            $where .= ' AND booking_type_id = %d';
             $params[] = (int)$args['booking_type_id'];
         }
         if (!empty($args['resource_id'])) {
-            $sql .= ' AND resource_id = %d';
+            $where .= ' AND resource_id = %d';
             $params[] = (int)$args['resource_id'];
         }
         if (!empty($args['from'])) {
-            $sql .= ' AND slot_start >= %s';
+            $where .= ' AND slot_start >= %s';
             $params[] = (string)$args['from'];
         }
         if (!empty($args['to'])) {
-            $sql .= ' AND slot_start <= %s';
+            $where .= ' AND slot_start <= %s';
             $params[] = (string)$args['to'];
         }
-        $sql .= ' ORDER BY slot_start ASC';
-        if (!empty($args['limit'])) {
-            $sql .= ' LIMIT %d';
-            $params[] = (int)$args['limit'];
-        }
-        return $params ? $wpdb->get_results($wpdb->prepare($sql, ...$params)) : $wpdb->get_results($sql);
+
+        return [$where, $params];
     }
 
     public function expiredReservationIds(int $limit = 100): array {
