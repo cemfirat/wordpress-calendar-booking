@@ -47,7 +47,12 @@ final class PaymentService {
             return new \WP_Error('wpcb_payment_config_invalid', 'Paid booking type has invalid price settings.');
         }
         $existing = $this->payments->forBooking($bookingId);
-        if ($existing) {
+        if ($existing && in_array((string)$existing->status, [
+            PaymentStatus::PENDING,
+            PaymentStatus::PAID,
+            PaymentStatus::REFUND_PENDING,
+            PaymentStatus::REFUNDED,
+        ], true)) {
             return $existing;
         }
         $id = $this->payments->createPending($bookingId, $amount, $currency, (string)$booking->reserved_until);
@@ -190,7 +195,11 @@ final class PaymentService {
     }
 
     public function onBookingTransition(array $event, $booking): void {
-        if (!$booking || empty($event['changed']) || ($event['to'] ?? '') !== BookingStatus::CANCELLED) {
+        if (!$booking || empty($event['changed']) || !in_array(
+            (string)($event['to'] ?? ''),
+            [BookingStatus::CANCELLED, BookingStatus::REJECTED],
+            true
+        )) {
             return;
         }
         $payment = $this->payments->forBooking((int)$booking->id);
@@ -201,7 +210,7 @@ final class PaymentService {
                 (string)$booking->status,
                 'payment_refund_pending',
                 'payment',
-                'Cancellation requires payment refund'
+                'Booking lifecycle requires payment refund'
             );
         }
     }
