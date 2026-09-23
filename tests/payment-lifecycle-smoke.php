@@ -9,8 +9,10 @@ function wpcb_payment_assert($condition, string $message): void {
 }
 
 final class WpcbPaymentFakeAdapter implements Wpcb\Payments\PaymentAdapterInterface {
+    public array $createContext = [];
     public function code(): string { return 'fake'; }
     public function createPayment(array $context) {
+        $this->createContext = $context;
         return ['provider_reference' => 'fake-' . $context['payment_uuid']];
     }
     public function refund(array $context) {
@@ -70,9 +72,45 @@ wpcb_payment_assert(is_object($pending) && $pending->status === 'pending', 'Paid
 wpcb_payment_assert((int)$pending->amount_minor === 12900 && $pending->currency === 'EUR', 'Payment copies amount and currency from booking type.');
 wpcb_payment_assert(!$service->canConfirm($bookingId), 'Required payment blocks customer confirmation while pending.');
 
+$blockedBookingId = $bookings->create([
+    'booking_uuid' => wp_generate_uuid4(),
+    'booking_type_id' => $typeId,
+    'resource_id' => $resourceId,
+    'slot_start' => '2034-03-12 10:00:00',
+    'slot_end' => '2034-03-12 10:30:00',
+    'status' => Wpcb\Booking\BookingStatus::PENDING_APPROVAL,
+    'party_size' => 1,
+    'full_name' => 'Approval Gate',
+    'email' => 'approval-gate@example.com',
+    'source' => 'payment-smoke',
+    'lang' => 'de',
+    'reserved_until' => Wpcb\Support\Time::formatUtc(Wpcb\Support\Time::nowUtc()->modify('+30 minutes')),
+    'created_at' => $now,
+    'updated_at' => $now,
+]);
+$blockedPayment = $service->ensureForBooking($blockedBookingId);
+wpcb_payment_assert(is_object($blockedPayment), 'Approval-gate fixture has a pending payment.');
+$blockedApproval = (new Wpcb\Booking\BookingTransitionService())->apply(
+    $blockedBookingId,
+    Wpcb\Booking\BookingStateMachine::ADMIN_APPROVED,
+    'test',
+    'Payment gate fixture'
+);
+wpcb_payment_assert(
+    is_wp_error($blockedApproval) && $blockedApproval->get_error_code() === 'wpcb_payment_required',
+    'Admin approval cannot bypass required payment.'
+);
+
 $adapter = new WpcbPaymentFakeAdapter();
 $started = $service->begin($bookingId, $adapter);
 wpcb_payment_assert(is_object($started) && $started->provider === 'fake', 'Provider-neutral adapter attaches provider reference.');
+wpcb_payment_assert(
+    !array_key_exists('email', $adapter->createContext)
+    && !array_key_exists('full_name', $adapter->createContext)
+    && !array_key_exists('phone', $adapter->createContext)
+    && !array_key_exists('notes', $adapter->createContext),
+    'Payment adapter receives no booking/customer PII.'
+);
 
 $mismatch = $service->applyProviderEvent('fake', 'evt-mismatch', (string)$started->provider_reference, 'paid', 1, 'EUR');
 wpcb_payment_assert(is_wp_error($mismatch), 'Provider callback with wrong amount is rejected.');
@@ -123,7 +161,7 @@ foreach (['card_number', 'cardholder', 'cvc', 'cvv', 'pan'] as $forbidden) {
     wpcb_payment_assert(stripos($adminSource, $forbidden) === false, 'Payment admin never stores or renders raw card field ' . $forbidden . '.');
 }
 
-foreach ([$bookingId, $expiringId] as $id) {
+foreach ([$bookingId, $blockedBookingId, $expiringId] as $id) {
     $paymentIds = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$wpdb->prefix}wpcb_payments WHERE booking_id = %d", $id));
     foreach ($paymentIds as $paymentId) {
         $wpdb->delete($wpdb->prefix . 'wpcb_payment_events', ['payment_id' => (int)$paymentId]);
