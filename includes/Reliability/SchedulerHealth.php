@@ -16,6 +16,8 @@ class SchedulerHealth {
         $lastReminder = (string)get_option(self::REMINDER_LAST_RUN_OPTION, '');
         $nextQueue = wp_next_scheduled('wpcb_sync_queue');
         $nextReminder = wp_next_scheduled('wpcb_hourly_reminders');
+        $nextPrivacyRetention = wp_next_scheduled('wpcb_privacy_retention');
+        $nextPortalCleanup = wp_next_scheduled('wpcb_portal_session_cleanup');
         $warnings = [];
 
         if (!$nextQueue) {
@@ -23,6 +25,12 @@ class SchedulerHealth {
         }
         if (!$nextReminder) {
             $warnings[] = 'Die stündlichen Wartungs-/Erinnerungsaufgaben sind nicht in WP-Cron eingeplant.';
+        }
+        if (!$nextPrivacyRetention) {
+            $warnings[] = 'Die tägliche Datenschutz-Aufbewahrung ist nicht in WP-Cron eingeplant.';
+        }
+        if (!$nextPortalCleanup) {
+            $warnings[] = 'Die tägliche Portal-Sitzungsbereinigung ist nicht in WP-Cron eingeplant.';
         }
         if ($lastQueue === '') {
             $warnings[] = 'Es wurde noch kein Sync-Queue-Lauf aufgezeichnet.';
@@ -46,6 +54,8 @@ class SchedulerHealth {
             'last_reminder_run' => $lastReminder,
             'next_queue_run' => $nextQueue ? gmdate('Y-m-d H:i:s', (int)$nextQueue) : '',
             'next_reminder_run' => $nextReminder ? gmdate('Y-m-d H:i:s', (int)$nextReminder) : '',
+            'next_privacy_retention_run' => $nextPrivacyRetention ? gmdate('Y-m-d H:i:s', (int)$nextPrivacyRetention) : '',
+            'next_portal_cleanup_run' => $nextPortalCleanup ? gmdate('Y-m-d H:i:s', (int)$nextPortalCleanup) : '',
             'counts' => $counts,
             'stale_leases' => $staleLeases,
             'warnings' => $warnings,
