@@ -105,6 +105,9 @@ final class PrivacyService {
             ];
         }
 
+        // Portal sessions are short-lived access credentials and never need to be retained.
+        (new CustomerSessionRepository())->deleteForEmail($emailAddress);
+
         $table = $wpdb->prefix . 'wpcb_bookings';
         // Always process the first matching batch. Successful anonymization
         // removes rows from this email lookup, so offset pagination would skip
