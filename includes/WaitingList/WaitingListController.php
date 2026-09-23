@@ -12,6 +12,7 @@ final class WaitingListController {
         add_action('wpcb_hourly_reminders', [$this, 'expireOffers'], 7);
         add_action('wpcb_booking_transitioned', [$this, 'onBookingTransition'], 30, 2);
         add_action('wpcb_booking_event_recorded', [$this, 'onBookingEvent'], 30, 2);
+        add_action('wpcb_capacity_changed', [$this, 'expireOffers']);
     }
 
     public function join(): void {
@@ -90,7 +91,14 @@ final class WaitingListController {
 
     public function onBookingEvent(array $event, $booking): void {
         if (!$booking || empty($event['changed']) || ($event['event'] ?? '') !== 'rescheduled') return;
-        $this->promoteFromBooking($booking);
+        if (!empty($event['previous_resource_id']) && !empty($event['previous_slot_start']) && !empty($event['previous_slot_end'])) {
+            (new WaitingListService())->promoteSlot(
+                (int)$booking->booking_type_id,
+                (int)$event['previous_resource_id'],
+                (string)$event['previous_slot_start'],
+                (string)$event['previous_slot_end']
+            );
+        }
     }
 
     private function promoteFromBooking(object $booking): void {
