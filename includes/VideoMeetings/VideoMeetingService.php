@@ -28,16 +28,26 @@ final class VideoMeetingService {
     }
 
     private function enqueue(string $operation, object $booking): void {
-        $connections = (new VideoMeetingConnectionRepository())->forBookingType((int)$booking->booking_type_id);
-        if (!$connections) return;
+        $connectionIds = [];
+        if ($operation !== 'delete') {
+            foreach ((new VideoMeetingConnectionRepository())->forBookingType((int)$booking->booking_type_id) as $connection) {
+                $connectionIds[$connectionId] = $connectionId;
+            }
+        }
+        if ($operation !== 'create') {
+            foreach ((new VideoMeetingRepository())->forBooking((int)$booking->id) as $meeting) {
+                $connectionIds[(int)$meeting->connection_id] = (int)$meeting->connection_id;
+            }
+        }
+        if (!$connectionIds) return;
 
         $jobs = new JobRepository();
         $queued = false;
-        foreach ($connections as $connection) {
+        foreach (array_values($connectionIds) as $connectionId) {
             $version = hash('sha256', wp_json_encode([
                 'operation' => $operation,
                 'booking_id' => (int)$booking->id,
-                'connection_id' => (int)$connection->id,
+                'connection_id' => $connectionId,
                 'status' => (string)$booking->status,
                 'slot_start' => (string)$booking->slot_start,
                 'slot_end' => (string)$booking->slot_end,
@@ -46,8 +56,8 @@ final class VideoMeetingService {
             $id = $jobs->enqueue(
                 'video_' . $operation,
                 (int)$booking->id,
-                ['connection_id' => (int)$connection->id],
-                'video:' . $operation . ':' . (int)$booking->id . ':' . (int)$connection->id . ':' . substr($version, 0, 40)
+                ['connection_id' => $connectionId],
+                'video:' . $operation . ':' . (int)$booking->id . ':' . $connectionId . ':' . substr($version, 0, 40)
             );
             $queued = $queued || $id > 0;
         }
