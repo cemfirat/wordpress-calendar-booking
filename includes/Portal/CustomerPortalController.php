@@ -8,9 +8,10 @@ use Wpcb\Booking\BookingStateMachine;
 use Wpcb\Booking\BookingStatus;
 use Wpcb\Booking\BookingTransitionService;
 use Wpcb\Booking\BookingTypeRepository;
+use Wpcb\Booking\RecurringBookingService;
 use Wpcb\Support\Time;
 use Wpcb\Tokens\TokenService;
-use Wpcb\Payments\PaymentRepository;
+use Wpcb\Payments\PaymentService;
 
 final class CustomerPortalController {
     private CustomerSessionRepository $sessions;
@@ -219,12 +220,22 @@ final class CustomerPortalController {
             $this->redirect($returnUrl, 'not_allowed');
         }
 
-        $result = (new BookingTransitionService())->apply(
-            $bookingId,
-            BookingStateMachine::USER_CANCELLED,
-            'customer_portal',
-            'Customer cancelled from portal'
-        );
+        $payment = (new PaymentService())->paymentForBooking($bookingId);
+        if (!empty($booking->series_id) && $payment) {
+            $result = (new RecurringBookingService())->applyRemaining(
+                $bookingId,
+                BookingStateMachine::USER_CANCELLED,
+                'customer_portal',
+                'Customer cancelled paid recurring series from portal'
+            );
+        } else {
+            $result = (new BookingTransitionService())->apply(
+                $bookingId,
+                BookingStateMachine::USER_CANCELLED,
+                'customer_portal',
+                'Customer cancelled from portal'
+            );
+        }
         $this->redirect($returnUrl, is_wp_error($result) ? 'action_failed' : 'cancelled');
     }
 
@@ -381,7 +392,7 @@ final class CustomerPortalController {
         $html .= '<dt>' . esc_html__('Termin', 'wordpress-calendar-booking') . '</dt><dd>' . esc_html(Time::display((string)$booking->slot_start, 'd.m.Y H:i')) . ' – ' . esc_html(Time::display((string)$booking->slot_end, 'H:i')) . '</dd>';
         $html .= '<dt>' . esc_html__('Status', 'wordpress-calendar-booking') . '</dt><dd>' . esc_html((string)$booking->status) . '</dd>';
         $html .= '<dt>' . esc_html__('Teilnehmer', 'wordpress-calendar-booking') . '</dt><dd>' . max(1, (int)$booking->party_size) . '</dd>';
-        $payment = (new PaymentRepository())->forBooking((int)$booking->id);
+        $payment = (new PaymentService())->paymentForBooking((int)$booking->id);
         if ($payment) {
             $amount = number_format(((int)$payment->amount_minor) / 100, 2, ',', '.');
             $html .= '<dt>' . esc_html__('Zahlung', 'wordpress-calendar-booking') . '</dt><dd>' . esc_html($amount . ' ' . (string)$payment->currency . ' · ' . (string)$payment->status) . '</dd>';
