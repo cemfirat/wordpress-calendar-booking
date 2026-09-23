@@ -38,7 +38,7 @@ $create->set_header('Content-Type', 'application/json');
 $create->set_header('Idempotency-Key', 'endpoint-create-1');
 $createBody = [
     'name' => 'API smoke endpoint',
-    'url' => 'https://webhook.example.test/booking',
+    'url' => 'https://example.com/wpcb-webhook-test',
     'events' => ['booking.created', 'booking.cancelled'],
     'is_active' => true,
 ];
@@ -62,7 +62,7 @@ wpcb_api_assert($conflictResponse->get_status() === 409, 'Reusing an idempotency
 
 $GLOBALS['wpcb_webhook_capture'] = null;
 add_filter('pre_http_request', static function ($preempt, $args, $url) {
-    if ($url === 'https://webhook.example.test/booking') {
+    if ($url === 'https://example.com/wpcb-webhook-test') {
         $GLOBALS['wpcb_webhook_capture'] = ['args' => $args, 'url' => $url];
         return [
             'headers' => [],
