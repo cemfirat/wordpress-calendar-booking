@@ -6,6 +6,7 @@ use Wpcb\Admin\Settings;
 use Wpcb\Calendar\CalendarConnectionRepository;
 use Wpcb\Calendar\ProviderSyncService;
 use Wpcb\Webhooks\WebhookDispatcher;
+use Wpcb\WaitingList\WaitingListNotification;
 
 class QueueService {
     private JobRepository $jobs;
@@ -189,6 +190,11 @@ class QueueService {
                 return $this->providerSync->run('cancel', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
             case 'webhook_delivery':
                 return $this->webhooks->dispatch($payload, (int)$job->booking_id);
+            case 'waiting_list_offer':
+                return (new WaitingListNotification())->sendOffer(
+                    (int)($payload['entry_id'] ?? 0),
+                    (string)($payload['token'] ?? '')
+                );
             case 'create':
             case 'update':
                 return $this->sync->syncBooking((int)$job->booking_id);
