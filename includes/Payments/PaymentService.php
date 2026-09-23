@@ -83,7 +83,14 @@ final class PaymentService {
                 return $payment ?: new \WP_Error('wpcb_payment_missing', 'Payment no longer exists.');
             }
             $expiresAt = Time::parseUtc((string)($payment->expires_at ?? ''));
-            if (!$expiresAt || $expiresAt <= Time::nowUtc()) {
+            $booking = $this->bookings->find((int)$payment->booking_id);
+            $bookingExpiresAt = $booking
+                ? Time::parseUtc((string)($booking->reserved_until ?? ''))
+                : null;
+            if (!$expiresAt || $expiresAt <= Time::nowUtc()
+                || !$booking || (string)$booking->status !== BookingStatus::RESERVED_UNCONFIRMED
+                || !$bookingExpiresAt || $bookingExpiresAt <= Time::nowUtc()
+            ) {
                 return new \WP_Error('wpcb_payment_expired', 'Payment reservation has expired.');
             }
 
