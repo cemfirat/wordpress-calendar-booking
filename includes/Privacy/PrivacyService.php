@@ -4,6 +4,7 @@ namespace Wpcb\Privacy;
 use Wpcb\Admin\Settings;
 use Wpcb\Booking\BookingStatus;
 use Wpcb\Support\Time;
+use Wpcb\Portal\CustomerSessionRepository;
 
 final class PrivacyService {
     private const PAGE_SIZE = 50;
@@ -236,7 +237,7 @@ final class PrivacyService {
         }
 
         $content = __(
-            'When visitors book appointments, this site may store their name, email address, phone number, form responses, appointment time, booking status and administrator notes. The data is used to process the appointment, send Double Opt-In and appointment messages, prevent scheduling conflicts and maintain an audit trail. If calendar synchronization is enabled, appointment data required to create or update the event may be transferred to the configured calendar provider. Calendar account credentials are stored separately in the site settings and are never included in WordPress personal-data exports. Site administrators can configure automatic anonymization of older completed/terminal bookings and can mark individual bookings for retention when they must be kept.',
+            'When visitors book appointments, this site may store their name, email address, phone number, form responses, appointment time, booking status and administrator notes. The data is used to process the appointment, send Double Opt-In and appointment messages, prevent scheduling conflicts and maintain an audit trail. If the customer portal is used, short-lived encrypted customer sessions and one-time access links are used to authenticate access to the customer\'s own bookings. If calendar synchronization is enabled, appointment data required to create or update the event may be transferred to the configured calendar provider. Calendar account credentials are stored separately in the site settings and are never included in WordPress personal-data exports. Site administrators can configure automatic anonymization of older completed/terminal bookings and can mark individual bookings for retention when they must be kept.',
             'wordpress-calendar-booking'
         );
         wp_add_privacy_policy_content('WordPress Calendar Booking', wpautop($content));
@@ -293,6 +294,9 @@ final class PrivacyService {
 
         // Guest action links are personal access tokens; invalidate them on erase.
         $wpdb->delete($tokens, ['booking_id' => $bookingId]);
+
+        // Portal sessions are temporary access credentials tied to the original email.
+        (new CustomerSessionRepository())->deleteForEmail((string)$booking->email);
         return true;
     }
 
