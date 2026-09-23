@@ -30,7 +30,8 @@ class SlotSelectionService {
             $payload['type_id'],
             $payload['start'],
             $payload['end'],
-            $ignoreBookingId
+            $ignoreBookingId,
+            (int)$payload['resource_id']
         )) {
             return null;
         }
