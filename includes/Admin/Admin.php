@@ -422,11 +422,30 @@ class Admin {
     public function bookings(): void {
         $this->formStart();
         echo '<h1>' . esc_html__('Buchungen', 'wordpress-calendar-booking') . '</h1>';
+
         $repo = new BookingRepository();
         $machine = new BookingStateMachine();
         $filters = $this->bookingFilters($_GET);
-        $items = $repo->all($filters);
-        $privacy = new PrivacyService();
+        $perPage = 50;
+        $total = $repo->count($filters);
+        $totalPages = max(1, (int)ceil($total / $perPage));
+        $requestedPage = max(1, absint($_GET['paged'] ?? 1));
+        $page = min($requestedPage, $totalPages);
+
+        $pageFilters = $filters;
+        $pageFilters['limit'] = $perPage;
+        $pageFilters['offset'] = ($page - 1) * $perPage;
+        $items = $repo->all($pageFilters);
+
+        $bookingIds = array_map(
+            static fn($item): int => (int)$item->id,
+            $items
+        );
+        $pageMeta = $repo->metaForBookings(
+            $bookingIds,
+            ['sync_status', 'sync_error', 'privacy_retain']
+        );
+
         $types = (new BookingTypeRepository())->all(false);
         echo '<form method="get" style="margin:12px 0;padding:12px;background:#fff;border:1px solid #ccd0d4">';
         echo '<input type="hidden" name="page" value="wpcb_bookings">';
@@ -441,6 +460,7 @@ class Admin {
             echo '<option value="' . (int)$type->id . '" ' . selected((int)($filters['booking_type_id'] ?? 0), (int)$type->id, false) . '>' . esc_html($type->name) . '</option>';
         }
         echo '</select></label> <button class="button">' . esc_html__('Filtern', 'wordpress-calendar-booking') . '</button> <a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_bookings')) . '">' . esc_html__('Zurücksetzen', 'wordpress-calendar-booking') . '</a></form>';
+
         $exportArgs = [
             'action' => 'wpcb_export_bookings',
             '_wpnonce' => wp_create_nonce('wpcb_export_bookings'),
@@ -450,6 +470,11 @@ class Admin {
             'booking_type_id' => (int)($filters['booking_type_id'] ?? 0),
         ];
         echo '<p><a class="button button-primary" href="' . esc_url(add_query_arg($exportArgs, admin_url('admin-post.php'))) . '">' . esc_html__('CSV exportieren', 'wordpress-calendar-booking') . '</a></p>';
+        echo '<p class="description">' . esc_html(sprintf(
+            _n('%s Buchung', '%s Buchungen', $total, 'wordpress-calendar-booking'),
+            number_format_i18n($total)
+        )) . '</p>';
+
         echo '<table class="widefat striped"><thead><tr>';
         foreach ([
             __('ID', 'wordpress-calendar-booking'),
@@ -464,16 +489,19 @@ class Admin {
             echo '<th>' . esc_html($heading) . '</th>';
         }
         echo '</tr></thead><tbody>';
+
         foreach ($items as $item) {
-            $meta = $repo->getMeta((int)$item->id);
+            $meta = $pageMeta[(int)$item->id] ?? [];
             $events = $machine->adminEventsFor((string)$item->status);
-            $retained = $privacy->isRetained((int)$item->id);
-            echo '<tr><td>' . (int)$item->id . '</td><td>' . esc_html($item->full_name) . '</td><td>' . esc_html($item->email) . '</td><td>' . esc_html($item->slot_start) . '<br><small>' . max(1,(int)($item->party_size ?? 1)) . ' ' . esc_html__('Teilnehmer', 'wordpress-calendar-booking') . '</small></td><td>' . esc_html($item->status) . '</td><td>';
+            $retained = '1' === (string)($meta['privacy_retain'] ?? '');
+
+            echo '<tr><td>' . (int)$item->id . '</td><td>' . esc_html($item->full_name) . '</td><td>' . esc_html($item->email) . '</td><td>' . esc_html($item->slot_start) . '<br><small>' . max(1, (int)($item->party_size ?? 1)) . ' ' . esc_html__('Teilnehmer', 'wordpress-calendar-booking') . '</small></td><td>' . esc_html($item->status) . '</td><td>';
             echo '<form method="post">';
             wp_nonce_field('wpcb_admin_action');
             echo '<input type="hidden" name="wpcb_admin_action" value="booking_retention"><input type="hidden" name="id" value="' . (int)$item->id . '">';
             echo '<label><input type="checkbox" name="retain" value="1" ' . checked($retained, true, false) . '> ' . esc_html__('behalten', 'wordpress-calendar-booking') . '</label> <button class="button button-small">' . esc_html__('Speichern', 'wordpress-calendar-booking') . '</button></form>';
             echo '</td><td>' . esc_html((string)($meta['sync_status'] ?? '')) . (!empty($meta['sync_error']) ? '<br><small>' . esc_html((string)$meta['sync_error']) . '</small>' : '') . '</td><td>';
+
             if ($events) {
                 echo '<form method="post">';
                 wp_nonce_field('wpcb_admin_action');
@@ -487,7 +515,45 @@ class Admin {
             }
             echo '</td></tr>';
         }
+
+        if (!$items) {
+            echo '<tr><td colspan="8">' . esc_html__('Keine Buchungen gefunden.', 'wordpress-calendar-booking') . '</td></tr>';
+        }
         echo '</tbody></table>';
+
+        if ($totalPages > 1) {
+            $paginationArgs = ['page' => 'wpcb_bookings'];
+            if (!empty($filters['from_date'])) {
+                $paginationArgs['from'] = $filters['from_date'];
+            }
+            if (!empty($filters['to_date'])) {
+                $paginationArgs['to'] = $filters['to_date'];
+            }
+            if (!empty($filters['status'])) {
+                $paginationArgs['status'] = $filters['status'];
+            }
+            if (!empty($filters['booking_type_id'])) {
+                $paginationArgs['booking_type_id'] = (int)$filters['booking_type_id'];
+            }
+
+            $paginationBase = add_query_arg(
+                array_merge($paginationArgs, ['paged' => 999999999]),
+                admin_url('admin.php')
+            );
+            $links = paginate_links([
+                'base' => str_replace('999999999', '%#%', esc_url($paginationBase)),
+                'format' => '',
+                'current' => $page,
+                'total' => $totalPages,
+                'type' => 'list',
+                'prev_text' => __('« Zurück', 'wordpress-calendar-booking'),
+                'next_text' => __('Weiter »', 'wordpress-calendar-booking'),
+            ]);
+            if ($links) {
+                echo '<div class="tablenav"><div class="tablenav-pages">' . wp_kses_post($links) . '</div></div>';
+            }
+        }
+
         $this->formEnd();
     }
 
