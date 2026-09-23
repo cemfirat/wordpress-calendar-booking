@@ -140,6 +140,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run booking export smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-export-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run admin booking pagination smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-pagination-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run booking audit history smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-audit-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run setup readiness smoke test
