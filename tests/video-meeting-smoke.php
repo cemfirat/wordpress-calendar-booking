@@ -114,6 +114,7 @@ wpcb_video_assert(WpcbVideoFakeProvider::$creates === 1, 'Repeating the same lif
 $delivery = (new Wpcb\Reliability\DeliveryRepository())->search([
     'booking_id'=>$bookingId,
     'effect_type'=>'video_meeting_ready',
+    'recipient_class'=>'customer',
 ], 10);
 wpcb_video_assert(count($delivery) === 1 && $delivery[0]->status === 'sent', 'Meeting-ready notification is idempotent.');
 
