@@ -14,6 +14,7 @@ use Wpcb\Privacy\PrivacyService;
 use Wpcb\Reliability\SchedulerHealth;
 use Wpcb\Reliability\DeliveryRepository;
 use Wpcb\Resources\ResourceRepository;
+use Wpcb\Mail\MailDiagnostics;
 
 class Admin {
     public function boot(): void {
@@ -111,6 +112,16 @@ class Admin {
                 break;
             case 'run_hourly_tasks':
                 do_action('wpcb_hourly_reminders');
+                break;
+            case 'test_mail_delivery':
+                $recipient = sanitize_email(wp_unslash($_POST['test_email'] ?? ''));
+                if (!is_email($recipient)) {
+                    $recipient = sanitize_email((string)wp_get_current_user()->user_email);
+                }
+                if (!is_email($recipient)) {
+                    $recipient = sanitize_email((string)get_option('admin_email'));
+                }
+                (new MailDiagnostics())->run($recipient);
                 break;
             case 'save_type':
                 $table = $wpdb->prefix . 'wpcb_booking_types';
@@ -799,6 +810,8 @@ class Admin {
     public function schedulerHealth(): void {
         $this->formStart();
         $health = (new SchedulerHealth())->snapshot();
+        $mailDiagnostics = new MailDiagnostics();
+        $mail = $mailDiagnostics->lastResult();
         echo '<h1>' . esc_html__('Systemstatus', 'wordpress-calendar-booking') . '</h1>';
         if ($health['healthy']) {
             echo '<div class="notice notice-success inline"><p>' . esc_html__('WP-Cron und Queue-Verarbeitung wirken gesund.', 'wordpress-calendar-booking') . '</p></div>';
@@ -834,6 +847,39 @@ class Admin {
         echo '<button class="button">' . esc_html__('Stündliche Aufgaben jetzt ausführen', 'wordpress-calendar-booking') . '</button></form>';
         echo '</div>';
         echo '<p class="description">' . wp_kses_post(__('Für zuverlässige Produktion sollte WP-Cron durch einen echten System-Cron angestoßen werden. Siehe <code>docs/OPERATIONS.md</code>.', 'wordpress-calendar-booking')) . '</p>';
+
+        echo '<hr><h2>' . esc_html__('E-Mail-Zustellung', 'wordpress-calendar-booking') . '</h2>';
+        $mailStatus = (string)($mail['status'] ?? 'untested');
+        if ($mailStatus === 'accepted') {
+            echo '<div class="notice notice-success inline"><p><strong>' . esc_html__('Test-E-Mail an Mail-Transport übergeben.', 'wordpress-calendar-booking') . '</strong> ';
+            echo esc_html__('Das bestätigt die Annahme durch WordPress bzw. den konfigurierten Mail-Transport, nicht die tatsächliche Zustellung im Posteingang.', 'wordpress-calendar-booking') . '</p></div>';
+        } elseif ($mailStatus === 'failed') {
+            echo '<div class="notice notice-error inline"><p><strong>' . esc_html__('Test-E-Mail konnte nicht übergeben werden.', 'wordpress-calendar-booking') . '</strong>';
+            if (!empty($mail['error_code'])) {
+                echo ' <code>' . esc_html((string)$mail['error_code']) . '</code>';
+            }
+            echo '</p></div>';
+        } else {
+            echo '<div class="notice notice-info inline"><p>' . esc_html__('Noch kein Testversand durchgeführt.', 'wordpress-calendar-booking') . '</p></div>';
+        }
+
+        echo '<table class="widefat striped" style="max-width:900px"><tbody>';
+        echo '<tr><th>' . esc_html__('Letzter Mail-Test (UTC)', 'wordpress-calendar-booking') . '</th><td>'
+            . esc_html((string)($mail['tested_at'] ?: __('noch keiner', 'wordpress-calendar-booking'))) . '</td></tr>';
+        echo '</tbody></table>';
+
+        $testRecipient = sanitize_email((string)wp_get_current_user()->user_email);
+        if (!is_email($testRecipient)) {
+            $testRecipient = sanitize_email((string)get_option('admin_email'));
+        }
+        echo '<form method="post" style="margin-top:12px;max-width:900px">';
+        wp_nonce_field('wpcb_admin_action');
+        echo '<input type="hidden" name="wpcb_admin_action" value="test_mail_delivery">';
+        echo '<label><strong>' . esc_html__('Test-E-Mail an', 'wordpress-calendar-booking') . '</strong><br>';
+        echo '<input type="email" name="test_email" class="regular-text" required value="' . esc_attr($testRecipient) . '"></label> ';
+        echo '<button class="button button-primary">' . esc_html__('Test-E-Mail senden', 'wordpress-calendar-booking') . '</button>';
+        echo '<p class="description">' . esc_html__('Die Empfängeradresse und der Nachrichtentext werden nicht im Diagnose- oder Versandprotokoll gespeichert.', 'wordpress-calendar-booking') . '</p>';
+        echo '</form>';
         $this->formEnd();
     }
 
