@@ -89,6 +89,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-audit-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run resource scheduling smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/resource-scheduling-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run capacity/group booking smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/capacity-booking-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run scheduler health smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/scheduler-health-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run notification delivery smoke test
@@ -168,6 +170,26 @@ jobs:
           cat "$RUNNER_TEMP/resource-a.txt" "$RUNNER_TEMP/resource-b.txt"
           grep -q '^RESERVED ' "$RUNNER_TEMP/resource-a.txt"
           grep -q '^RESERVED ' "$RUNNER_TEMP/resource-b.txt"
+      - name: Verify last-seat capacity race
+        if: matrix.wordpress == 'latest'
+        run: |
+          set -euo pipefail
+          fixture="$(wp eval-file "$GITHUB_WORKSPACE/tests/create-capacity-race-fixture.php" --path="$RUNNER_TEMP/wordpress")"
+          export WPCB_TEST_TYPE_ID="${fixture%%|*}"
+          export WPCB_TEST_SLOT_TOKEN="${fixture#*|}"
+
+          WPCB_TEST_PARTY_SIZE=2 WPCB_TEST_EMAIL=capacity-a@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/capacity-a.txt" &
+          first_pid=$!
+          WPCB_TEST_PARTY_SIZE=2 WPCB_TEST_EMAIL=capacity-b@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/capacity-b.txt" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+          cat "$RUNNER_TEMP/capacity-a.txt" "$RUNNER_TEMP/capacity-b.txt"
+          reserved_count="$(awk '/^RESERVED /{n++} END{print n+0}' "$RUNNER_TEMP/capacity-a.txt" "$RUNNER_TEMP/capacity-b.txt")"
+          rejected_count="$(awk '/^REJECTED /{n++} END{print n+0}' "$RUNNER_TEMP/capacity-a.txt" "$RUNNER_TEMP/capacity-b.txt")"
+          test "$reserved_count" -eq 1
+          test "$rejected_count" -eq 1
 
 
   package:
