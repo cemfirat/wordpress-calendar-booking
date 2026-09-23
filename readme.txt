@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.8.1
+Stable tag: 3.9.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,11 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.9.0 =
+* Add a first-run readiness dashboard with direct setup links.
+* Check public booking types, resource assignment, effective availability, sender/timezone configuration, scheduler health and published booking surfaces.
+* Keep external calendar/provider connections optional for core readiness.
 
 = 3.8.1 =
 * Publish the completed internationalization hardening from the post-3.8.0 source state.
