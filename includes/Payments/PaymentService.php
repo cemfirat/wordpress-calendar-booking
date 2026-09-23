@@ -84,7 +84,11 @@ final class PaymentService {
         if ($reference === '' || !$this->payments->attachProvider((int)$payment->id, $adapter->code(), $reference)) {
             return new \WP_Error('wpcb_payment_provider_reference', 'Payment provider reference could not be stored.');
         }
-        return $this->payments->find((int)$payment->id);
+        $stored = $this->payments->find((int)$payment->id);
+        if ($stored && !empty($result['checkout_url'])) {
+            $stored->checkout_url = esc_url_raw((string)$result['checkout_url']);
+        }
+        return $stored;
     }
 
     /**
