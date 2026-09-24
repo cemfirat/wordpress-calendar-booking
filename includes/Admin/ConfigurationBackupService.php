@@ -4,10 +4,24 @@ namespace Wpcb\Admin;
 use Wpcb\Support\Time;
 use Wpcb\Resources\ResourceRepository;
 use Wpcb\Calendar\CalendarConnectionRepository;
+use Wpcb\Calendar\ProviderRegistry;
 
 final class ConfigurationBackupService {
     public const FORMAT = 'wordpress-calendar-booking-configuration';
     public const FORMAT_VERSION = 1;
+    private const MAX_JSON_BYTES = 2097152;
+    private const SECTION_LIMITS = [
+        'booking_types' => 500,
+        'resources' => 500,
+        'booking_type_resources' => 5000,
+        'form_fields' => 500,
+        'availability_rules' => 5000,
+        'exceptions' => 5000,
+        'calendar_connections' => 500,
+        'booking_type_calendar_connections' => 5000,
+        'resource_calendar_connections' => 5000,
+        'email_templates' => 200,
+    ];
 
     private const SETTING_KEYS = [
         'mode','sender_name','sender_email','timezone','date_format','time_format',
@@ -120,6 +134,9 @@ final class ConfigurationBackupService {
     }
 
     public function decode(string $json) {
+        if (strlen($json) > self::MAX_JSON_BYTES) {
+            return new \WP_Error('wpcb_backup_too_large', __('Die Sicherungsdatei ist zu groß.', 'wordpress-calendar-booking'));
+        }
         $data = json_decode($json, true);
         if (!is_array($data)) {
             return new \WP_Error('wpcb_backup_json', __('Die Sicherungsdatei enthält kein gültiges JSON.', 'wordpress-calendar-booking'));
@@ -148,6 +165,18 @@ final class ConfigurationBackupService {
             return new \WP_Error('wpcb_backup_unsafe_settings', __('Die Sicherung enthält nicht erlaubte Einstellungsfelder.', 'wordpress-calendar-booking'));
         }
 
+        foreach (self::SECTION_LIMITS as $section => $limit) {
+            if (count($data[$section]) > $limit) {
+                return new \WP_Error('wpcb_backup_limit', __('Die Sicherung überschreitet ein zulässiges Abschnittslimit.', 'wordpress-calendar-booking'));
+            }
+            if ($section !== 'email_templates') {
+                $expectedKeys = $data[$section] ? range(0, count($data[$section]) - 1) : [];
+                if (array_keys($data[$section]) !== $expectedKeys) {
+                    return new \WP_Error('wpcb_backup_shape', __('Ein Sicherungsabschnitt hat eine ungültige Listenstruktur.', 'wordpress-calendar-booking'));
+                }
+            }
+        }
+
         $rowKeys = [
             'booking_types' => ['name','slug','description','duration_minutes','buffer_before_minutes','buffer_after_minutes','capacity','show_remaining_capacity','payment_mode','price_minor','currency','is_active','is_public','sort_order'],
             'resources' => ['name','slug','public_label','description','capacity','is_active','is_public','sort_order'],
@@ -165,6 +194,11 @@ final class ConfigurationBackupService {
                     return new \WP_Error('wpcb_backup_row_fields', __('Die Sicherung enthält unbekannte Konfigurationsfelder.', 'wordpress-calendar-booking'));
                 }
             }
+        }
+
+        $semantic = $this->validateSemanticValues($data);
+        if (is_wp_error($semantic)) {
+            return $semantic;
         }
 
         $typeSlugs = [];
@@ -255,6 +289,286 @@ final class ConfigurationBackupService {
             }
         }
         return $data;
+    }
+
+    private function validateSemanticValues(array $data) {
+        if (!is_string($data['plugin_version'] ?? '') || strlen((string)$data['plugin_version']) > 30
+            || !is_string($data['exported_at_utc'] ?? '') || !$this->validUtcDate((string)$data['exported_at_utc'])) {
+            return $this->invalidValue('metadata');
+        }
+
+        $settings = $data['settings'];
+        $stringSettings = [
+            'sender_name'=>190,'sender_email'=>254,'timezone'=>100,'date_format'=>100,'time_format'=>100,
+            'notification_emails'=>5000,'visit_address'=>2000,'own_phone'=>190,
+        ];
+        foreach ($stringSettings as $key => $max) {
+            if (array_key_exists($key, $settings) && !$this->validString($settings[$key], $max, true)) {
+                return $this->invalidValue('settings');
+            }
+        }
+        if (array_key_exists('mode', $settings)
+            && (!is_string($settings['mode']) || !in_array($settings['mode'], ['automatic','approval'], true))) {
+            return $this->invalidValue('settings');
+        }
+        if (array_key_exists('sender_email', $settings)
+            && $settings['sender_email'] !== '' && !is_email((string)$settings['sender_email'])) {
+            return $this->invalidValue('settings');
+        }
+        if (array_key_exists('timezone', $settings)
+            && Settings::normalizeTimezone((string)$settings['timezone']) !== (string)$settings['timezone']) {
+            return $this->invalidValue('settings');
+        }
+        foreach ([
+            'notifications_enabled','reminders_enabled','honeypot_enabled','timing_enabled',
+            'rate_limit_enabled','retention_enabled','delete_data_on_uninstall',
+        ] as $key) {
+            if (array_key_exists($key, $settings) && !$this->validBool($settings[$key])) {
+                return $this->invalidValue('settings');
+            }
+        }
+        foreach ([
+            'reminder_hours'=>[1,8760],
+            'delivery_log_retention_days'=>[1,3650],
+            'calendar_cache_minutes'=>[1,1440],
+            'token_ttl_minutes'=>[1,10080],
+            'reservation_ttl_minutes'=>[1,1440],
+            'cancel_min_hours'=>[0,8760],
+            'change_min_hours'=>[0,8760],
+            'min_form_seconds'=>[0,120],
+            'rate_limit_requests'=>[1,10000],
+            'rate_limit_window_minutes'=>[1,1440],
+            'show_calendar_limit'=>[1,1000],
+            'retention_days'=>[1,36500],
+        ] as $key => $range) {
+            if (array_key_exists($key, $settings) && !$this->validInt($settings[$key], $range[0], $range[1])) {
+                return $this->invalidValue('settings');
+            }
+        }
+
+        foreach ($data['email_templates'] as $key => $value) {
+            if (!is_string($key) || sanitize_key($key) !== $key || strlen($key) > 100
+                || !is_string($value) || strlen($value) > 100000) {
+                return $this->invalidValue('email_templates');
+            }
+        }
+
+        foreach ($data['booking_types'] as $row) {
+            if (!$this->validString($row['name'] ?? null, 190, false)
+                || !$this->validSlug($row['slug'] ?? null)
+                || !$this->validString($row['description'] ?? null, 10000, true)
+                || !$this->validInt($row['duration_minutes'] ?? null, 1, 1440)
+                || !$this->validInt($row['buffer_before_minutes'] ?? null, 0, 1440)
+                || !$this->validInt($row['buffer_after_minutes'] ?? null, 0, 1440)
+                || !$this->validInt($row['capacity'] ?? null, 1, 10000)
+                || !$this->validBool($row['show_remaining_capacity'] ?? null)
+                || !is_string($row['payment_mode'] ?? null)
+                || !in_array($row['payment_mode'], ['free','required'], true)
+                || !$this->validInt($row['price_minor'] ?? null, 0, 1000000000)
+                || !is_string($row['currency'] ?? null)
+                || !preg_match('/^[A-Z]{3}$/', $row['currency'])
+                || !$this->validBool($row['is_active'] ?? null)
+                || !$this->validBool($row['is_public'] ?? null)
+                || !$this->validInt($row['sort_order'] ?? null, -1000000, 1000000)) {
+                return $this->invalidValue('booking_types');
+            }
+        }
+
+        foreach ($data['resources'] as $row) {
+            if (!$this->validString($row['name'] ?? null, 190, false)
+                || !$this->validSlug($row['slug'] ?? null)
+                || !$this->validString($row['public_label'] ?? null, 190, true)
+                || !$this->validString($row['description'] ?? null, 10000, true)
+                || !$this->validInt($row['capacity'] ?? null, 1, 10000)
+                || !$this->validBool($row['is_active'] ?? null)
+                || !$this->validBool($row['is_public'] ?? null)
+                || !$this->validInt($row['sort_order'] ?? null, -1000000, 1000000)) {
+                return $this->invalidValue('resources');
+            }
+        }
+
+        foreach ($data['booking_type_resources'] as $row) {
+            if (!$this->validSlug($row['booking_type_slug'] ?? null)
+                || !$this->validSlug($row['resource_slug'] ?? null)) {
+                return $this->invalidValue('booking_type_resources');
+            }
+        }
+
+        foreach ($data['form_fields'] as $row) {
+            if (!$this->validKey($row['field_key'] ?? null, 190)
+                || !$this->validString($row['label'] ?? null, 190, false)
+                || !is_string($row['field_type'] ?? null)
+                || !in_array($row['field_type'], ['text','email','textarea','checkbox','select','radio'], true)
+                || !$this->validBool($row['is_required'] ?? null)
+                || !$this->validBool($row['is_active'] ?? null)
+                || !$this->validJsonArray($row['options_json'] ?? null, true)
+                || !$this->validJsonArray($row['validation_rules_json'] ?? null, false)
+                || !$this->validInt($row['sort_order'] ?? null, -1000000, 1000000)) {
+                return $this->invalidValue('form_fields');
+            }
+        }
+
+        foreach ($data['availability_rules'] as $row) {
+            if (!is_string($row['scope_type'] ?? null)
+                || !in_array($row['scope_type'], ['global','booking_type','resource'], true)
+                || !$this->validInt($row['weekday'] ?? null, 1, 7)
+                || !$this->validTime($row['start_time'] ?? null)
+                || !$this->validTime($row['end_time'] ?? null)
+                || strcmp((string)$row['start_time'], (string)$row['end_time']) >= 0
+                || !$this->validInt($row['slot_duration_minutes'] ?? null, 1, 1440)
+                || !$this->validInt($row['buffer_before_minutes'] ?? null, 0, 1440)
+                || !$this->validInt($row['buffer_after_minutes'] ?? null, 0, 1440)
+                || !$this->validInt($row['min_notice_minutes'] ?? null, 0, 525600)
+                || !$this->validInt($row['max_days_in_advance'] ?? null, 1, 3650)
+                || !$this->validBool($row['is_active'] ?? null)
+                || !$this->validOptionalSlug($row['booking_type_slug'] ?? null)
+                || !$this->validOptionalSlug($row['resource_slug'] ?? null)) {
+                return $this->invalidValue('availability_rules');
+            }
+        }
+
+        foreach ($data['exceptions'] as $row) {
+            if (!is_string($row['type'] ?? null)
+                || !in_array($row['type'], ['holiday','blocked_day','blocked_range','vacation'], true)
+                || !$this->validString($row['title'] ?? null, 190, false)
+                || !$this->validUtcDate($row['date_start'] ?? null)
+                || !$this->validUtcDate($row['date_end'] ?? null)
+                || strcmp((string)$row['date_start'], (string)$row['date_end']) >= 0
+                || !$this->validBool($row['all_day'] ?? null)
+                || !$this->validBool($row['is_active'] ?? null)
+                || !$this->validOptionalSlug($row['booking_type_slug'] ?? null)
+                || !$this->validOptionalSlug($row['resource_slug'] ?? null)) {
+                return $this->invalidValue('exceptions');
+            }
+        }
+
+        $providers = array_keys((new ProviderRegistry())->all());
+        foreach ($data['calendar_connections'] as $row) {
+            if (!is_string($row['provider'] ?? null)
+                || !in_array($row['provider'], $providers, true)
+                || !$this->validString($row['name'] ?? null, 190, false)
+                || !$this->validString($row['remote_calendar_id'] ?? null, 2048, true)
+                || !$this->validBool($row['blocks_availability'] ?? null)
+                || !$this->validBool($row['receives_bookings'] ?? null)
+                || !$this->validBool($row['requires_reconnect'] ?? null)
+                || !$this->boolValue($row['requires_reconnect'])) {
+                return $this->invalidValue('calendar_connections');
+            }
+        }
+
+        foreach (['booking_type_calendar_connections','resource_calendar_connections'] as $section) {
+            foreach ($data[$section] as $row) {
+                $ownerKey = $section === 'booking_type_calendar_connections' ? 'booking_type_slug' : 'resource_slug';
+                if (!is_string($row['provider'] ?? null)
+                    || !in_array($row['provider'], $providers, true)
+                    || !$this->validString($row['connection_name'] ?? null, 190, false)
+                    || !$this->validString($row['remote_calendar_id'] ?? null, 2048, true)
+                    || !$this->validSlug($row[$ownerKey] ?? null)
+                    || !$this->validBool($row['blocks_availability'] ?? null)
+                    || !$this->validBool($row['receives_bookings'] ?? null)) {
+                    return $this->invalidValue($section);
+                }
+            }
+        }
+
+        return true;
+    }
+
+    private function validString($value, int $maxLength, bool $allowEmpty): bool {
+        return is_string($value)
+            && strlen($value) <= $maxLength
+            && ($allowEmpty || trim($value) !== '');
+    }
+
+    private function validSlug($value): bool {
+        return is_string($value)
+            && $value !== ''
+            && strlen($value) <= 190
+            && sanitize_title($value) === $value;
+    }
+
+    private function validOptionalSlug($value): bool {
+        return $value === null || $value === '' || $this->validSlug($value);
+    }
+
+    private function validKey($value, int $maxLength): bool {
+        return is_string($value)
+            && $value !== ''
+            && strlen($value) <= $maxLength
+            && sanitize_key($value) === $value;
+    }
+
+    private function validInt($value, int $min, int $max): bool {
+        if (is_int($value)) {
+            $int = $value;
+        } elseif (is_string($value) && preg_match('/^-?\d+$/', $value)) {
+            $int = (int)$value;
+        } else {
+            return false;
+        }
+        return $int >= $min && $int <= $max;
+    }
+
+    private function validBool($value): bool {
+        return is_bool($value)
+            || $value === 0 || $value === 1
+            || $value === '0' || $value === '1';
+    }
+
+    private function boolValue($value): bool {
+        return $value === true || $value === 1 || $value === '1';
+    }
+
+    private function validTime($value): bool {
+        if (!is_string($value) || !preg_match('/^(\d{2}):(\d{2}):(\d{2})$/', $value, $m)) {
+            return false;
+        }
+        return (int)$m[1] < 24 && (int)$m[2] < 60 && (int)$m[3] < 60;
+    }
+
+    private function validUtcDate($value): bool {
+        if (!is_string($value) || !preg_match('/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/', $value)) {
+            return false;
+        }
+        $date = \DateTimeImmutable::createFromFormat('!Y-m-d H:i:s', $value, new \DateTimeZone('UTC'));
+        $errors = \DateTimeImmutable::getLastErrors();
+        return $date !== false && ($errors === false || ((int)$errors['warning_count'] === 0 && (int)$errors['error_count'] === 0))
+            && $date->format('Y-m-d H:i:s') === $value;
+    }
+
+    private function validJsonArray($value, bool $options): bool {
+        if ($value === null || $value === '') {
+            return true;
+        }
+        if (!is_string($value) || strlen($value) > 65535) {
+            return false;
+        }
+        $decoded = json_decode($value, true);
+        if (!is_array($decoded)) {
+            return false;
+        }
+        if ($options) {
+            if (count($decoded) > 200 || array_keys($decoded) !== ($decoded ? range(0, count($decoded) - 1) : [])) {
+                return false;
+            }
+            foreach ($decoded as $item) {
+                if (!is_string($item) || strlen($item) > 500) {
+                    return false;
+                }
+            }
+        }
+        return true;
+    }
+
+    private function invalidValue(string $section): \WP_Error {
+        return new \WP_Error(
+            'wpcb_backup_value',
+            sprintf(
+                /* translators: %s: configuration section */
+                __('Die Sicherung enthält einen ungültigen Wert im Abschnitt %s.', 'wordpress-calendar-booking'),
+                $section
+            )
+        );
     }
 
     public function plan(array $snapshot) {
