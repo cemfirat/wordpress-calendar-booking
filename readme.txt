@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.17.2
+Stable tag: 3.18.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,11 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.18.0 =
+* Integrate booking readiness, scheduler health and mail-transport diagnostics with WordPress Site Health.
+* Add a privacy-safe Site Health debug-information section with bounded operational metadata only.
+* Keep customer data, provider/payment credentials, tokens and raw errors out of Site Health output.
 
 = 3.17.2 =
 * Publish a portable SHA-256 checksum alongside the stable release ZIP.
