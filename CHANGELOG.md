@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.19.1
+
+- Make configuration restore dry-runs distinguish identical matches from real overwrite conflicts and expose bounded field-level conflict details.
+- Reject ambiguous local natural-key matches before mutation instead of choosing an arbitrary row.
+- Verify repeated application of the same snapshot converges without duplicating availability rules, exceptions, mappings or calendar descriptors.
+- Keep conflict previews limited to configuration identifiers and field names; no customer values or reusable secrets are included.
+
 ## 3.19.0
 
 - Add versioned JSON backup/restore for booking configuration, resources, mappings, form fields, availability, safe settings and email templates.
