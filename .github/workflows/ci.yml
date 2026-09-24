@@ -9,9 +9,11 @@ on:
 permissions:
   contents: read
 
+# PR numbers are unique across forks; source branch names are not.
+# Non-PR runs retain per-run isolation, including waiting main/release runs.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
-  cancel-in-progress: true
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   dependency_locks:
@@ -27,6 +29,8 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
+      - name: Check CI concurrency policy
+        run: node --test .github/tests/ci-concurrency.test.mjs
       - name: Verify committed dependency graphs
         run: |
           set -euo pipefail
