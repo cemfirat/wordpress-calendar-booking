@@ -27,11 +27,50 @@ final class OutboundUrlPolicy {
             || empty($parts['host'])
             || !in_array(strtolower((string)$parts['scheme']), ['http', 'https'], true)
             || !empty($parts['user'])
-            || !empty($parts['pass'])) {
+            || !empty($parts['pass'])
+            || !self::isPublicNetworkHost((string)$parts['host'])) {
             return '';
         }
 
         return wp_http_validate_url($url) ? $url : '';
+    }
+
+
+    private static function isPublicNetworkHost(string $host): bool {
+        $host = strtolower(trim($host, '[]'));
+        if ($host === '' || $host === 'localhost' || str_ends_with($host, '.localhost')) {
+            return false;
+        }
+
+        if (filter_var($host, FILTER_VALIDATE_IP)) {
+            return filter_var(
+                $host,
+                FILTER_VALIDATE_IP,
+                FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+            ) !== false;
+        }
+
+        if (!function_exists('dns_get_record')) {
+            return false;
+        }
+
+        $records = @dns_get_record($host, DNS_A | DNS_AAAA);
+        if (!is_array($records) || !$records) {
+            return false;
+        }
+
+        foreach ($records as $record) {
+            $ip = (string)($record['ip'] ?? $record['ipv6'] ?? '');
+            if ($ip === '' || filter_var(
+                $ip,
+                FILTER_VALIDATE_IP,
+                FILTER_FLAG_NO_PRIV_RANGE | FILTER_FLAG_NO_RES_RANGE
+            ) === false) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     /**
