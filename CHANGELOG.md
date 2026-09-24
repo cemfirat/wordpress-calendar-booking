@@ -7,6 +7,8 @@
 - Route configurable calendar traffic through WordPress safe HTTP APIs so redirect destinations are revalidated.
 - Fail closed without mutating settings when an unsafe calendar target is submitted.
 - Add integration coverage for loopback, RFC1918, link-local, metadata-style and malformed targets.
+- Pin the complete Composer/npm dependency graphs with committed lockfiles and locked CI/release installs.
+- Gate release packaging on dependency-lock consistency and use the locked Playwright runtime for browser acceptance.
 
 ## 3.19.2
 
