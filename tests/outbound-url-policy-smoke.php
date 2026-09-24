@@ -78,5 +78,10 @@ wpcb_outbound_assert(
         && strpos($syncSource, 'wp_remote_request(') === false,
     'iCloud CalDAV sync uses the safe outbound policy.'
 );
+wpcb_outbound_assert(
+    strpos($calDavSource, "'redirection' => 0") !== false
+        && strpos($syncSource, "'redirection' => 0") !== false,
+    'Authenticated CalDAV requests disable redirects so credentials cannot cross origins.'
+);
 
 WP_CLI::success('Outbound calendar URL policy smoke test passed.');
