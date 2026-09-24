@@ -220,6 +220,35 @@ $settingsAfterApply = get_option('wpcb_settings', []);
 wpcb_backup_assert(($settingsAfterApply['mode'] ?? '') === 'approval' && ($settingsAfterApply['timezone'] ?? '') === 'UTC', 'Restore applies allowed global settings.');
 wpcb_backup_assert(($settingsAfterApply['icloud_sync_password_enc'] ?? '') === 'SECRET-CALDAV-CIPHER-TEXT', 'Restore does not overwrite existing encrypted credentials.');
 
+$idempotentPlan = $service->import($restore, true);
+wpcb_backup_assert(!is_wp_error($idempotentPlan) && (int)($idempotentPlan['conflict_count'] ?? -1) === 0, 'Identical configuration produces zero overwrite conflicts.');
+$countsBeforeRepeat = [
+    'types' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_types WHERE slug='backup-restore-type'"),
+    'resources' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_resources WHERE slug='backup-restore-resource'"),
+    'rules' => (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_availability_rules WHERE scope_type='booking_type' AND scope_id=%d AND weekday=2", $restoredType)),
+    'exceptions' => (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_exceptions WHERE booking_type_id=%d AND resource_id=%d AND title='Restore exception'", $restoredType, $restoredResource)),
+    'connections' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_calendar_connections WHERE provider='caldav' AND name='Restored Calendar' AND remote_calendar_id='restored-calendar-id'"),
+];
+$repeat = $service->import($restore, false);
+wpcb_backup_assert(!is_wp_error($repeat), 'Applying the same snapshot a second time succeeds.');
+$countsAfterRepeat = [
+    'types' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_types WHERE slug='backup-restore-type'"),
+    'resources' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_resources WHERE slug='backup-restore-resource'"),
+    'rules' => (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_availability_rules WHERE scope_type='booking_type' AND scope_id=%d AND weekday=2", $restoredType)),
+    'exceptions' => (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_exceptions WHERE booking_type_id=%d AND resource_id=%d AND title='Restore exception'", $restoredType, $restoredResource)),
+    'connections' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_calendar_connections WHERE provider='caldav' AND name='Restored Calendar' AND remote_calendar_id='restored-calendar-id'"),
+];
+wpcb_backup_assert($countsAfterRepeat === $countsBeforeRepeat, 'Repeated restore is idempotent for configuration cardinality.');
+
+$wpdb->update($wpdb->prefix . 'wpcb_booking_types', ['name'=>'Local conflicting name'], ['id'=>$restoredType]);
+$conflictPlan = $service->import($restore, true);
+wpcb_backup_assert(!is_wp_error($conflictPlan) && (int)($conflictPlan['conflict_count'] ?? 0) >= 1, 'Dry-run detects an overwrite conflict before mutation.');
+$conflictJson = (string)wp_json_encode($conflictPlan['conflicts'] ?? []);
+wpcb_backup_assert(strpos($conflictJson, 'booking_types') !== false && strpos($conflictJson, 'name') !== false, 'Conflict preview identifies only the configuration object and changed field.');
+wpcb_backup_assert(strpos($conflictJson, 'SECRET-') === false && strpos($conflictJson, 'config-backup-customer@example.com') === false, 'Conflict preview contains no secrets or customer data.');
+$repair = $service->import($restore, false);
+wpcb_backup_assert(!is_wp_error($repair), 'Applying the validated snapshot resolves the detected conflict.');
+
 $rollback = $restore;
 $rollback['booking_types'][0]['slug'] = 'backup-rollback-type';
 $rollback['booking_types'][0]['name'] = 'Rollback Type';
