@@ -1,6 +1,8 @@
 <?php
 namespace Wpcb\Calendar;
 
+use Wpcb\Security\OutboundUrlPolicy;
+
 final class CalDavController {
     private const DISCOVERY_PREFIX = 'wpcb_caldav_discovery_';
 
