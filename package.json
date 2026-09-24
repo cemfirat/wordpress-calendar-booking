@@ -1,7 +1,7 @@
 {
   "name": "wordpress-calendar-booking-assets",
   "private": true,
-  "version": "3.19.0-dev",
+  "version": "3.20.0-dev",
   "scripts": {
     "build:assets": "node scripts/build-uikit-assets.mjs"
   },
