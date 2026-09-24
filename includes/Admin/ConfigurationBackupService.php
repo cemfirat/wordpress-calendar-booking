@@ -185,11 +185,73 @@ final class ConfigurationBackupService {
             }
             $resourceSlugs[$slug] = true;
         }
+        $fieldKeys = [];
+        foreach ($data['form_fields'] as $row) {
+            $key = sanitize_key((string)($row['field_key'] ?? ''));
+            if ($key === '' || isset($fieldKeys[$key])) {
+                return new \WP_Error('wpcb_backup_field_key', __('Formularfeld-Schlüssel müssen eindeutig sein.', 'wordpress-calendar-booking'));
+            }
+            $fieldKeys[$key] = true;
+        }
         foreach ($data['booking_type_resources'] as $row) {
             if (!is_array($row)
                 || !isset($typeSlugs[(string)($row['booking_type_slug'] ?? '')])
                 || !isset($resourceSlugs[(string)($row['resource_slug'] ?? '')])) {
                 return new \WP_Error('wpcb_backup_mapping', __('Eine Zuordnung verweist auf ein unbekanntes Objekt.', 'wordpress-calendar-booking'));
+            }
+        }
+        foreach ($data['availability_rules'] as $row) {
+            $scope = (string)($row['scope_type'] ?? '');
+            if (!in_array($scope, ['global','booking_type','resource'], true)) {
+                return new \WP_Error('wpcb_backup_rule_scope', __('Eine Verfügbarkeitsregel enthält einen ungültigen Geltungsbereich.', 'wordpress-calendar-booking'));
+            }
+            if ($scope === 'booking_type' && !isset($typeSlugs[(string)($row['booking_type_slug'] ?? '')])) {
+                return new \WP_Error('wpcb_backup_rule_type', __('Eine Verfügbarkeitsregel verweist auf eine unbekannte Terminart.', 'wordpress-calendar-booking'));
+            }
+            if ($scope === 'resource' && !isset($resourceSlugs[(string)($row['resource_slug'] ?? '')])) {
+                return new \WP_Error('wpcb_backup_rule_resource', __('Eine Verfügbarkeitsregel verweist auf eine unbekannte Ressource.', 'wordpress-calendar-booking'));
+            }
+        }
+        foreach ($data['exceptions'] as $row) {
+            $typeSlug = (string)($row['booking_type_slug'] ?? '');
+            $resourceSlug = (string)($row['resource_slug'] ?? '');
+            if (($typeSlug !== '' && !isset($typeSlugs[$typeSlug]))
+                || ($resourceSlug !== '' && !isset($resourceSlugs[$resourceSlug]))
+                || strtotime((string)($row['date_start'] ?? '') . ' UTC') === false
+                || strtotime((string)($row['date_end'] ?? '') . ' UTC') === false) {
+                return new \WP_Error('wpcb_backup_exception', __('Eine Ausnahme enthält ungültige Referenzen oder Datumswerte.', 'wordpress-calendar-booking'));
+            }
+        }
+
+        $connectionKeys = [];
+        foreach ($data['calendar_connections'] as $row) {
+            if (empty($row['provider']) || empty($row['name']) || empty($row['requires_reconnect'])) {
+                return new \WP_Error('wpcb_backup_connection', __('Kalender-Metadaten müssen als neu zu verbindende Verbindung gekennzeichnet sein.', 'wordpress-calendar-booking'));
+            }
+            $key = $this->calendarConnectionKey($row);
+            if (isset($connectionKeys[$key])) {
+                return new \WP_Error('wpcb_backup_connection_duplicate', __('Kalenderverbindungen müssen innerhalb der Sicherung eindeutig sein.', 'wordpress-calendar-booking'));
+            }
+            $connectionKeys[$key] = true;
+        }
+        foreach ($data['booking_type_calendar_connections'] as $row) {
+            $key = $this->calendarConnectionKey([
+                'provider'=>$row['provider'] ?? '',
+                'name'=>$row['connection_name'] ?? '',
+                'remote_calendar_id'=>$row['remote_calendar_id'] ?? '',
+            ]);
+            if (!isset($typeSlugs[(string)($row['booking_type_slug'] ?? '')], $connectionKeys[$key])) {
+                return new \WP_Error('wpcb_backup_calendar_type_mapping', __('Eine Kalender-/Terminart-Zuordnung ist ungültig.', 'wordpress-calendar-booking'));
+            }
+        }
+        foreach ($data['resource_calendar_connections'] as $row) {
+            $key = $this->calendarConnectionKey([
+                'provider'=>$row['provider'] ?? '',
+                'name'=>$row['connection_name'] ?? '',
+                'remote_calendar_id'=>$row['remote_calendar_id'] ?? '',
+            ]);
+            if (!isset($resourceSlugs[(string)($row['resource_slug'] ?? '')], $connectionKeys[$key])) {
+                return new \WP_Error('wpcb_backup_calendar_resource_mapping', __('Eine Kalender-/Ressourcen-Zuordnung ist ungültig.', 'wordpress-calendar-booking'));
             }
         }
         return $data;
@@ -205,7 +267,11 @@ final class ConfigurationBackupService {
             'create' => ['booking_types'=>0,'resources'=>0,'form_fields'=>0,'availability_rules'=>0,'exceptions'=>0,'calendar_connections'=>0],
             'update' => ['booking_types'=>0,'resources'=>0,'form_fields'=>0,'availability_rules'=>0,'exceptions'=>0],
             'relationships' => count($snapshot['booking_type_resources']) + count($snapshot['booking_type_calendar_connections']) + count($snapshot['resource_calendar_connections']),
+            'warnings' => [],
         ];
+        if ($snapshot['calendar_connections']) {
+            $plan['warnings'][] = __('Kalenderverbindungen werden ohne Zugangsdaten importiert und bleiben bis zur erneuten Verbindung deaktiviert.', 'wordpress-calendar-booking');
+        }
 
         foreach ($snapshot['booking_types'] as $row) {
             $exists = $wpdb->get_var($wpdb->prepare(
