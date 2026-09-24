@@ -93,6 +93,81 @@ $r=$client->putEvent('https://8.8.8.8/calendars/user/work/test.ics',"BEGIN:VCALE
 remove_filter('pre_http_request',$f,10);
 wpcb_response_bound_assert(!is_wp_error($r)&&$mutationLimit===OutboundUrlPolicy::MAX_MUTATION_RESPONSE_BYTES+1,'CalDAV mutations use the 256 KiB ceiling plus one byte.');
 
+$settingsBefore = get_option('wpcb_settings', []);
+$oversizedFeedUrl = 'https://8.8.8.8/oversized-calendar.ics';
+$settings = Wpcb\Admin\Settings::get();
+$settings['calendar_url'] = $oversizedFeedUrl;
+$settings['calendar_urls'] = $oversizedFeedUrl;
+update_option('wpcb_settings', $settings);
+delete_transient('wpcb_ical_' . md5($oversizedFeedUrl));
+$feedMock = static function($pre, array $args, string $url) use ($oversizedFeedUrl) {
+    if ($url !== $oversizedFeedUrl) return $pre;
+    $body = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:must-not-parse\r\nDTSTART:20261102T090000Z\r\nDTEND:20261102T100000Z\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+    return [
+        'headers' => ['content-length' => (string)(OutboundUrlPolicy::MAX_ICS_RESPONSE_BYTES + 1)],
+        'body' => $body,
+        'response' => ['code' => 200, 'message' => 'OK'],
+        'cookies' => [],
+        'filename' => null,
+    ];
+};
+add_filter('pre_http_request', $feedMock, 10, 3);
+$feedEvents = (new Wpcb\Calendar\IcloudProvider())->events('2026-11-01 00:00:00', '2026-11-05 00:00:00');
+remove_filter('pre_http_request', $feedMock, 10);
+delete_transient('wpcb_ical_' . md5($oversizedFeedUrl));
+update_option('wpcb_settings', $settingsBefore);
+wpcb_response_bound_assert($feedEvents === [], 'Oversized public ICS data is rejected before the iCalendar parser produces busy events.');
+
+$repo = new Wpcb\Calendar\CalendarConnectionRepository();
+$healthId = $repo->create([
+    'provider' => 'caldav',
+    'name' => 'Response bound health fixture',
+    'remote_calendar_id' => 'https://8.8.8.8/calendars/user/work/',
+    'blocks_availability' => 1,
+    'receives_bookings' => 0,
+    'config' => [
+        'endpoint' => 'https://8.8.8.8/',
+        'calendar_url' => 'https://8.8.8.8/calendars/user/work/',
+        'preset' => 'generic',
+    ],
+], [
+    'username' => 'health-user',
+    'password' => 'health-secret',
+]);
+wpcb_response_bound_assert(!is_wp_error($healthId) && $healthId > 0, 'CalDAV health fixture is created.');
+$healthConnection = $repo->find((int)$healthId);
+$healthMock = static function($pre, array $args, string $url) {
+    if (strtoupper((string)($args['method'] ?? 'GET')) !== 'REPORT'
+        || $url !== 'https://8.8.8.8/calendars/user/work/') {
+        return $pre;
+    }
+    return [
+        'headers' => ['content-length' => (string)(OutboundUrlPolicy::MAX_CALDAV_RESPONSE_BYTES + 1)],
+        'body' => 'PRIVATE REMOTE CALENDAR DETAIL',
+        'response' => ['code' => 207, 'message' => 'Multi-Status'],
+        'cookies' => [],
+        'filename' => null,
+    ];
+};
+add_filter('pre_http_request', $healthMock, 10, 3);
+$healthResult = (new Wpcb\Calendar\CalDavProvider($repo))->busyBetween(
+    '2026-11-01 00:00:00',
+    '2026-11-05 00:00:00',
+    $healthConnection
+);
+remove_filter('pre_http_request', $healthMock, 10);
+$healthAfter = $repo->find((int)$healthId);
+wpcb_response_bound_assert(
+    is_wp_error($healthResult)
+        && $healthResult->get_error_code() === 'wpcb_calendar_response_too_large'
+        && $healthAfter !== null
+        && $healthAfter->healthStatus === 'error'
+        && stripos($healthAfter->lastErrorMessage, 'too large') !== false
+        && strpos($healthAfter->lastErrorMessage, 'PRIVATE') === false,
+    'Provider health records a generic bounded error without remote calendar content.'
+);
+$repo->delete((int)$healthId);
+
 $syncSource=file_get_contents(WPCB_DIR.'includes/Sync/CalDavClient.php');
 wpcb_response_bound_assert(strpos($syncSource,'MAX_CALDAV_DISCOVERY_RECORDS')!==false&&strpos($syncSource,'MAX_MUTATION_RESPONSE_BYTES')!==false,'iCloud/legacy CalDAV uses the shared discovery and mutation bounds.');
 WP_CLI::success('External calendar response bound smoke test passed.');
