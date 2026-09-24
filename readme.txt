@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.19.1
+Stable tag: 3.19.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,12 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.19.2 =
+* Reject oversized configuration backups before JSON decoding.
+* Validate restore fields with explicit types, ranges, enums, time/date ordering and supported calendar providers.
+* Bound configuration section sizes and email-template payloads before planning or writes.
+* Keep malformed dry-run and apply requests strictly no-write.
 
 = 3.19.1 =
 * Add explicit overwrite-conflict details to configuration restore previews.
