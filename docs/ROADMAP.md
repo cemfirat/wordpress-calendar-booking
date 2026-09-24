@@ -170,3 +170,9 @@ Completed.
 - SSRF-safe outbound URL policy for configurable ICS and CalDAV targets
 - safe redirect validation and private-network rejection for calendar HTTP requests
 - no-write administrator errors for unsafe calendar configuration
+
+### 3.19.4
+- bounded public ICS and CalDAV response bodies before parsing
+- bounded CalDAV discovery and busy-query record cardinality
+- explicit malformed/truncated CalDAV query errors
+- response ceilings preserved across validated redirect hops
