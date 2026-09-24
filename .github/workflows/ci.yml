@@ -192,6 +192,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/security-guard-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run availability abuse/cost smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/availability-abuse-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run outbound calendar URL safety smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/outbound-url-policy-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run booking export smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-export-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run admin booking pagination smoke test
