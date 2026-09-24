@@ -200,7 +200,7 @@ $rollbackSnapshot['resources'][] = [
 ];
 $rollbackSlug = $rollbackSnapshot['resources'][count($rollbackSnapshot['resources']) - 1]['slug'];
 $filter = static function(string $query): string {
-    if (strpos($query, 'INSERT INTO ' . $GLOBALS['wpdb']->prefix . 'wpcb_form_fields') !== false) {
+    if (strpos($query, $GLOBALS['wpdb']->prefix . 'wpcb_form_fields') !== false) {
         return str_replace($GLOBALS['wpdb']->prefix . 'wpcb_form_fields', $GLOBALS['wpdb']->prefix . 'wpcb_missing_restore_table', $query);
     }
     return $query;
