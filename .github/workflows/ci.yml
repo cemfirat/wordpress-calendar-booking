@@ -10,6 +10,32 @@ permissions:
   contents: read
 
 jobs:
+  lockfiles_bootstrap:
+    name: Generate dependency lockfiles
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Generate Composer lockfile
+        run: composer update --lock --no-install --no-interaction --prefer-dist --no-progress
+      - name: Generate npm lockfile
+        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dependency-lockfiles
+          path: |
+            composer.lock
+            package-lock.json
+          if-no-files-found: error
+          retention-days: 1
+
   docs:
     name: Documentation consistency
     runs-on: ubuntu-latest
