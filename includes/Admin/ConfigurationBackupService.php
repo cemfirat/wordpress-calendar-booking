@@ -12,7 +12,7 @@ final class ConfigurationBackupService {
     private const SETTING_KEYS = [
         'mode','sender_name','sender_email','timezone','date_format','time_format',
         'notifications_enabled','notification_emails','reminders_enabled','reminder_hours',
-        'delivery_log_retention_days','calendar_url','calendar_urls','calendar_cache_minutes',
+        'delivery_log_retention_days','calendar_cache_minutes',
         'token_ttl_minutes','reservation_ttl_minutes','cancel_min_hours','change_min_hours',
         'honeypot_enabled','timing_enabled','min_form_seconds','rate_limit_enabled',
         'rate_limit_requests','rate_limit_window_minutes','show_calendar_limit',
