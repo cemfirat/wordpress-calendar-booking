@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.18.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.19.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -170,3 +170,8 @@ Version 3.6 adds provider-neutral video meeting orchestration for Zoom, Google M
 Version 3.7 adds bounded weekly booking series. The first signed canonical slot anchors the series; every later occurrence is regenerated and revalidated on the server before any booking is stored. Series preserve the configured local wall-clock time across UTC offset changes, reject ambiguous/non-existent DST wall times, and can be cancelled or rescheduled for one occurrence or the selected occurrence plus all remaining appointments.
 
 Series creation is all-or-nothing. If any occurrence is no longer bookable, no partial series is stored. Since 3.15, paid series use one server-authoritative upfront payment obligation shared by all occurrences; payment confirmation and expiry apply consistently to the series. Version 3.17 adds deterministic partial refunds for cancelling one occurrence or the selected occurrence plus the remaining series, with exact minor-unit allocation, cumulative refund tracking and over-refund protection.
+
+
+## Configuration backup & restore
+
+Version 3.19 adds a capability- and nonce-protected **Backup & Restore** screen under **Kalender & Buchungen**. The JSON snapshot contains booking configuration only: booking types, resources, assignments, availability, custom fields, safe global settings and non-secret calendar metadata. It explicitly excludes bookings, customer data, tokens, payments, waiting-list entries, logs and reusable credentials. Restore supports a no-write dry-run first; validated apply operations use a database transaction and deterministic reference remapping. Calendar connections are restored disabled until credentials are entered again.
