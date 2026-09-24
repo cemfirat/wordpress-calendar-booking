@@ -262,8 +262,7 @@ final class CalDavClient {
 
     private function request(string $method, string $url, array $headers = [], ?string $body = null) {
         $headers['Authorization'] = 'Basic ' . base64_encode($this->username . ':' . $this->password);
-        return wp_remote_request($url, [
-            'method' => $method,
+        return OutboundUrlPolicy::request($method, $url, [
             'timeout' => 20,
             'redirection' => 3,
             'headers' => $headers,
@@ -293,10 +292,6 @@ final class CalDavClient {
     }
 
     private function normalizeUrl(string $url): string {
-        $url = trim($url);
-        if (stripos($url, 'webcal://') === 0) {
-            $url = 'https://' . substr($url, 9);
-        }
-        return esc_url_raw($url);
+        return OutboundUrlPolicy::normalizeCalendarUrl($url);
     }
 }
