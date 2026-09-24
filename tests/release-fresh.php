@@ -10,7 +10,7 @@ function wpcb_release_assert($condition, string $message): void {
     WP_CLI::log('PASS: ' . $message);
 }
 
-wpcb_release_assert(defined('WPCB_VERSION') && WPCB_VERSION === '3.19.2', 'Release ZIP boots version 3.19.2.');
+wpcb_release_assert(defined('WPCB_VERSION') && WPCB_VERSION === '3.19.3', 'Release ZIP boots version 3.19.3.');
 wpcb_release_assert(class_exists('Sabre\\VObject\\Reader'), 'Release ZIP contains Composer runtime dependencies.');
 wpcb_release_assert(is_file(WPCB_DIR . 'assets/vendor/uikit/uikit.min.css'), 'Release ZIP contains local UIkit CSS fallback.');
 wpcb_release_assert(is_file(WPCB_DIR . 'assets/vendor/uikit/uikit.min.js'), 'Release ZIP contains local UIkit JavaScript fallback.');
