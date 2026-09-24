@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.18.0
+
+- Integrate core booking readiness, scheduler/queue health and mail-transport diagnostics with WordPress Site Health.
+- Add actionable links from failed Site Health tests to the relevant WordPress Calendar Booking administration screens.
+- Add a bounded debug-information section containing plugin/schema/resource-model versions and non-secret operational state only.
+- Add regression coverage proving Site Health output excludes payment/provider secrets and email addresses.
+
 ## 3.17.2
 
 - Publish `wordpress-calendar-booking.zip.sha256` alongside the stable plugin ZIP.
