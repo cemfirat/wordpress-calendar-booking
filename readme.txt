@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.19.0
+Stable tag: 3.20.0
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,12 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.20.0 =
+* Make configuration restore conflict-aware before overwriting local natural-key matches.
+* Reject ambiguous duplicate local configuration before writes.
+* Keep conflict previews bounded and free of credentials/customer data.
+* Prove repeated restores converge without duplicating rules, exceptions or mappings.
 
 = 3.19.0 =
 * Add privacy-safe versioned JSON configuration backup and validated restore.
