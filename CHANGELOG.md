@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.20.0
+
+- Make configuration-restore dry runs distinguish creates, identical matches, updates and overwrite conflicts.
+- Show bounded privacy-safe conflict details in wp-admin before applying a restore.
+- Reject ambiguous duplicate local natural keys before any restore mutation.
+- Update existing reconnect metadata without exposing or replacing stored calendar credentials.
+- Prove repeated restore application is idempotent for configuration rows and relationship mappings.
+
 ## 3.19.0
 
 - Add versioned JSON backup/restore for booking configuration, resources, mappings, form fields, availability, safe settings and email templates.
