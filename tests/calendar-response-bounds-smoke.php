@@ -136,6 +136,10 @@ $healthId = $repo->create([
 ]);
 wpcb_response_bound_assert(!is_wp_error($healthId) && $healthId > 0, 'CalDAV health fixture is created.');
 $healthConnection = $repo->find((int)$healthId);
+wpcb_response_bound_assert(
+    $healthConnection instanceof Wpcb\Calendar\CalendarConnection,
+    'CalDAV health fixture can be reloaded.'
+);
 $healthMock = static function($pre, array $args, string $url) {
     if (strtoupper((string)($args['method'] ?? 'GET')) !== 'REPORT'
         || $url !== 'https://8.8.8.8/calendars/user/work/') {
