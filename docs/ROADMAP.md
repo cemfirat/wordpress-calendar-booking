@@ -157,3 +157,9 @@ Completed.
 - conflict-aware configuration restore preview
 - fail-closed ambiguous natural-key detection
 - repeated restore idempotency coverage
+
+### 3.19.2
+- typed and bounded configuration backup schema
+- pre-decode JSON size limits and bounded restore section cardinality
+- strict enum/range/time/date/provider validation before mutation
+- malformed restore snapshots remain no-write
