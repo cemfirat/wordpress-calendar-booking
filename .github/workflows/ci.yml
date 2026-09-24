@@ -27,8 +27,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Generate Composer lockfile
-        run: composer update --no-install --no-interaction --prefer-dist --no-progress
+      - name: Validate committed Composer lockfile
+        run: |
+          test -s composer.lock
+          composer validate --strict --no-check-publish
       - name: Generate npm lockfile
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
       - name: Commit generated lockfiles
