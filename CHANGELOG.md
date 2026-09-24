@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.19.0
+
+- Add versioned JSON backup/restore for booking configuration, resources, mappings, form fields, availability, safe settings and email templates.
+- Export reconnect-only calendar metadata while excluding credentials, bookings, customer data, tokens, payments, waiting-list records and operational/audit logs.
+- Add strict schema/reference validation and a no-write dry-run plan before restore.
+- Apply restore changes transactionally with natural-key ID remapping, preserve existing booking history and roll back partial writes on failure.
+
 ## 3.18.0
 
 - Integrate core booking readiness, scheduler/queue health and mail-transport diagnostics with WordPress Site Health.
