@@ -75,9 +75,10 @@ final class ConfigurationBackupPage {
                 : __('Restore erfolgreich abgeschlossen.', 'wordpress-calendar-booking');
             echo '<div class="notice notice-success"><p><strong>' . esc_html($message) . '</strong></p>';
             echo '<p>' . esc_html(sprintf(
-                __('Erstellen: %1$d · Aktualisieren: %2$d · Beziehungen: %3$d · deaktivierte Kalender-Verbindungen: %4$d', 'wordpress-calendar-booking'),
+                __('Erstellen: %1$d · Aktualisieren: %2$d · Konflikte: %3$d · Beziehungen: %4$d · deaktivierte Kalender-Verbindungen: %5$d', 'wordpress-calendar-booking'),
                 (int)($result['creates'] ?? 0),
                 (int)($result['updates'] ?? 0),
+                (int)($result['conflicts'] ?? 0),
                 (int)($result['relationships'] ?? 0),
                 (int)($result['connections_disabled'] ?? 0)
             )) . '</p></div>';
