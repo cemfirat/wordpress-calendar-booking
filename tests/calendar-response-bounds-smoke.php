@@ -94,5 +94,5 @@ remove_filter('pre_http_request',$f,10);
 wpcb_response_bound_assert(!is_wp_error($r)&&$mutationLimit===OutboundUrlPolicy::MAX_MUTATION_RESPONSE_BYTES+1,'CalDAV mutations use the 256 KiB ceiling plus one byte.');
 
 $syncSource=file_get_contents(WPCB_DIR.'includes/Sync/CalDavClient.php');
-wpcb_response_bound_assert(strpos($syncSource,'MAX_DISCOVERED_CALENDARS = 250')!==false&&strpos($syncSource,'MAX_MUTATION_RESPONSE_BYTES')!==false,'iCloud/legacy CalDAV uses shared discovery and mutation bounds.');
+wpcb_response_bound_assert(strpos($syncSource,'MAX_CALDAV_DISCOVERY_RECORDS')!==false&&strpos($syncSource,'MAX_MUTATION_RESPONSE_BYTES')!==false,'iCloud/legacy CalDAV uses the shared discovery and mutation bounds.');
 WP_CLI::success('External calendar response bound smoke test passed.');
