@@ -64,8 +64,90 @@ wpcb_outbound_assert(!is_wp_error($safeProbe), 'Allowed public target reaches th
 wpcb_outbound_assert(
     is_array($capturedSafeArgs)
         && !empty($capturedSafeArgs['reject_unsafe_urls'])
-        && (int)($capturedSafeArgs['redirection'] ?? 0) === 3,
-    'Safe HTTP mode revalidates redirect destinations and caps redirect depth.'
+        && (int)($capturedSafeArgs['redirection'] ?? -1) === 0,
+    'Each HTTP hop uses WordPress safe mode with automatic redirects disabled.'
+);
+
+$redirectRequests = [];
+$redirectFilter = static function ($preempt, array $args, string $url) use (&$redirectRequests) {
+    $redirectRequests[] = $url;
+    if ($url === 'https://8.8.8.8/start.ics') {
+        return [
+            'headers' => ['location' => 'http://127.0.0.1/private.ics'],
+            'body' => '',
+            'response' => ['code' => 302, 'message' => 'Found'],
+            'cookies' => [],
+            'filename' => null,
+        ];
+    }
+    return $preempt;
+};
+add_filter('pre_http_request', $redirectFilter, 10, 3);
+$blockedRedirect = OutboundUrlPolicy::get('https://8.8.8.8/start.ics', ['redirection' => 3, 'timeout' => 1]);
+remove_filter('pre_http_request', $redirectFilter, 10);
+wpcb_outbound_assert(
+    is_wp_error($blockedRedirect)
+        && $blockedRedirect->get_error_code() === 'wpcb_outbound_url_unsafe'
+        && $redirectRequests === ['https://8.8.8.8/start.ics'],
+    'Redirects to private targets are rejected before the second request.'
+);
+
+$safeRedirectRequests = [];
+$safeRedirectFilter = static function ($preempt, array $args, string $url) use (&$safeRedirectRequests) {
+    $safeRedirectRequests[] = $url;
+    if ($url === 'https://8.8.8.8/start-safe.ics') {
+        return [
+            'headers' => ['location' => '/final-safe.ics'],
+            'body' => '',
+            'response' => ['code' => 302, 'message' => 'Found'],
+            'cookies' => [],
+            'filename' => null,
+        ];
+    }
+    if ($url === 'https://8.8.8.8/final-safe.ics') {
+        return [
+            'headers' => [],
+            'body' => 'OK',
+            'response' => ['code' => 200, 'message' => 'OK'],
+            'cookies' => [],
+            'filename' => null,
+        ];
+    }
+    return $preempt;
+};
+add_filter('pre_http_request', $safeRedirectFilter, 10, 3);
+$safeRedirect = OutboundUrlPolicy::get('https://8.8.8.8/start-safe.ics', ['redirection' => 3, 'timeout' => 1]);
+remove_filter('pre_http_request', $safeRedirectFilter, 10);
+wpcb_outbound_assert(
+    !is_wp_error($safeRedirect)
+        && wp_remote_retrieve_response_code($safeRedirect) === 200
+        && $safeRedirectRequests === ['https://8.8.8.8/start-safe.ics', 'https://8.8.8.8/final-safe.ics'],
+    'Allowed redirects are followed only after the destination passes the shared policy.'
+);
+
+$credentialRedirectFilter = static function ($preempt, array $args, string $url) {
+    if ($url === 'https://8.8.8.8/auth-start') {
+        return [
+            'headers' => ['location' => 'https://1.1.1.1/auth-target'],
+            'body' => '',
+            'response' => ['code' => 302, 'message' => 'Found'],
+            'cookies' => [],
+            'filename' => null,
+        ];
+    }
+    return $preempt;
+};
+add_filter('pre_http_request', $credentialRedirectFilter, 10, 3);
+$credentialRedirect = OutboundUrlPolicy::request('PROPFIND', 'https://8.8.8.8/auth-start', [
+    'redirection' => 3,
+    'timeout' => 1,
+    'headers' => ['Authorization' => 'Basic TEST'],
+]);
+remove_filter('pre_http_request', $credentialRedirectFilter, 10);
+wpcb_outbound_assert(
+    is_wp_error($credentialRedirect)
+        && $credentialRedirect->get_error_code() === 'wpcb_outbound_redirect_credentials',
+    'Credentialed calendar requests cannot redirect to another origin.'
 );
 
 wpcb_outbound_assert(
