@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.17.1
+
+- Monitor all recurring maintenance schedules in scheduler health, including privacy retention and customer-portal cleanup.
+- Bound public browser and REST availability requests with pseudonymous request budgets, resource fan-out limits and bounded returned slot counts.
+- Retry definite booking and administrator email transport failures through the leased queue with bounded backoff while reconstructing customer data and one-time action links only at execution time.
+- Route customer-portal magic links, pending email changes, waiting-list offers and video-meeting-ready notifications through the same durable delivery semantics without copying recipients, raw verifiers or meeting join URLs into queue payloads.
+- Suppress stale notifications and uncertain transport outcomes instead of risking duplicate or obsolete customer communication.
+
 ## 3.17.0
 
 - Add deterministic partial refunds for paid recurring series using the immutable original payment snapshot.
