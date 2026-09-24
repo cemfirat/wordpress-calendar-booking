@@ -151,3 +151,9 @@ Completed.
 - no-write import preview and natural-key relationship remapping
 - transactional restore rollback without changing booking/customer history
 - reconnect-only calendar metadata with reusable credentials excluded
+
+### 3.20
+- conflict-aware configuration restore preview
+- fail-closed detection for ambiguous local natural keys
+- repeatably idempotent restore application without duplicate configuration relationships
+- privacy-safe bounded conflict details before overwrite
