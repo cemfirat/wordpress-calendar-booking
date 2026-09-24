@@ -17,6 +17,22 @@ Development branches may contain unfinished migrations or behavior and should no
 
 Every pull request and stable release is gated on vulnerability advisory checks for PHP runtime dependencies and production npm dependencies. High or critical npm advisories and Composer security advisories must be resolved before a stable release can be published.
 
+## Release integrity
+
+Stable releases publish both `wordpress-calendar-booking.zip` and `wordpress-calendar-booking.zip.sha256`. Verify the downloaded ZIP checksum with:
+
+```sh
+sha256sum -c wordpress-calendar-booking.zip.sha256
+```
+
+Stable ZIPs are also signed with GitHub Actions/Sigstore build provenance after all release gates pass. Verify the artifact against this repository with:
+
+```sh
+gh attestation verify wordpress-calendar-booking.zip -R cemfirat/wordpress-calendar-booking
+```
+
+A successful attestation verification binds the artifact digest to the repository, workflow and source commit that produced it.
+
 ## Reporting a vulnerability
 
 Please do not publish exploit details in a public issue while an affected public version remains unfixed.
