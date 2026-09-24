@@ -171,9 +171,22 @@ if (!defined('ABSPATH') || !defined('WP_CLI') || !WP_CLI) { exit(1); }
         $assert(is_array($result) && count($result['changed_booking_ids']) === 2, 'A valid series confirms all occurrences.');
 
         $first = $make(); $last = $make(); $count = count($effects);
-        $failWrite = static function ($sql) use ($last, $prefix) {
-            if (strpos($sql, 'UPDATE `' . $prefix . 'bookings`') !== false
-                && strpos($sql, '`id` = ' . $last) !== false) {
+        // wpdb::update defaults WHERE values to strings. Match the actual
+        // quoted ID as well as an explicitly numeric format, and assert the
+        // injection fired: a fixture mismatch must never look like rollback.
+        $matchesWrite = static function (string $sql) use ($last, $prefix): bool {
+            return strpos($sql, 'UPDATE `' . $prefix . 'bookings` SET ') === 0
+                && preg_match('/\bWHERE\s+`id`\s*=\s*(?:\x27' . $last . '\x27|' . $last . ')\s+AND\s+`status`\s*=/', $sql) === 1;
+        };
+        $probeSql = 'UPDATE `' . $prefix . "bookings` SET `status` = 'confirmed' WHERE `id` = %s AND `status` = 'reserved_unconfirmed'";
+        $assert($matchesWrite($wpdb->prepare($probeSql, (string)$last)), 'Fault injector matches the default quoted wpdb ID.');
+        $assert($matchesWrite($wpdb->prepare(str_replace('%s', '%d', $probeSql), $last)), 'Fault injector also matches an explicitly numeric ID.');
+        $assert(!$matchesWrite($wpdb->prepare($probeSql, (string)$first))
+            && !$matchesWrite($wpdb->prepare($probeSql, (string)$last . '0')), 'Fault injector does not match another booking or an ID prefix.');
+        $injected = 0;
+        $failWrite = static function ($sql) use ($matchesWrite, $prefix, &$injected) {
+            if ($matchesWrite($sql)) {
+                ++$injected;
                 return 'UPDATE `' . $prefix . 'bookings` SET `wpcb_deliberately_missing_column` = 1 WHERE id = 0';
             }
             return $sql;
@@ -182,6 +195,7 @@ if (!defined('ABSPATH') || !defined('WP_CLI') || !WP_CLI) { exit(1); }
         add_filter('query', $failWrite);
         try { $result = $service->applyBatch([$first, $last], 'email_confirmed_automatic'); }
         finally { remove_filter('query', $failWrite); $wpdb->suppress_errors($oldSuppress); }
+        $assert($injected === 1, 'Exactly one intended database write was fault-injected.');
         $assert($errorIs($result, 'wpcb_transition_race'), 'Injected second-member database write failure is reported.');
         $assert($repo->find($first)->status === 'reserved_unconfirmed' && count($effects) === $count, 'Actual database failure rolls back earlier writes without callbacks.');
         $assert((int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$prefix}booking_status_log WHERE booking_id = %d AND context = %s", $first, 'email_confirmed_automatic')) === 0, 'The transition audit row is rolled back with the failed batch.');
