@@ -152,7 +152,7 @@ wpcb_backup_assert(strpos($json, '"restore_state": "disabled_until_credentials_r
 
 $before = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}resources");
 $dry = $service->importJson($json, true);
-wpcb_backup_assert(is_array($dry) && !empty($dry['dry_run']), 'Dry-run validates the backup.');
+wpcb_backup_assert(is_array($dry) && !empty($dry['dry_run']) && array_key_exists('conflicts', $dry), 'Dry-run validates the backup and reports conflicts.');
 wpcb_backup_assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$p}resources") === $before, 'Dry-run performs no writes.');
 
 $wpdb->delete($p . 'resource_calendar_connections', ['resource_id' => $resourceId]);
@@ -187,6 +187,8 @@ $rejected = $service->importSnapshot($bad, true);
 wpcb_backup_assert(is_wp_error($rejected), 'Unknown/unsafe top-level fields fail closed.');
 
 $rollbackSnapshot = json_decode($json, true);
+$settingsBeforeRollback = get_option('wpcb_settings');
+$rollbackSnapshot['settings']['mode'] = ((string)($rollbackSnapshot['settings']['mode'] ?? 'automatic') === 'automatic') ? 'approval' : 'automatic';
 $rollbackSnapshot['resources'][] = [
     'ref' => 'resource-rollback',
     'name' => 'Rollback Resource',
@@ -211,6 +213,7 @@ remove_filter('query', $filter);
 wpcb_backup_assert(is_wp_error($failed), 'Database failure returns an error.');
 $rolledBack = (int)$wpdb->get_var($wpdb->prepare("SELECT COUNT(*) FROM {$p}resources WHERE slug = %s", $rollbackSlug));
 wpcb_backup_assert($rolledBack === 0, 'Database failure rolls back earlier restore writes.');
+wpcb_backup_assert(get_option('wpcb_settings') === $settingsBeforeRollback, 'Database failure also invalidates rolled-back settings cache state.');
 
 $wpdb->delete($p . 'bookings', ['id' => $bookingId]);
 $wpdb->delete($p . 'resource_calendar_connections', ['resource_id' => $resourceId]);
