@@ -144,3 +144,10 @@ Completed.
 - WordPress Site Health integration for booking readiness, scheduler and mail transport
 - privacy-safe Site Health debug information
 - actionable links from standard WordPress diagnostics to plugin operations screens
+
+
+### 3.19
+- privacy-safe versioned configuration backup and validated restore
+- no-write import preview and natural-key relationship remapping
+- transactional restore rollback without changing booking/customer history
+- reconnect-only calendar metadata with reusable credentials excluded
