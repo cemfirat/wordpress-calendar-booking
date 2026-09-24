@@ -1288,7 +1288,7 @@ wpcb_smoke_assert( 'Besetzt' === $public_external['title'], 'External events bec
 wpcb_smoke_assert( false === strpos( wp_json_encode( $public_external ), 'PRIVATE EXTERNAL' ), 'Public external-event model contains no private event details.' );
 
 $settings_before_privacy_test = get_option( 'wpcb_settings', [] );
-$test_calendar_url = 'https://example.test/wpcb-private-calendar.ics';
+$test_calendar_url = 'https://8.8.8.8/wpcb-private-calendar.ics';
 $privacy_settings = Wpcb\Admin\Settings::get();
 $privacy_settings['calendar_urls'] = $test_calendar_url;
 $privacy_settings['calendar_url'] = $test_calendar_url;
