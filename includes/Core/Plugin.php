@@ -68,7 +68,7 @@ class Plugin {
         (new WaitingListPrivacy())->boot();
         (new VideoMeetingService())->boot();
         (new VideoMeetingAdminPage())->boot();
-        (new SiteHealth())->boot();
+        (new SiteHealth())->boot();\n        (new ConfigurationBackupPage())->boot();
         (new Shortcodes())->boot();
         (new Actions())->boot();
         (new QueueService())->boot();
