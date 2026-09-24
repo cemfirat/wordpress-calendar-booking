@@ -153,7 +153,7 @@ class CalDavClient {
         $headers['Authorization'] = 'Basic ' . base64_encode($this->appleId . ':' . $this->password);
         return OutboundUrlPolicy::request($method, $url, [
             'timeout' => 20,
-            'redirection' => 5,
+            'redirection' => 0,
             'headers' => $headers,
             'body' => $body,
             'user-agent' => 'WPCB/' . WPCB_VERSION,
