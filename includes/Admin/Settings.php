@@ -134,14 +134,7 @@ class Settings {
     }
 
     public static function normalizeCalendarUrl(string $url): string {
-        $url = trim($url);
-        if ($url === '') {
-            return '';
-        }
-        if (stripos($url, 'webcal://') === 0) {
-            $url = 'https://' . substr($url, 9);
-        }
-        return esc_url_raw($url);
+        return OutboundUrlPolicy::normalizeCalendarUrl($url);
     }
 
     public static function getIcloudSyncPassword(): string {
