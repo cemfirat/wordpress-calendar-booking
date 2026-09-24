@@ -9,7 +9,7 @@ final class ConfigurationBackupService {
 
     private const SETTINGS_KEYS = [
         'mode','sender_name','timezone','date_format','time_format','notifications_enabled',
-        'reminders_enabled','reminder_hours','delivery_log_retention_days','calendar_urls',
+        'reminders_enabled','reminder_hours','delivery_log_retention_days',
         'calendar_cache_minutes','token_ttl_minutes','reservation_ttl_minutes','cancel_min_hours',
         'change_min_hours','honeypot_enabled','timing_enabled','min_form_seconds',
         'rate_limit_enabled','rate_limit_requests','rate_limit_window_minutes',
@@ -242,6 +242,7 @@ final class ConfigurationBackupService {
             }
         }
 
+        $refs = [];
         foreach (['booking_types','resources','form_fields','calendar_connections'] as $section) {
             $seen = [];
             foreach ($s[$section] as $row) {
@@ -253,6 +254,42 @@ final class ConfigurationBackupService {
                     ));
                 }
                 $seen[$ref] = true;
+            }
+            $refs[$section] = $seen;
+        }
+
+        foreach ($s['booking_type_resources'] as $row) {
+            if (empty($refs['booking_types'][(string)($row['booking_type_ref'] ?? '')])
+                || empty($refs['resources'][(string)($row['resource_ref'] ?? '')])) {
+                return new \WP_Error('wpcb_backup_mapping', __('Terminart-/Ressourcen-Zuordnung verweist auf unbekannte Einträge.', 'wordpress-calendar-booking'));
+            }
+        }
+        foreach ($s['availability_rules'] as $row) {
+            $scope = (string)($row['scope_type'] ?? 'global');
+            $ref = (string)($row['scope_ref'] ?? '');
+            if (($scope === 'booking_type' && empty($refs['booking_types'][$ref]))
+                || ($scope === 'resource' && empty($refs['resources'][$ref]))
+                || !in_array($scope, ['global','booking_type','resource'], true)) {
+                return new \WP_Error('wpcb_backup_scope', __('Verfügbarkeitsregel verweist auf einen unbekannten Scope.', 'wordpress-calendar-booking'));
+            }
+        }
+        foreach ($s['exceptions'] as $row) {
+            $typeRef = (string)($row['booking_type_ref'] ?? '');
+            $resourceRef = (string)($row['resource_ref'] ?? '');
+            if (($typeRef !== '' && empty($refs['booking_types'][$typeRef]))
+                || ($resourceRef !== '' && empty($refs['resources'][$resourceRef]))) {
+                return new \WP_Error('wpcb_backup_exception_ref', __('Ausnahme verweist auf unbekannte Terminart oder Ressource.', 'wordpress-calendar-booking'));
+            }
+        }
+        foreach ([
+            ['booking_type_calendar_connections', 'booking_types'],
+            ['resource_calendar_connections', 'resources'],
+        ] as [$section, $ownerSection]) {
+            foreach ($s[$section] as $row) {
+                if (empty($refs[$ownerSection][(string)($row['owner_ref'] ?? '')])
+                    || empty($refs['calendar_connections'][(string)($row['connection_ref'] ?? '')])) {
+                    return new \WP_Error('wpcb_backup_connection_mapping', __('Kalender-Zuordnung verweist auf unbekannte Einträge.', 'wordpress-calendar-booking'));
+                }
             }
         }
 
@@ -381,7 +418,7 @@ final class ConfigurationBackupService {
             $data['updated_at'] = $now;
 
             if ($existing > 0) {
-                unset($data['credentials_enc']);
+                unset($data['credentials_enc'], $data['config_json']);
                 $ok = $wpdb->update($p . 'calendar_connections', $data, ['id' => $existing]);
                 if ($ok === false) return $this->dbError('calendar_connections');
                 $id = $existing;
@@ -489,7 +526,7 @@ final class ConfigurationBackupService {
     private function withRef(array $row, string $kind): array {
         $id = (int)($row['id'] ?? 0);
         unset($row['id']);
-        return ['ref' => $kind . '-' . $id] + $row;
+        return ['ref' => $this->ref($id)] + $row;
     }
 
     private function ref(int $id): string {
