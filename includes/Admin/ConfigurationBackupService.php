@@ -798,17 +798,17 @@ final class ConfigurationBackupService {
             'rate_limit_enabled','retention_enabled','delete_data_on_uninstall',
         ];
         $intRanges = [
-            'reminder_hours' => [1, 8760],
+            'reminder_hours' => [0, 8760],
             'delivery_log_retention_days' => [1, 3650],
             'calendar_cache_minutes' => [0, 1440],
-            'token_ttl_minutes' => [1, 10080],
-            'reservation_ttl_minutes' => [1, 1440],
+            'token_ttl_minutes' => [0, 10080],
+            'reservation_ttl_minutes' => [0, 1440],
             'cancel_min_hours' => [0, 8760],
             'change_min_hours' => [0, 8760],
             'min_form_seconds' => [0, 600],
-            'rate_limit_requests' => [1, 10000],
-            'rate_limit_window_minutes' => [1, 1440],
-            'show_calendar_limit' => [1, 1000],
+            'rate_limit_requests' => [0, 10000],
+            'rate_limit_window_minutes' => [0, 1440],
+            'show_calendar_limit' => [0, 1000],
             'retention_days' => [1, 36500],
         ];
         $stringLimits = [
