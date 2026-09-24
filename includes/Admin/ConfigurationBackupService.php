@@ -3,6 +3,7 @@ namespace Wpcb\Admin;
 
 use Wpcb\Support\Time;
 use Wpcb\Resources\ResourceRepository;
+use Wpcb\Calendar\CalendarConnectionRepository;
 
 final class ConfigurationBackupService {
     public const FORMAT = 'wordpress-calendar-booking-configuration';
@@ -71,6 +72,33 @@ final class ConfigurationBackupService {
              ORDER BY e.id ASC",
             ARRAY_A
         );
+        $connections = $wpdb->get_results(
+            "SELECT provider, name, remote_calendar_id, blocks_availability, receives_bookings
+             FROM {$wpdb->prefix}wpcb_calendar_connections ORDER BY id ASC",
+            ARRAY_A
+        );
+        foreach ($connections as &$connection) {
+            $connection['requires_reconnect'] = true;
+        }
+        unset($connection);
+        $typeConnections = $wpdb->get_results(
+            "SELECT c.provider, c.name AS connection_name, c.remote_calendar_id,
+                    t.slug AS booking_type_slug, m.blocks_availability, m.receives_bookings
+             FROM {$wpdb->prefix}wpcb_booking_type_calendar_connections m
+             INNER JOIN {$wpdb->prefix}wpcb_calendar_connections c ON c.id=m.connection_id
+             INNER JOIN {$wpdb->prefix}wpcb_booking_types t ON t.id=m.booking_type_id
+             ORDER BY t.slug ASC, c.id ASC",
+            ARRAY_A
+        );
+        $resourceConnections = $wpdb->get_results(
+            "SELECT c.provider, c.name AS connection_name, c.remote_calendar_id,
+                    r.slug AS resource_slug, m.blocks_availability, m.receives_bookings
+             FROM {$wpdb->prefix}wpcb_resource_calendar_connections m
+             INNER JOIN {$wpdb->prefix}wpcb_calendar_connections c ON c.id=m.connection_id
+             INNER JOIN {$wpdb->prefix}wpcb_resources r ON r.id=m.resource_id
+             ORDER BY r.slug ASC, c.id ASC",
+            ARRAY_A
+        );
 
         return [
             'format' => self::FORMAT,
@@ -85,6 +113,9 @@ final class ConfigurationBackupService {
             'form_fields' => $fields,
             'availability_rules' => $rules,
             'exceptions' => $exceptions,
+            'calendar_connections' => $connections,
+            'booking_type_calendar_connections' => $typeConnections,
+            'resource_calendar_connections' => $resourceConnections,
         ];
     }
 
@@ -100,6 +131,7 @@ final class ConfigurationBackupService {
         $allowed = [
             'format','format_version','plugin_version','exported_at_utc','settings','email_templates',
             'booking_types','resources','booking_type_resources','form_fields','availability_rules','exceptions',
+            'calendar_connections','booking_type_calendar_connections','resource_calendar_connections',
         ];
         if (array_diff(array_keys($data), $allowed)) {
             return new \WP_Error('wpcb_backup_unknown', __('Die Sicherung enthält unbekannte Felder.', 'wordpress-calendar-booking'));
@@ -107,7 +139,7 @@ final class ConfigurationBackupService {
         if (($data['format'] ?? '') !== self::FORMAT || (int)($data['format_version'] ?? 0) !== self::FORMAT_VERSION) {
             return new \WP_Error('wpcb_backup_version', __('Das Sicherungsformat wird nicht unterstützt.', 'wordpress-calendar-booking'));
         }
-        foreach (['settings','email_templates','booking_types','resources','booking_type_resources','form_fields','availability_rules','exceptions'] as $key) {
+        foreach (['settings','email_templates','booking_types','resources','booking_type_resources','form_fields','availability_rules','exceptions','calendar_connections','booking_type_calendar_connections','resource_calendar_connections'] as $key) {
             if (!isset($data[$key]) || !is_array($data[$key])) {
                 return new \WP_Error('wpcb_backup_shape', __('Die Sicherung ist unvollständig oder ungültig.', 'wordpress-calendar-booking'));
             }
@@ -123,6 +155,9 @@ final class ConfigurationBackupService {
             'form_fields' => ['field_key','label','field_type','is_required','is_active','options_json','validation_rules_json','sort_order'],
             'availability_rules' => ['scope_type','weekday','start_time','end_time','slot_duration_minutes','buffer_before_minutes','buffer_after_minutes','min_notice_minutes','max_days_in_advance','is_active','booking_type_slug','resource_slug'],
             'exceptions' => ['type','title','date_start','date_end','all_day','is_active','booking_type_slug','resource_slug'],
+            'calendar_connections' => ['provider','name','remote_calendar_id','blocks_availability','receives_bookings','requires_reconnect'],
+            'booking_type_calendar_connections' => ['provider','connection_name','remote_calendar_id','booking_type_slug','blocks_availability','receives_bookings'],
+            'resource_calendar_connections' => ['provider','connection_name','remote_calendar_id','resource_slug','blocks_availability','receives_bookings'],
         ];
         foreach ($rowKeys as $section => $allowedKeys) {
             foreach ($data[$section] as $row) {
@@ -167,9 +202,9 @@ final class ConfigurationBackupService {
         }
         global $wpdb;
         $plan = [
-            'create' => ['booking_types'=>0,'resources'=>0,'form_fields'=>0,'availability_rules'=>0,'exceptions'=>0],
+            'create' => ['booking_types'=>0,'resources'=>0,'form_fields'=>0,'availability_rules'=>0,'exceptions'=>0,'calendar_connections'=>0],
             'update' => ['booking_types'=>0,'resources'=>0,'form_fields'=>0,'availability_rules'=>0,'exceptions'=>0],
-            'relationships' => count($snapshot['booking_type_resources']),
+            'relationships' => count($snapshot['booking_type_resources']) + count($snapshot['booking_type_calendar_connections']) + count($snapshot['resource_calendar_connections']),
         ];
 
         foreach ($snapshot['booking_types'] as $row) {
@@ -207,6 +242,11 @@ final class ConfigurationBackupService {
             $exists = $this->exceptionId($row, $typeId, $resourceId);
             $plan[$exists ? 'update' : 'create']['exceptions']++;
         }
+        foreach ($snapshot['calendar_connections'] as $row) {
+            if ($this->calendarConnectionId($row) < 1) {
+                $plan['create']['calendar_connections']++;
+            }
+        }
         return $plan;
     }
 
@@ -219,6 +259,9 @@ final class ConfigurationBackupService {
         global $wpdb;
         $configuration = new ConfigurationService();
         $resourceRepo = new ResourceRepository();
+        $calendarRepo = new CalendarConnectionRepository();
+        $previousSettings = get_option('wpcb_settings', []);
+        $previousTemplates = get_option('wpcb_email_templates', []);
 
         $wpdb->query('START TRANSACTION');
         try {
@@ -332,11 +375,77 @@ final class ConfigurationBackupService {
                 }
             }
 
+            $connectionIds = [];
+            foreach ($snapshot['calendar_connections'] as $row) {
+                $key = $this->calendarConnectionKey($row);
+                $id = $this->calendarConnectionId($row);
+                if ($id < 1) {
+                    $created = $calendarRepo->create([
+                        'provider' => sanitize_key((string)($row['provider'] ?? '')),
+                        'name' => sanitize_text_field((string)($row['name'] ?? '')),
+                        'remote_calendar_id' => sanitize_text_field((string)($row['remote_calendar_id'] ?? '')),
+                        'blocks_availability' => !empty($row['blocks_availability']),
+                        'receives_bookings' => !empty($row['receives_bookings']),
+                        'is_active' => false,
+                        'config' => [],
+                    ], []);
+                    if (is_wp_error($created)) {
+                        throw new \RuntimeException('calendar connection');
+                    }
+                    $id = (int)$created;
+                }
+                $connectionIds[$key] = $id;
+            }
+
+            $typeSelections = [];
+            foreach ($snapshot['booking_type_calendar_connections'] as $row) {
+                $typeSlug = (string)($row['booking_type_slug'] ?? '');
+                $key = $this->calendarConnectionKey([
+                    'provider'=>$row['provider'] ?? '',
+                    'name'=>$row['connection_name'] ?? '',
+                    'remote_calendar_id'=>$row['remote_calendar_id'] ?? '',
+                ]);
+                if (!isset($typeIds[$typeSlug], $connectionIds[$key])) {
+                    throw new \RuntimeException('calendar type mapping');
+                }
+                $typeSelections[$typeSlug][] = [
+                    'connection_id'=>$connectionIds[$key],
+                    'blocks_availability'=>!empty($row['blocks_availability']),
+                    'receives_bookings'=>!empty($row['receives_bookings']),
+                ];
+            }
+            foreach ($typeSelections as $slug => $selections) {
+                $calendarRepo->setForBookingType($typeIds[$slug], $selections);
+            }
+
+            $resourceSelectionsCalendar = [];
+            foreach ($snapshot['resource_calendar_connections'] as $row) {
+                $resourceSlug = (string)($row['resource_slug'] ?? '');
+                $key = $this->calendarConnectionKey([
+                    'provider'=>$row['provider'] ?? '',
+                    'name'=>$row['connection_name'] ?? '',
+                    'remote_calendar_id'=>$row['remote_calendar_id'] ?? '',
+                ]);
+                if (!isset($resourceIds[$resourceSlug], $connectionIds[$key])) {
+                    throw new \RuntimeException('calendar resource mapping');
+                }
+                $resourceSelectionsCalendar[$resourceSlug][] = [
+                    'connection_id'=>$connectionIds[$key],
+                    'blocks_availability'=>!empty($row['blocks_availability']),
+                    'receives_bookings'=>!empty($row['receives_bookings']),
+                ];
+            }
+            foreach ($resourceSelectionsCalendar as $slug => $selections) {
+                $calendarRepo->setForResource($resourceIds[$slug], $selections);
+            }
+
             $wpdb->query('COMMIT');
             do_action('wpcb_capacity_changed');
             return $plan + ['applied'=>true];
         } catch (\Throwable $error) {
             $wpdb->query('ROLLBACK');
+            update_option('wpcb_settings', $previousSettings, false);
+            update_option('wpcb_email_templates', $previousTemplates, false);
             return new \WP_Error(
                 'wpcb_backup_import',
                 __('Die Konfiguration konnte nicht vollständig importiert werden. Datenbankänderungen wurden zurückgerollt.', 'wordpress-calendar-booking')
@@ -412,6 +521,26 @@ final class ConfigurationBackupService {
         }
         $sql .= ' ORDER BY id ASC LIMIT 1';
         return (int)$wpdb->get_var($wpdb->prepare($sql, ...$params));
+    }
+
+    private function calendarConnectionKey(array $row): string {
+        return hash('sha256',
+            sanitize_key((string)($row['provider'] ?? '')) . "\n" .
+            sanitize_text_field((string)($row['name'] ?? '')) . "\n" .
+            sanitize_text_field((string)($row['remote_calendar_id'] ?? ''))
+        );
+    }
+
+    private function calendarConnectionId(array $row): int {
+        global $wpdb;
+        return (int)$wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}wpcb_calendar_connections
+             WHERE provider=%s AND name=%s AND COALESCE(remote_calendar_id,'')=%s
+             ORDER BY id ASC LIMIT 1",
+            sanitize_key((string)($row['provider'] ?? '')),
+            sanitize_text_field((string)($row['name'] ?? '')),
+            sanitize_text_field((string)($row['remote_calendar_id'] ?? ''))
+        ));
     }
 
     private function exceptionId(array $row, int $typeId, int $resourceId): int {
