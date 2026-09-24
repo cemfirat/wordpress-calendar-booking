@@ -48,6 +48,17 @@ wpcb_outbound_assert(
     'Calendar settings use the shared outbound URL policy.'
 );
 
+$beforeSettings = get_option('wpcb_settings');
+$unsafeUpdate = Settings::update(['calendar_urls' => "https://8.8.8.8/feed.ics\nhttp://127.0.0.1/private.ics"]);
+wpcb_outbound_assert(
+    is_wp_error($unsafeUpdate) && $unsafeUpdate->get_error_code() === 'wpcb_calendar_url_unsafe',
+    'Unsafe calendar settings fail closed with an administrator-facing error.'
+);
+wpcb_outbound_assert(
+    get_option('wpcb_settings') === $beforeSettings,
+    'Rejected calendar settings do not mutate stored configuration.'
+);
+
 $feedSource = file_get_contents(WPCB_DIR . 'includes/Calendar/IcloudProvider.php');
 $calDavSource = file_get_contents(WPCB_DIR . 'includes/Calendar/CalDavClient.php');
 $syncSource = file_get_contents(WPCB_DIR . 'includes/Sync/CalDavClient.php');
