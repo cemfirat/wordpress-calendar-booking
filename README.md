@@ -93,11 +93,11 @@ Install PHP dependencies before running or testing a source checkout:
 
 ```sh
 composer install
-npm install
+npm ci
 npm run build:assets
 ```
 
-The asset build copies the pinned UIkit fallback from npm into `assets/vendor/uikit/`. Stable release ZIPs will bundle Composer runtime dependencies and built UIkit assets; end users will need neither Composer nor npm.
+CI and release builds use committed dependency lockfiles (`composer.lock` and `package-lock.json`) so transitive dependency resolution is reproducible for a given source commit. The asset build copies the pinned UIkit fallback from npm into `assets/vendor/uikit/`. Stable release ZIPs will bundle Composer runtime dependencies and built UIkit assets; end users will need neither Composer nor npm.
 
 - Product definition: [docs/PRODUCT.md](docs/PRODUCT.md)
 - Architecture: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
