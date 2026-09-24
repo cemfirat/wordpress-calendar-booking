@@ -133,3 +133,8 @@ Completed.
 - bounded public availability request rate, resource fan-out and returned result cost
 - leased, bounded retry delivery for definite email transport failures without queued customer secrets
 - durable portal, waiting-list and video-ready mail with token rotation and stale/uncertain delivery suppression
+
+### 3.17.2
+- portable SHA-256 checksum asset for every stable plugin ZIP
+- signed GitHub Actions/Sigstore build provenance generated after all release gates
+- checksum and provenance verification in the public updater smoke path
