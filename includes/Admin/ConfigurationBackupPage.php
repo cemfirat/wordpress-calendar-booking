@@ -40,13 +40,32 @@ final class ConfigurationBackupPage {
                 $plan = $result['plan'];
                 $creates = array_sum(array_map('intval', (array)($plan['create'] ?? [])));
                 $updates = array_sum(array_map('intval', (array)($plan['update'] ?? [])));
+                $conflictCount = (int)($plan['conflict_count'] ?? 0);
                 echo '<p>' . esc_html(sprintf(
-                    /* translators: 1: creates, 2: updates, 3: relationship count */
-                    __('Vorschau: %1$d neue Datensätze, %2$d Aktualisierungen, %3$d Zuordnungen.', 'wordpress-calendar-booking'),
+                    /* translators: 1: creates, 2: updates, 3: conflicts, 4: relationship count */
+                    __('Vorschau: %1$d neue Datensätze, %2$d Aktualisierungen, %3$d Konflikte, %4$d Zuordnungen.', 'wordpress-calendar-booking'),
                     $creates,
                     $updates,
+                    $conflictCount,
                     (int)($plan['relationships'] ?? 0)
                 )) . '</p>';
+                if ($conflictCount > 0) {
+                    echo '<p><strong>' . esc_html__('Diese bestehenden Konfigurationswerte würden beim Import geändert:', 'wordpress-calendar-booking') . '</strong></p><ul>';
+                    foreach (array_slice((array)($plan['conflicts'] ?? []), 0, 20) as $conflict) {
+                        $section = sanitize_key((string)($conflict['section'] ?? ''));
+                        $identity = sanitize_text_field((string)($conflict['identity'] ?? ''));
+                        $fields = array_map('sanitize_key', (array)($conflict['fields'] ?? []));
+                        echo '<li><code>' . esc_html($section . ':' . $identity) . '</code> — ' . esc_html(implode(', ', $fields)) . '</li>';
+                    }
+                    echo '</ul>';
+                    if ($conflictCount > 20) {
+                        echo '<p>' . esc_html(sprintf(
+                            /* translators: %d: number of additional conflicts */
+                            __('… und %d weitere Konflikte.', 'wordpress-calendar-booking'),
+                            $conflictCount - 20
+                        )) . '</p>';
+                    }
+                }
                 foreach ((array)($plan['warnings'] ?? []) as $warning) {
                     echo '<p><strong>' . esc_html((string)$warning) . '</strong></p>';
                 }

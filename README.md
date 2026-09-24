@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.19.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.19.1. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -176,4 +176,4 @@ Series creation is all-or-nothing. If any occurrence is no longer bookable, no p
 
 Version 3.19 adds **Kalender & Buchungen → Sicherung & Wiederherstellung**. The JSON snapshot contains booking types, resources, assignments, form-field definitions, availability rules/exceptions, non-secret settings, email templates and reconnect-only calendar connection metadata.
 
-Bookings, customer data, one-time tokens, payment records, waiting-list data, audit/delivery logs and reusable provider/payment credentials are never included. Imported calendar connection descriptors are created disabled and require credentials to be entered again. Restore supports a no-write preview and applies validated changes inside a database transaction without deleting or rewriting booking history.
+Bookings, customer data, one-time tokens, payment records, waiting-list data, audit/delivery logs and reusable provider/payment credentials are never included. Imported calendar connection descriptors are created disabled and require credentials to be entered again. Restore supports a no-write preview and applies validated changes inside a database transaction without deleting or rewriting booking history. Version 3.19.1 makes that preview conflict-aware and verifies repeated restores converge without duplicating configuration.
