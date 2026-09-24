@@ -16,6 +16,7 @@ use Wpcb\Payments\PaymentService;
 use Wpcb\Payments\PaymentStatus;
 use Wpcb\Payments\StripeAdapter;
 use Wpcb\Payments\StripeConfig;
+use Wpcb\Mail\SpecialNotificationMailer;
 
 final class CustomerPortalController {
     private CustomerSessionRepository $sessions;
@@ -158,17 +159,7 @@ final class CustomerPortalController {
             $booking = $this->bookings->latestForEmail($email);
             if ($booking) {
                 try {
-                    $token = $this->tokens->rotate((int)$booking->id, 'portal_login', 30);
-                    $url = add_query_arg([
-                        'wpcb_portal_action' => 'login',
-                        'wpcb_token' => rawurlencode($token),
-                        'return' => $returnUrl,
-                    ], home_url('/'));
-                    wp_mail(
-                        $email,
-                        __('Kundenportal – Anmeldelink', 'wordpress-calendar-booking'),
-                        sprintf(__("Öffnen Sie Ihr Kundenportal über diesen Link:\n\n%s\n\nDer Link ist 30 Minuten gültig und kann nur einmal verwendet werden.", 'wordpress-calendar-booking'), $url)
-                    );
+                    (new SpecialNotificationMailer())->sendPortalLogin((int)$booking->id, $returnUrl);
                 } catch (\Throwable $e) {
                     // Deliberately keep the response indistinguishable from unknown addresses.
                 }
@@ -343,17 +334,11 @@ final class CustomerPortalController {
         if ($newEmail !== '' && $newEmail !== strtolower((string)$booking->email)) {
             $this->bookings->updateMeta($bookingId, 'portal_pending_email', $newEmail);
             try {
-                $token = $this->tokens->rotate($bookingId, 'portal_email_change', 60);
-                $url = add_query_arg([
-                    'wpcb_portal_action' => 'email-change',
-                    'wpcb_token' => rawurlencode($token),
-                    'return' => $returnUrl,
-                ], home_url('/'));
-                wp_mail(
-                    $newEmail,
-                    __('Neue E-Mail-Adresse bestätigen', 'wordpress-calendar-booking'),
-                    sprintf(__("Bestätigen Sie Ihre neue E-Mail-Adresse über diesen Link:\n\n%s\n\nDer Link ist 60 Minuten gültig und kann nur einmal verwendet werden.", 'wordpress-calendar-booking'), $url)
-                );
+                $accepted = (new SpecialNotificationMailer())->sendPortalEmailChange($bookingId, $returnUrl);
+                if (!$accepted) {
+                    $this->bookings->deleteMeta($bookingId, 'portal_pending_email');
+                    $this->redirect($returnUrl, 'action_failed');
+                }
                 $this->redirect($returnUrl, 'email_verification_sent');
             } catch (\Throwable $e) {
                 $this->bookings->deleteMeta($bookingId, 'portal_pending_email');

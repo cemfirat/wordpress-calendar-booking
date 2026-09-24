@@ -2,8 +2,7 @@
 namespace Wpcb\VideoMeetings;
 
 use Wpcb\Booking\BookingRepository;
-use Wpcb\Reliability\DeliveryRepository;
-use Wpcb\Admin\Settings;
+use Wpcb\Mail\SpecialNotificationMailer;
 
 final class VideoMeetingJobRunner {
     private VideoMeetingConnectionRepository $connections;
@@ -70,54 +69,11 @@ final class VideoMeetingJobRunner {
 
         $this->meetings->upsert($bookingId, $connectionId, (string)$connection->provider, $remoteId, $joinUrl, 'active');
         if ($joinUrl !== '') {
-            $this->sendReadyMail($bookingArray, $connectionId, $joinUrl);
+            $mailer = new SpecialNotificationMailer();
+            $mailer->sendVideoReady($bookingId, $connectionId, 'customer');
+            $mailer->sendVideoReady($bookingId, $connectionId, 'admin');
         }
         return ['ok'=>true,'message'=>'Meeting synchronized.'];
     }
 
-    private function sendReadyMail(array $booking, int $connectionId, string $joinUrl): void {
-        $bookingId = (int)($booking['id'] ?? 0);
-        $email = sanitize_email((string)($booking['email'] ?? ''));
-        if ($bookingId < 1 || !is_email($email)) return;
-
-        $deliveries = new DeliveryRepository();
-        $key = 'mail:user:' . $bookingId . ':video-ready:' . $connectionId . ':' . hash('sha256', $joinUrl);
-        $delivery = $deliveries->begin($bookingId, $key, 'email', 'video_meeting_ready', 'customer', 'wp_mail');
-        if (empty($delivery['should_run']) || !$deliveries->markSending((int)$delivery['id'])) return;
-
-        $sent = wp_mail(
-            $email,
-            __('Your video meeting is ready', 'wordpress-calendar-booking'),
-            sprintf(
-                '<p>%s</p><p><a href="%s">%s</a></p>',
-                esc_html__('Your video meeting link is ready:', 'wordpress-calendar-booking'),
-                esc_url($joinUrl),
-                esc_html__('Join video meeting', 'wordpress-calendar-booking')
-            ),
-            ['Content-Type: text/html; charset=UTF-8']
-        );
-        if ($sent) $deliveries->markSent((int)$delivery['id']);
-        else $deliveries->markFailed((int)$delivery['id'], 'wp_mail returned false before accepting the meeting message.', 'wp_mail_false');
-
-        $settings = Settings::get();
-        $recipients = array_values(array_filter(array_map('sanitize_email', array_map('trim', explode(',', (string)($settings['notification_emails'] ?? ''))))));
-        if (empty($settings['notifications_enabled']) || !$recipients) return;
-
-        $internalKey = 'mail:internal:' . $bookingId . ':video-ready:' . $connectionId . ':' . hash('sha256', $joinUrl);
-        $internal = $deliveries->begin($bookingId, $internalKey, 'email', 'video_meeting_ready', 'internal', 'wp_mail');
-        if (empty($internal['should_run']) || !$deliveries->markSending((int)$internal['id'])) return;
-        $internalSent = wp_mail(
-            $recipients,
-            __('Video meeting ready', 'wordpress-calendar-booking'),
-            sprintf(
-                '<p>%s</p><p><a href="%s">%s</a></p>',
-                esc_html(sprintf(__('Video meeting for booking #%d is ready.', 'wordpress-calendar-booking'), $bookingId)),
-                esc_url($joinUrl),
-                esc_html__('Open video meeting', 'wordpress-calendar-booking')
-            ),
-            ['Content-Type: text/html; charset=UTF-8']
-        );
-        if ($internalSent) $deliveries->markSent((int)$internal['id']);
-        else $deliveries->markFailed((int)$internal['id'], 'wp_mail returned false before accepting the internal meeting message.', 'wp_mail_false');
-    }
 }

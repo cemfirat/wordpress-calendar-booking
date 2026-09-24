@@ -79,6 +79,32 @@ final class WaitingListRepository {
         ], ['id' => $id, 'status' => 'waiting']);
     }
 
+    public function rotateOfferedToken(
+        int $id,
+        string $expectedOfferedAt,
+        string $selector,
+        string $hash,
+        string $secretEnc,
+        string $expiresAt
+    ): bool {
+        global $wpdb;
+        return 1 === (int)$wpdb->update(
+            $this->table,
+            [
+                'offer_selector' => $selector,
+                'offer_hash' => $hash,
+                'offer_secret_enc' => $secretEnc,
+                'offer_expires_at' => $expiresAt,
+                'updated_at' => Time::formatUtc(Time::nowUtc()),
+            ],
+            [
+                'id' => $id,
+                'status' => 'offered',
+                'offered_at' => $expectedOfferedAt,
+            ]
+        );
+    }
+
     public function acceptIfTokenMatches(int $id, string $selector, string $verifier): ?object {
         global $wpdb;
         $row = $this->find($id);

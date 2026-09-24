@@ -21,6 +21,13 @@ final class EmailRetryJobRunner {
         'reminder',
     ];
 
+    private const SPECIAL_KINDS = [
+        'portal_login',
+        'portal_email_change',
+        'waiting_list_offer',
+        'video_ready',
+    ];
+
     public static function jobKey(string $deliveryKey): string {
         return 'mail:retry:' . substr(hash('sha256', $deliveryKey), 0, 64);
     }
@@ -79,10 +86,80 @@ final class EmailRetryJobRunner {
         return $jobId;
     }
 
+    public function enqueuePortalLogin(
+        int $bookingId,
+        string $deliveryKey,
+        string $returnPath,
+        string $recipientHash
+    ): int {
+        if ($bookingId < 1 || !$this->validHash($recipientHash)) {
+            return 0;
+        }
+        return $this->enqueueSpecial($bookingId, $deliveryKey, [
+            'kind' => 'portal_login',
+            'return_path' => $this->sanitizeReturnPath($returnPath),
+            'recipient_hash' => strtolower($recipientHash),
+        ]);
+    }
+
+    public function enqueuePortalEmailChange(
+        int $bookingId,
+        string $deliveryKey,
+        string $returnPath,
+        string $recipientHash
+    ): int {
+        if ($bookingId < 1 || !$this->validHash($recipientHash)) {
+            return 0;
+        }
+        return $this->enqueueSpecial($bookingId, $deliveryKey, [
+            'kind' => 'portal_email_change',
+            'return_path' => $this->sanitizeReturnPath($returnPath),
+            'recipient_hash' => strtolower($recipientHash),
+        ]);
+    }
+
+    public function enqueueWaitingListOffer(
+        int $entryId,
+        string $deliveryKey,
+        string $offerGeneration
+    ): int {
+        if ($entryId < 1 || !$this->validHash($offerGeneration)) {
+            return 0;
+        }
+        return $this->enqueueSpecial(0, $deliveryKey, [
+            'kind' => 'waiting_list_offer',
+            'entry_id' => $entryId,
+            'offer_generation' => strtolower($offerGeneration),
+        ]);
+    }
+
+    public function enqueueVideoReady(
+        int $bookingId,
+        string $deliveryKey,
+        int $connectionId,
+        string $recipientClass,
+        string $meetingVersion
+    ): int {
+        $recipientClass = $recipientClass === 'admin' ? 'admin' : 'customer';
+        if ($bookingId < 1 || $connectionId < 1 || !$this->validHash($meetingVersion)) {
+            return 0;
+        }
+        return $this->enqueueSpecial($bookingId, $deliveryKey, [
+            'kind' => 'video_ready',
+            'connection_id' => $connectionId,
+            'recipient_class' => $recipientClass,
+            'meeting_version' => strtolower($meetingVersion),
+        ]);
+    }
+
     public function run(array $payload, int $bookingId): array {
         $deliveryKey = (string)($payload['delivery_key'] ?? '');
         $kind = sanitize_key((string)($payload['kind'] ?? ''));
-        if ($bookingId < 1 || !$this->validDeliveryKey($deliveryKey) || !in_array($kind, ['template', 'internal'], true)) {
+        $allowedKinds = array_merge(['template', 'internal'], self::SPECIAL_KINDS);
+        if (!$this->validDeliveryKey($deliveryKey)
+            || !in_array($kind, $allowedKinds, true)
+            || ($bookingId < 1 && $kind !== 'waiting_list_offer')
+        ) {
             return ['ok' => false, 'message' => 'Invalid email notification job descriptor.'];
         }
 
@@ -109,6 +186,10 @@ final class EmailRetryJobRunner {
         }
         if (!in_array($status, ['pending', 'failed'], true)) {
             return ['ok' => true, 'message' => 'Email delivery is no longer retryable.'];
+        }
+
+        if (in_array($kind, self::SPECIAL_KINDS, true)) {
+            return (new SpecialNotificationMailer())->runRetry($payload, $bookingId);
         }
 
         $bookings = new BookingRepository();
@@ -172,6 +253,55 @@ final class EmailRetryJobRunner {
         }
 
         return ['ok' => false, 'message' => 'Email transport rejected the message before accepting it.'];
+    }
+
+    private function enqueueSpecial(int $bookingId, string $deliveryKey, array $payload): int {
+        if (!$this->validDeliveryKey($deliveryKey)
+            || !in_array((string)($payload['kind'] ?? ''), self::SPECIAL_KINDS, true)
+        ) {
+            return 0;
+        }
+
+        $payload['delivery_key'] = $deliveryKey;
+        $jobs = new JobRepository();
+        $jobId = $jobs->enqueue(
+            self::JOB_TYPE,
+            $bookingId,
+            $payload,
+            self::jobKey($deliveryKey)
+        );
+        if ($jobId > 0) {
+            $jobs->deferPending($jobId, 120);
+        }
+        return $jobId;
+    }
+
+    private function sanitizeReturnPath(string $target): string {
+        $parts = wp_parse_url($target);
+        $path = '/' . ltrim((string)($parts['path'] ?? '/'), '/');
+        $path = preg_replace('/[^A-Za-z0-9_\-\.~\/]/', '', $path);
+        $path = $path !== '' ? $path : '/';
+
+        $query = [];
+        if (!empty($parts['query'])) {
+            parse_str((string)$parts['query'], $raw);
+            if (!empty($raw['pagename'])) {
+                $query['pagename'] = sanitize_key((string)$raw['pagename']);
+            }
+            if (!empty($raw['page_id'])) {
+                $query['page_id'] = absint($raw['page_id']);
+            }
+            if (!empty($raw['wpcb_booking'])) {
+                $query['wpcb_booking'] = absint($raw['wpcb_booking']);
+            }
+        }
+
+        $target = $query ? add_query_arg($query, $path) : $path;
+        return substr($target, 0, 500);
+    }
+
+    private function validHash(string $value): bool {
+        return preg_match('/^[a-f0-9]{64}$/i', $value) === 1;
     }
 
     private function linksForTemplate(string $template, int $bookingId): array {

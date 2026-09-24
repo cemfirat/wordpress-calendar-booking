@@ -211,6 +211,12 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/notification-delivery-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run retryable email delivery smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/email-retry-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run portal durable mail smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/portal-mail-retry-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run waiting-list durable mail smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/waiting-list-mail-retry-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run video-ready durable mail smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/video-mail-retry-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run mail diagnostics smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/mail-diagnostics-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run Gutenberg blocks smoke test
