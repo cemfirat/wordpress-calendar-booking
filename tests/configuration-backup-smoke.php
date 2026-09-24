@@ -141,9 +141,18 @@ $restore = [
         'date_end'=>'2033-02-10 11:00:00','all_day'=>0,'is_active'=>1,
         'booking_type_slug'=>'backup-restore-type','resource_slug'=>'backup-restore-resource',
     ]],
-    'calendar_connections' => [],
-    'booking_type_calendar_connections' => [],
-    'resource_calendar_connections' => [],
+    'calendar_connections' => [[
+        'provider'=>'caldav','name'=>'Restored Calendar','remote_calendar_id'=>'restored-calendar-id',
+        'blocks_availability'=>1,'receives_bookings'=>1,'requires_reconnect'=>true,
+    ]],
+    'booking_type_calendar_connections' => [[
+        'provider'=>'caldav','connection_name'=>'Restored Calendar','remote_calendar_id'=>'restored-calendar-id',
+        'booking_type_slug'=>'backup-restore-type','blocks_availability'=>1,'receives_bookings'=>1,
+    ]],
+    'resource_calendar_connections' => [[
+        'provider'=>'caldav','connection_name'=>'Restored Calendar','remote_calendar_id'=>'restored-calendar-id',
+        'resource_slug'=>'backup-restore-resource','blocks_availability'=>1,'receives_bookings'=>0,
+    ]],
 ];
 
 $beforeTypeCount = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_types WHERE slug='backup-restore-type'");
@@ -176,6 +185,29 @@ wpcb_backup_assert((int)$wpdb->get_var($wpdb->prepare(
     $restoredType,
     $restoredResource
 )) === 1, 'Restore recreates remapped exceptions.');
+$restoredConnection = (int)$wpdb->get_var(
+    "SELECT id FROM {$wpdb->prefix}wpcb_calendar_connections
+     WHERE provider='caldav' AND name='Restored Calendar' AND remote_calendar_id='restored-calendar-id'"
+);
+wpcb_backup_assert($restoredConnection > 0, 'Restore recreates non-secret calendar connection metadata.');
+wpcb_backup_assert((int)$wpdb->get_var($wpdb->prepare(
+    "SELECT is_active FROM {$wpdb->prefix}wpcb_calendar_connections WHERE id=%d",
+    $restoredConnection
+)) === 0, 'Restored calendar metadata stays disabled until credentials are re-entered.');
+wpcb_backup_assert((string)$wpdb->get_var($wpdb->prepare(
+    "SELECT credentials_enc FROM {$wpdb->prefix}wpcb_calendar_connections WHERE id=%d",
+    $restoredConnection
+)) === '', 'Restored calendar metadata contains no credentials.');
+wpcb_backup_assert((int)$wpdb->get_var($wpdb->prepare(
+    "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_type_calendar_connections WHERE booking_type_id=%d AND connection_id=%d",
+    $restoredType,
+    $restoredConnection
+)) === 1, 'Restore remaps calendar connections to booking types.');
+wpcb_backup_assert((int)$wpdb->get_var($wpdb->prepare(
+    "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_resource_calendar_connections WHERE resource_id=%d AND connection_id=%d",
+    $restoredResource,
+    $restoredConnection
+)) === 1, 'Restore remaps calendar connections to resources.');
 wpcb_backup_assert((int)$wpdb->get_var($wpdb->prepare(
     "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_bookings WHERE id=%d AND email='config-backup-customer@example.com'",
     $fixtureBooking
@@ -197,6 +229,9 @@ $rollback['booking_type_resources'][0] = [
 $rollback['availability_rules'] = [];
 $rollback['exceptions'] = [];
 $rollback['form_fields'] = [];
+$rollback['calendar_connections'] = [];
+$rollback['booking_type_calendar_connections'] = [];
+$rollback['resource_calendar_connections'] = [];
 $rollback['settings'] = ['mode'=>'automatic','timezone'=>'Europe/London'];
 
 $settingsBeforeRollback = get_option('wpcb_settings', []);
@@ -208,6 +243,7 @@ wpcb_backup_assert(get_option('wpcb_settings', []) === $settingsBeforeRollback, 
 $wpdb->delete($wpdb->prefix . 'wpcb_booking_status_log', ['booking_id'=>$fixtureBooking]);
 $wpdb->delete($wpdb->prefix . 'wpcb_booking_meta', ['booking_id'=>$fixtureBooking]);
 $wpdb->delete($wpdb->prefix . 'wpcb_bookings', ['id'=>$fixtureBooking]);
+(new Wpcb\Calendar\CalendarConnectionRepository())->delete($restoredConnection);
 $wpdb->delete($wpdb->prefix . 'wpcb_exceptions', ['booking_type_id'=>$restoredType]);
 $wpdb->delete($wpdb->prefix . 'wpcb_availability_rules', ['scope_type'=>'booking_type','scope_id'=>$restoredType]);
 $wpdb->delete($wpdb->prefix . 'wpcb_booking_type_resources', ['booking_type_id'=>$restoredType]);
