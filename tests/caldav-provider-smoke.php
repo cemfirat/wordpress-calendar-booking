@@ -12,7 +12,7 @@ function wpcb_caldav_assert($condition, string $message): void {
 
 $requests = [];
 $filter = static function ($pre, $args, $url) use (&$requests) {
-    if (strpos($url, 'https://caldav.example.test') !== 0) {
+    if (strpos($url, 'https://8.8.8.8') !== 0) {
         return $pre;
     }
 
@@ -31,7 +31,7 @@ $filter = static function ($pre, $args, $url) use (&$requests) {
         ];
     };
 
-    if ($method === 'PROPFIND' && $url === 'https://caldav.example.test/') {
+    if ($method === 'PROPFIND' && $url === 'https://8.8.8.8/') {
         return $response(207, 'Multi-Status',
             '<?xml version="1.0"?><d:multistatus xmlns:d="DAV:"><d:response><d:propstat><d:prop>'
             . '<d:current-user-principal><d:href>/principals/user/</d:href></d:current-user-principal>'
@@ -39,7 +39,7 @@ $filter = static function ($pre, $args, $url) use (&$requests) {
         );
     }
 
-    if ($method === 'PROPFIND' && $url === 'https://caldav.example.test/principals/user/') {
+    if ($method === 'PROPFIND' && $url === 'https://8.8.8.8/principals/user/') {
         return $response(207, 'Multi-Status',
             '<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav"><d:response><d:propstat><d:prop>'
             . '<c:calendar-home-set><d:href>/calendars/user/</d:href></c:calendar-home-set>'
@@ -47,7 +47,7 @@ $filter = static function ($pre, $args, $url) use (&$requests) {
         );
     }
 
-    if ($method === 'PROPFIND' && $url === 'https://caldav.example.test/calendars/user/') {
+    if ($method === 'PROPFIND' && $url === 'https://8.8.8.8/calendars/user/') {
         return $response(207, 'Multi-Status',
             '<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'
             . '<d:response><d:href>/calendars/user/work/</d:href><d:propstat><d:prop><d:displayname>Work</d:displayname><d:resourcetype><d:collection/><c:calendar/></d:resourcetype></d:prop></d:propstat></d:response>'
@@ -56,7 +56,7 @@ $filter = static function ($pre, $args, $url) use (&$requests) {
         );
     }
 
-    if ($method === 'REPORT' && $url === 'https://caldav.example.test/calendars/user/work/') {
+    if ($method === 'REPORT' && $url === 'https://8.8.8.8/calendars/user/work/') {
         $icsTimed = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:timed-ci\r\nDTSTART:20261102T090000Z\r\nDTEND:20261102T100000Z\r\nSUMMARY:Private Timed\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
         $icsAllDay = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:allday-ci\r\nDTSTART;VALUE=DATE:20261103\r\nDTEND;VALUE=DATE:20261104\r\nSUMMARY:Private All Day\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
         return $response(207, 'Multi-Status',
@@ -92,7 +92,7 @@ $filter = static function ($pre, $args, $url) use (&$requests) {
 add_filter('pre_http_request', $filter, 10, 3);
 
 $client = new Wpcb\Calendar\CalDavClient(
-    'https://caldav.example.test/',
+    'https://8.8.8.8/',
     'calendar-user',
     'calendar-secret'
 );
@@ -104,10 +104,10 @@ if (!is_array($calendars) || count($calendars) !== 2) {
 }
 wpcb_caldav_assert(is_array($calendars) && count($calendars) === 2, 'CalDAV discovery returns multiple calendar collections.');
 wpcb_caldav_assert($calendars[0]['name'] === 'Work' && $calendars[1]['name'] === 'Private', 'CalDAV discovery keeps calendar display names.');
-wpcb_caldav_assert($calendars[0]['url'] === 'https://caldav.example.test/calendars/user/work/', 'Relative CalDAV hrefs are resolved against the endpoint origin.');
+wpcb_caldav_assert($calendars[0]['url'] === 'https://8.8.8.8/calendars/user/work/', 'Relative CalDAV hrefs are resolved against the endpoint origin.');
 
 $objects = $client->calendarQuery(
-    'https://caldav.example.test/calendars/user/work/',
+    'https://8.8.8.8/calendars/user/work/',
     '2026-11-01 00:00:00',
     '2026-11-05 00:00:00'
 );
@@ -131,12 +131,12 @@ $connectionId = $repo->create(
     [
         'provider' => 'caldav',
         'name' => 'CalDAV CI',
-        'remote_calendar_id' => 'https://caldav.example.test/calendars/user/work/',
+        'remote_calendar_id' => 'https://8.8.8.8/calendars/user/work/',
         'blocks_availability' => 1,
         'receives_bookings' => 1,
         'config' => [
-            'endpoint' => 'https://caldav.example.test/',
-            'calendar_url' => 'https://caldav.example.test/calendars/user/work/',
+            'endpoint' => 'https://8.8.8.8/',
+            'calendar_url' => 'https://8.8.8.8/calendars/user/work/',
             'preset' => 'generic',
         ],
     ],
@@ -174,7 +174,7 @@ $updated = $provider->updateEvent($booking, ['subject' => 'CalDAV CI updated'], 
 wpcb_caldav_assert(is_array($updated) && !empty($updated['ok']) && $updated['event_id'] !== $created['event_id'], 'CalDAV update advances the stored ETag handle.');
 
 $conflict = $client->putEvent(
-    'https://caldav.example.test/calendars/user/work/conflict.ics',
+    'https://8.8.8.8/calendars/user/work/conflict.ics',
     "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nEND:VCALENDAR\r\n",
     '"stale"',
     false
