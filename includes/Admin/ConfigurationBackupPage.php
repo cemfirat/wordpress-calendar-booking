@@ -40,13 +40,25 @@ final class ConfigurationBackupPage {
                 $plan = $result['plan'];
                 $creates = array_sum(array_map('intval', (array)($plan['create'] ?? [])));
                 $updates = array_sum(array_map('intval', (array)($plan['update'] ?? [])));
+                $conflicts = array_sum(array_map('intval', (array)($plan['conflict'] ?? [])));
                 echo '<p>' . esc_html(sprintf(
-                    /* translators: 1: creates, 2: updates, 3: relationship count */
-                    __('Vorschau: %1$d neue Datensätze, %2$d Aktualisierungen, %3$d Zuordnungen.', 'wordpress-calendar-booking'),
+                    /* translators: 1: creates, 2: updates, 3: conflicts, 4: relationship count */
+                    __('Vorschau: %1$d neue Datensätze, %2$d Aktualisierungen, %3$d Konflikte, %4$d Zuordnungen.', 'wordpress-calendar-booking'),
                     $creates,
                     $updates,
+                    $conflicts,
                     (int)($plan['relationships'] ?? 0)
                 )) . '</p>';
+                if (!empty($plan['conflicts']) && is_array($plan['conflicts'])) {
+                    echo '<p><strong>' . esc_html__('Konflikte vor dem Überschreiben:', 'wordpress-calendar-booking') . '</strong></p><ul>';
+                    foreach (array_slice($plan['conflicts'], 0, 50) as $conflict) {
+                        $section = sanitize_key((string)($conflict['section'] ?? ''));
+                        $key = sanitize_text_field((string)($conflict['key'] ?? ''));
+                        $fields = array_map('sanitize_key', (array)($conflict['fields'] ?? []));
+                        echo '<li><code>' . esc_html($section) . '</code> — ' . esc_html($key) . ': ' . esc_html(implode(', ', $fields)) . '</li>';
+                    }
+                    echo '</ul>';
+                }
                 foreach ((array)($plan['warnings'] ?? []) as $warning) {
                     echo '<p><strong>' . esc_html((string)$warning) . '</strong></p>';
                 }
