@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.19.2
+
+- Reject oversized configuration backup JSON before decoding.
+- Enforce typed, bounded restore fields instead of relying on downstream sanitization or clamping.
+- Validate booking/payment enums, currencies, form-field JSON, availability time ordering, exception date ordering and supported calendar providers.
+- Bound section cardinality and template payloads to prevent pathological restore workloads.
+- Keep malformed snapshots no-write in dry-run and apply paths while preserving round-trip compatibility with current exports.
+
 ## 3.19.1
 
 - Make configuration restore dry-runs distinguish identical matches from real overwrite conflicts and expose bounded field-level conflict details.

@@ -105,6 +105,98 @@ $unknown = $snapshot;
 $unknown['unexpected_secret_bucket'] = ['x' => 'y'];
 wpcb_backup_assert(is_wp_error($service->validate($unknown)), 'Unknown top-level fields fail closed.');
 
+$decodedExport = $service->decode($json);
+wpcb_backup_assert(!is_wp_error($decodedExport), 'Current plugin exports round-trip through strict schema validation.');
+
+$oversized = str_repeat(' ', Wpcb\Admin\ConfigurationBackupService::MAX_JSON_BYTES + 1);
+$oversizedResult = $service->decode($oversized);
+wpcb_backup_assert(
+    is_wp_error($oversizedResult) && $oversizedResult->get_error_code() === 'wpcb_backup_too_large',
+    'Oversized backup JSON is rejected before decoding.'
+);
+
+$nestedScalar = $snapshot;
+$nestedScalar['booking_types'][0]['name'] = ['not' => 'scalar'];
+wpcb_backup_assert(is_wp_error($service->validate($nestedScalar)), 'Nested arrays in scalar configuration fields fail closed.');
+
+$badRange = $snapshot;
+$badRange['booking_types'][0]['capacity'] = 0;
+wpcb_backup_assert(is_wp_error($service->validate($badRange)), 'Invalid numeric ranges fail closed instead of being clamped.');
+
+$badPaymentMode = $snapshot;
+$badPaymentMode['booking_types'][0]['payment_mode'] = 'surprise';
+wpcb_backup_assert(is_wp_error($service->validate($badPaymentMode)), 'Unsupported booking payment modes fail closed.');
+
+$badCurrency = $snapshot;
+$badCurrency['booking_types'][0]['currency'] = 'EURO';
+wpcb_backup_assert(is_wp_error($service->validate($badCurrency)), 'Invalid ISO currency shape fails closed.');
+
+$badFieldType = $snapshot;
+$badFieldType['form_fields'][0]['field_type'] = 'script';
+wpcb_backup_assert(is_wp_error($service->validate($badFieldType)), 'Unsupported form field types fail closed.');
+
+$badOptions = $snapshot;
+$badOptions['form_fields'][0]['options_json'] = '{"not":"a-list"}';
+wpcb_backup_assert(is_wp_error($service->validate($badOptions)), 'Invalid form-field option JSON shape fails closed.');
+
+$badRuleTime = $snapshot;
+$badRuleTime['availability_rules'][0]['start_time'] = '25:00:00';
+wpcb_backup_assert(is_wp_error($service->validate($badRuleTime)), 'Invalid availability time syntax fails closed.');
+
+$badRuleOrder = $snapshot;
+$badRuleOrder['availability_rules'][0]['start_time'] = '17:00:00';
+$badRuleOrder['availability_rules'][0]['end_time'] = '09:00:00';
+wpcb_backup_assert(is_wp_error($service->validate($badRuleOrder)), 'Availability start must be before end.');
+
+$defaultResourceSlug = (string)$wpdb->get_var($wpdb->prepare(
+    "SELECT slug FROM {$wpdb->prefix}wpcb_resources WHERE id=%d",
+    $defaultResource
+));
+$badException = $snapshot;
+$badException['exceptions'][] = [
+    'type'=>'blocked_range',
+    'title'=>'Invalid date ordering',
+    'date_start'=>'2033-04-10 11:00:00',
+    'date_end'=>'2033-04-10 10:00:00',
+    'all_day'=>0,
+    'is_active'=>1,
+    'booking_type_slug'=>'backup-fixture-type',
+    'resource_slug'=>$defaultResourceSlug,
+];
+wpcb_backup_assert(is_wp_error($service->validate($badException)), 'Exception end must be after start.');
+
+$badProvider = $snapshot;
+$badProvider['calendar_connections'][0]['provider'] = 'unsupported-provider';
+wpcb_backup_assert(is_wp_error($service->validate($badProvider)), 'Unsupported calendar provider IDs fail closed.');
+
+$badTemplate = $snapshot;
+$badTemplate['email_templates']['confirmed_subject'] = ['nested'];
+wpcb_backup_assert(is_wp_error($service->validate($badTemplate)), 'Nested email template values fail closed.');
+
+$tooManyRows = $snapshot;
+$tooManyRows['booking_types'] = array_fill(0, 501, $snapshot['booking_types'][0]);
+$tooManyRowsResult = $service->validate($tooManyRows);
+wpcb_backup_assert(
+    is_wp_error($tooManyRowsResult) && $tooManyRowsResult->get_error_code() === 'wpcb_backup_section_limit',
+    'Section row-count limits reject pathological restore workloads.'
+);
+
+$beforeMalformedApply = [
+    'types' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_types"),
+    'resources' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_resources"),
+    'settings' => get_option('wpcb_settings', []),
+];
+$malformedApply = $snapshot;
+$malformedApply['booking_types'][0]['duration_minutes'] = -10;
+$malformedApplyResult = $service->import($malformedApply, false);
+wpcb_backup_assert(is_wp_error($malformedApplyResult), 'Malformed apply requests are rejected before mutation.');
+wpcb_backup_assert(
+    (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_types") === $beforeMalformedApply['types']
+    && (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_resources") === $beforeMalformedApply['resources']
+    && get_option('wpcb_settings', []) === $beforeMalformedApply['settings'],
+    'Malformed snapshots remain no-write on apply.'
+);
+
 $restore = [
     'format' => Wpcb\Admin\ConfigurationBackupService::FORMAT,
     'format_version' => Wpcb\Admin\ConfigurationBackupService::FORMAT_VERSION,
