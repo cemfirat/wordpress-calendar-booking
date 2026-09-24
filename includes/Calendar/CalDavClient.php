@@ -5,8 +5,6 @@ use Wpcb\Support\Time;
 use Wpcb\Security\OutboundUrlPolicy;
 
 final class CalDavClient {
-    private const MAX_DISCOVERED_CALENDARS = 250;
-    private const MAX_QUERY_RESPONSES = 2000;
     private string $endpoint;
     private string $username;
     private string $password;
@@ -185,7 +183,7 @@ final class CalDavClient {
         }
 
         $nodes = $xpath->query('//*[local-name()="response"]');
-        if ($nodes && $nodes->length > self::MAX_DISCOVERED_CALENDARS) {
+        if ($nodes && $nodes->length > OutboundUrlPolicy::MAX_CALDAV_DISCOVERY_RECORDS) {
             return new \WP_Error('wpcb_caldav_discovery_too_large', 'CalDAV discovery returned too many records.');
         }
 
@@ -217,7 +215,7 @@ final class CalDavClient {
         }
 
         $nodes = $xpath->query('//*[local-name()="response"]');
-        if ($nodes && $nodes->length > self::MAX_QUERY_RESPONSES) {
+        if ($nodes && $nodes->length > OutboundUrlPolicy::MAX_CALDAV_QUERY_RECORDS) {
             return new \WP_Error('wpcb_caldav_query_too_large', 'CalDAV query returned too many records.');
         }
 
