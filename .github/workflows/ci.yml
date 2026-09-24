@@ -411,10 +411,18 @@ jobs:
           grep -q 'wordpress-calendar-booking/vendor/autoload.php' "$RUNNER_TEMP/zip-list.txt"
           grep -q 'wordpress-calendar-booking/assets/vendor/uikit/uikit.min.css' "$RUNNER_TEMP/zip-list.txt"
           grep -q 'wordpress-calendar-booking/LICENSE' "$RUNNER_TEMP/zip-list.txt"
+      - name: Generate and verify release checksum
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum wordpress-calendar-booking.zip > wordpress-calendar-booking.zip.sha256
+          sha256sum -c wordpress-calendar-booking.zip.sha256
       - uses: actions/upload-artifact@v4
         with:
           name: release-package
-          path: dist/wordpress-calendar-booking.zip
+          path: |
+            dist/wordpress-calendar-booking.zip
+            dist/wordpress-calendar-booking.zip.sha256
           if-no-files-found: error
           retention-days: 7
 
@@ -664,6 +672,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     concurrency:
       group: calendar-booking-release
       cancel-in-progress: false
@@ -691,6 +701,15 @@ jobs:
           notes = f"Requires WordPress: {header('Requires at least')}\nRequires PHP: {header('Requires PHP')}\n\n{section}\n"
           pathlib.Path('dist/release-notes.md').write_text(notes)
           PY
+      - name: Verify packaged checksum
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum -c wordpress-calendar-booking.zip.sha256
+      - name: Generate release build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/wordpress-calendar-booking.zip
       - name: Publish exact stable asset
         env:
           GH_TOKEN: ${{ github.token }}
@@ -705,7 +724,7 @@ jobs:
           else
             gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "WordPress Calendar Booking $RELEASE_TAG" --notes-file dist/release-notes.md --draft
           fi
-          gh release upload "$RELEASE_TAG" dist/wordpress-calendar-booking.zip --clobber
+          gh release upload "$RELEASE_TAG" dist/wordpress-calendar-booking.zip dist/wordpress-calendar-booking.zip.sha256 --clobber
           gh release edit "$RELEASE_TAG" --notes-file dist/release-notes.md --draft=false --latest
 
   production_update:
@@ -713,6 +732,9 @@ jobs:
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
     needs: [release]
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      attestations: read
     services:
       mysql:
         image: mysql:8.0
@@ -738,6 +760,13 @@ jobs:
         with:
           name: release-package
           path: dist
+      - name: Verify release checksum and provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum -c wordpress-calendar-booking.zip.sha256)
+          gh attestation verify dist/wordpress-calendar-booking.zip -R "$GITHUB_REPOSITORY"
       - name: Build synthetic pre-release installation
         run: |
           set -euo pipefail
@@ -747,11 +776,11 @@ jobs:
           import os, pathlib
           p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/wordpress-calendar-booking.php"
           text = p.read_text()
-          text = text.replace(" * Version: 3.17.1", " * Version: 3.17.0")
-          text = text.replace("define('WPCB_VERSION', '3.17.1');", "define('WPCB_VERSION', '3.17.0');")
+          text = text.replace(" * Version: 3.17.2", " * Version: 3.17.1")
+          text = text.replace("define('WPCB_VERSION', '3.17.2');", "define('WPCB_VERSION', '3.17.1');")
           p.write_text(text)
           PY
-          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-3.17.0.zip" wordpress-calendar-booking)
+          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-3.17.1.zip" wordpress-calendar-booking)
       - name: Install synthetic old version
         run: |
           set -euo pipefail
@@ -759,9 +788,9 @@ jobs:
           wp core download --path="$WP_ROOT" --version=latest
           wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
           wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBUpdater --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
-          wp plugin install "$RUNNER_TEMP/calendar-booking-3.17.0.zip" --activate --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.17.0"
-      - name: Discover real public v3.17.1 release
+          wp plugin install "$RUNNER_TEMP/calendar-booking-3.17.1.zip" --activate --path="$WP_ROOT"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.17.1"
+      - name: Discover real public v3.17.2 release
         run: |
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
@@ -778,7 +807,7 @@ jobs:
                   echo $updates->response[$basename]->new_version;
               }
             ' --path="$WP_ROOT")"
-            if [ "$version" = "3.17.1" ]; then
+            if [ "$version" = "3.17.2" ]; then
               found=1
               break
             fi
@@ -790,6 +819,6 @@ jobs:
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
           wp plugin update wordpress-calendar-booking --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.17.1"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.17.2"
           wp plugin is-active wordpress-calendar-booking --path="$WP_ROOT"
-          echo "PASS: synthetic 3.17.0 updated through the public GitHub release to 3.17.1."
+          echo "PASS: synthetic 3.17.1 updated through the public GitHub release to 3.17.2."

@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.17.1
+Stable tag: 3.17.2
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,11 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.17.2 =
+* Publish a portable SHA-256 checksum alongside the stable release ZIP.
+* Add GitHub Actions/Sigstore build provenance attestation for the exact release ZIP.
+* Verify the checksum and signed provenance in the post-release updater smoke test.
 
 = 3.17.1 =
 * Monitor all recurring maintenance schedules in Systemstatus.
