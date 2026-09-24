@@ -2,6 +2,7 @@
 namespace Wpcb\Admin;
 
 use Wpcb\Support\Time;
+use Wpcb\Resources\ResourceRepository;
 
 final class ConfigurationBackupService {
     public const FORMAT = 'wordpress-calendar-booking-configuration';
@@ -115,6 +116,22 @@ final class ConfigurationBackupService {
             return new \WP_Error('wpcb_backup_unsafe_settings', __('Die Sicherung enthält nicht erlaubte Einstellungsfelder.', 'wordpress-calendar-booking'));
         }
 
+        $rowKeys = [
+            'booking_types' => ['name','slug','description','duration_minutes','buffer_before_minutes','buffer_after_minutes','capacity','show_remaining_capacity','payment_mode','price_minor','currency','is_active','is_public','sort_order'],
+            'resources' => ['name','slug','public_label','description','capacity','is_active','is_public','sort_order'],
+            'booking_type_resources' => ['booking_type_slug','resource_slug'],
+            'form_fields' => ['field_key','label','field_type','is_required','is_active','options_json','validation_rules_json','sort_order'],
+            'availability_rules' => ['scope_type','weekday','start_time','end_time','slot_duration_minutes','buffer_before_minutes','buffer_after_minutes','min_notice_minutes','max_days_in_advance','is_active','booking_type_slug','resource_slug'],
+            'exceptions' => ['type','title','date_start','date_end','all_day','is_active','booking_type_slug','resource_slug'],
+        ];
+        foreach ($rowKeys as $section => $allowedKeys) {
+            foreach ($data[$section] as $row) {
+                if (!is_array($row) || array_diff(array_keys($row), $allowedKeys)) {
+                    return new \WP_Error('wpcb_backup_row_fields', __('Die Sicherung enthält unbekannte Konfigurationsfelder.', 'wordpress-calendar-booking'));
+                }
+            }
+        }
+
         $typeSlugs = [];
         foreach ($data['booking_types'] as $row) {
             if (!is_array($row)) return new \WP_Error('wpcb_backup_row', __('Ungültige Terminart in der Sicherung.', 'wordpress-calendar-booking'));
@@ -141,5 +158,273 @@ final class ConfigurationBackupService {
             }
         }
         return $data;
+    }
+
+    public function plan(array $snapshot) {
+        $valid = $this->validate($snapshot);
+        if (is_wp_error($valid)) {
+            return $valid;
+        }
+        global $wpdb;
+        $plan = [
+            'create' => ['booking_types'=>0,'resources'=>0,'form_fields'=>0,'availability_rules'=>0,'exceptions'=>0],
+            'update' => ['booking_types'=>0,'resources'=>0,'form_fields'=>0,'availability_rules'=>0,'exceptions'=>0],
+            'relationships' => count($snapshot['booking_type_resources']),
+        ];
+
+        foreach ($snapshot['booking_types'] as $row) {
+            $exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}wpcb_booking_types WHERE slug=%s LIMIT 1",
+                sanitize_title((string)$row['slug'])
+            ));
+            $plan[$exists ? 'update' : 'create']['booking_types']++;
+        }
+        foreach ($snapshot['resources'] as $row) {
+            $exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}wpcb_resources WHERE slug=%s LIMIT 1",
+                sanitize_title((string)$row['slug'])
+            ));
+            $plan[$exists ? 'update' : 'create']['resources']++;
+        }
+        foreach ($snapshot['form_fields'] as $row) {
+            $exists = $wpdb->get_var($wpdb->prepare(
+                "SELECT id FROM {$wpdb->prefix}wpcb_form_fields WHERE field_key=%s LIMIT 1",
+                sanitize_key((string)$row['field_key'])
+            ));
+            $plan[$exists ? 'update' : 'create']['form_fields']++;
+        }
+
+        $typeIds = $this->typeIdsBySlug();
+        $resourceIds = $this->resourceIdsBySlug();
+        foreach ($snapshot['availability_rules'] as $row) {
+            $scopeId = $this->snapshotScopeId($row, $typeIds, $resourceIds);
+            $exists = $this->ruleId((string)($row['scope_type'] ?? 'global'), $scopeId, $row);
+            $plan[$exists ? 'update' : 'create']['availability_rules']++;
+        }
+        foreach ($snapshot['exceptions'] as $row) {
+            $typeId = $typeIds[(string)($row['booking_type_slug'] ?? '')] ?? 0;
+            $resourceId = $resourceIds[(string)($row['resource_slug'] ?? '')] ?? 0;
+            $exists = $this->exceptionId($row, $typeId, $resourceId);
+            $plan[$exists ? 'update' : 'create']['exceptions']++;
+        }
+        return $plan;
+    }
+
+    public function import(array $snapshot, bool $dryRun = false) {
+        $plan = $this->plan($snapshot);
+        if (is_wp_error($plan) || $dryRun) {
+            return $plan;
+        }
+
+        global $wpdb;
+        $configuration = new ConfigurationService();
+        $resourceRepo = new ResourceRepository();
+
+        $wpdb->query('START TRANSACTION');
+        try {
+            $settingsResult = Settings::update($snapshot['settings']);
+            if (is_wp_error($settingsResult)) {
+                throw new \RuntimeException($settingsResult->get_error_message());
+            }
+            update_option('wpcb_email_templates', $this->sanitizeTemplates($snapshot['email_templates']), false);
+
+            $typeIds = [];
+            foreach ($snapshot['booking_types'] as $row) {
+                $slug = sanitize_title((string)$row['slug']);
+                $existing = (int)$wpdb->get_var($wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}wpcb_booking_types WHERE slug=%s LIMIT 1",
+                    $slug
+                ));
+                $id = $configuration->saveBookingType($row, $existing);
+                if ($id < 1) {
+                    throw new \RuntimeException('booking type');
+                }
+                $typeIds[$slug] = $id;
+            }
+
+            $resourceIds = [];
+            foreach ($snapshot['resources'] as $row) {
+                $slug = sanitize_title((string)$row['slug']);
+                $existing = (int)$wpdb->get_var($wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}wpcb_resources WHERE slug=%s LIMIT 1",
+                    $slug
+                ));
+                $saved = $resourceRepo->save($row, $existing);
+                if (is_wp_error($saved) || (int)$saved < 1) {
+                    throw new \RuntimeException('resource');
+                }
+                $resourceIds[$slug] = (int)$saved;
+            }
+
+            foreach ($snapshot['form_fields'] as $row) {
+                $fieldKey = sanitize_key((string)$row['field_key']);
+                $existing = (int)$wpdb->get_var($wpdb->prepare(
+                    "SELECT id FROM {$wpdb->prefix}wpcb_form_fields WHERE field_key=%s LIMIT 1",
+                    $fieldKey
+                ));
+                $options = json_decode((string)($row['options_json'] ?? ''), true);
+                $input = $row;
+                $input['options_raw'] = is_array($options) ? implode("\n", array_map('strval', $options)) : '';
+                $id = $configuration->saveField($input, $existing);
+                if ($id < 1) {
+                    throw new \RuntimeException('form field');
+                }
+                $validation = $this->safeJson($row['validation_rules_json'] ?? null);
+                if ($wpdb->update(
+                    $wpdb->prefix . 'wpcb_form_fields',
+                    ['validation_rules_json' => $validation],
+                    ['id' => $id]
+                ) === false) {
+                    throw new \RuntimeException('form validation');
+                }
+            }
+
+            $resourceSelections = [];
+            foreach ($snapshot['booking_type_resources'] as $row) {
+                $typeSlug = (string)$row['booking_type_slug'];
+                $resourceSlug = (string)$row['resource_slug'];
+                $resourceSelections[$typeSlug][] = $resourceIds[$resourceSlug];
+            }
+            foreach ($resourceSelections as $typeSlug => $ids) {
+                $resourceRepo->setForBookingType($typeIds[$typeSlug], $ids);
+            }
+
+            foreach ($snapshot['availability_rules'] as $row) {
+                $scopeType = sanitize_key((string)($row['scope_type'] ?? 'global'));
+                $scopeId = $this->snapshotScopeId($row, $typeIds, $resourceIds);
+                if ($scopeType !== 'global' && $scopeId < 1) {
+                    throw new \RuntimeException('availability mapping');
+                }
+                $existing = $this->ruleId($scopeType, $scopeId ?: null, $row);
+                $input = $row;
+                $input['scope_type'] = $scopeType;
+                $input['scope_id'] = $scopeId;
+                $input['resource_scope_id'] = $scopeId;
+                if ($configuration->saveRule($input, $existing) < 1) {
+                    throw new \RuntimeException('availability');
+                }
+            }
+
+            foreach ($snapshot['exceptions'] as $row) {
+                $typeId = $typeIds[(string)($row['booking_type_slug'] ?? '')] ?? 0;
+                $resourceId = $resourceIds[(string)($row['resource_slug'] ?? '')] ?? 0;
+                $existing = $this->exceptionId($row, $typeId, $resourceId);
+                $data = [
+                    'type' => sanitize_key((string)($row['type'] ?? 'blocked_range')),
+                    'title' => sanitize_text_field((string)($row['title'] ?? '')),
+                    'date_start' => $this->utcDate((string)($row['date_start'] ?? '')),
+                    'date_end' => $this->utcDate((string)($row['date_end'] ?? '')),
+                    'all_day' => empty($row['all_day']) ? 0 : 1,
+                    'booking_type_id' => $typeId ?: null,
+                    'resource_id' => $resourceId ?: null,
+                    'is_active' => empty($row['is_active']) ? 0 : 1,
+                    'updated_at' => Time::formatUtc(Time::nowUtc()),
+                ];
+                if ($existing > 0) {
+                    if ($wpdb->update($wpdb->prefix . 'wpcb_exceptions', $data, ['id'=>$existing]) === false) {
+                        throw new \RuntimeException('exception update');
+                    }
+                } else {
+                    $data['created_at'] = Time::formatUtc(Time::nowUtc());
+                    if ($wpdb->insert($wpdb->prefix . 'wpcb_exceptions', $data) === false) {
+                        throw new \RuntimeException('exception insert');
+                    }
+                }
+            }
+
+            $wpdb->query('COMMIT');
+            do_action('wpcb_capacity_changed');
+            return $plan + ['applied'=>true];
+        } catch (\Throwable $error) {
+            $wpdb->query('ROLLBACK');
+            return new \WP_Error(
+                'wpcb_backup_import',
+                __('Die Konfiguration konnte nicht vollständig importiert werden. Datenbankänderungen wurden zurückgerollt.', 'wordpress-calendar-booking')
+            );
+        }
+    }
+
+    private function sanitizeTemplates(array $templates): array {
+        $out = [];
+        foreach ($templates as $key => $value) {
+            if (!is_scalar($value)) {
+                continue;
+            }
+            $safeKey = sanitize_key((string)$key);
+            if ($safeKey !== '') {
+                $out[$safeKey] = sanitize_textarea_field((string)$value);
+            }
+        }
+        return $out;
+    }
+
+    private function safeJson($value): ?string {
+        if ($value === null || $value === '') {
+            return null;
+        }
+        $decoded = is_string($value) ? json_decode($value, true) : $value;
+        return is_array($decoded) ? wp_json_encode($decoded) : null;
+    }
+
+    private function utcDate(string $value): string {
+        $timestamp = strtotime($value . ' UTC');
+        if ($timestamp === false) {
+            throw new \RuntimeException('invalid date');
+        }
+        return gmdate('Y-m-d H:i:s', $timestamp);
+    }
+
+    private function typeIdsBySlug(): array {
+        global $wpdb;
+        return array_map('intval', $wpdb->get_results(
+            "SELECT slug,id FROM {$wpdb->prefix}wpcb_booking_types",
+            OBJECT_K
+        ));
+    }
+
+    private function resourceIdsBySlug(): array {
+        global $wpdb;
+        $rows = $wpdb->get_results("SELECT slug,id FROM {$wpdb->prefix}wpcb_resources");
+        $out = [];
+        foreach ($rows as $row) $out[(string)$row->slug] = (int)$row->id;
+        return $out;
+    }
+
+    private function snapshotScopeId(array $row, array $typeIds, array $resourceIds): int {
+        $scope = (string)($row['scope_type'] ?? 'global');
+        if ($scope === 'booking_type') return (int)($typeIds[(string)($row['booking_type_slug'] ?? '')] ?? 0);
+        if ($scope === 'resource') return (int)($resourceIds[(string)($row['resource_slug'] ?? '')] ?? 0);
+        return 0;
+    }
+
+    private function ruleId(string $scopeType, ?int $scopeId, array $row): int {
+        global $wpdb;
+        $sql = "SELECT id FROM {$wpdb->prefix}wpcb_availability_rules
+                WHERE scope_type=%s AND weekday=%d AND start_time=%s AND end_time=%s";
+        $params = [$scopeType, (int)($row['weekday'] ?? 0), (string)($row['start_time'] ?? ''), (string)($row['end_time'] ?? '')];
+        if ($scopeId) {
+            $sql .= ' AND scope_id=%d';
+            $params[] = $scopeId;
+        } else {
+            $sql .= ' AND scope_id IS NULL';
+        }
+        $sql .= ' ORDER BY id ASC LIMIT 1';
+        return (int)$wpdb->get_var($wpdb->prepare($sql, ...$params));
+    }
+
+    private function exceptionId(array $row, int $typeId, int $resourceId): int {
+        global $wpdb;
+        return (int)$wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$wpdb->prefix}wpcb_exceptions
+             WHERE type=%s AND title=%s AND date_start=%s AND date_end=%s
+               AND COALESCE(booking_type_id,0)=%d AND COALESCE(resource_id,0)=%d
+             ORDER BY id ASC LIMIT 1",
+            sanitize_key((string)($row['type'] ?? '')),
+            sanitize_text_field((string)($row['title'] ?? '')),
+            $this->utcDate((string)($row['date_start'] ?? '')),
+            $this->utcDate((string)($row['date_end'] ?? '')),
+            $typeId,
+            $resourceId
+        ));
     }
 }
