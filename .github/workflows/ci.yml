@@ -203,6 +203,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/site-health-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run configuration CRUD smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/configuration-crud-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run configuration backup/restore smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/configuration-backup-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run resource scheduling smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/resource-scheduling-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run capacity/group booking smoke test
@@ -778,8 +780,8 @@ jobs:
           import os, pathlib
           p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/wordpress-calendar-booking.php"
           text = p.read_text()
-          text = text.replace(" * Version: 3.18.0", " * Version: 3.17.2")
-          text = text.replace("define('WPCB_VERSION', '3.18.0');", "define('WPCB_VERSION', '3.17.2');")
+          text = text.replace(" * Version: 3.19.0", " * Version: 3.17.2")
+          text = text.replace("define('WPCB_VERSION', '3.19.0');", "define('WPCB_VERSION', '3.17.2');")
           p.write_text(text)
           PY
           (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-3.17.2.zip" wordpress-calendar-booking)
@@ -792,7 +794,7 @@ jobs:
           wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBUpdater --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
           wp plugin install "$RUNNER_TEMP/calendar-booking-3.17.2.zip" --activate --path="$WP_ROOT"
           test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.17.2"
-      - name: Discover real public v3.18.0 release
+      - name: Discover real public v3.19.0 release
         run: |
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
@@ -809,7 +811,7 @@ jobs:
                   echo $updates->response[$basename]->new_version;
               }
             ' --path="$WP_ROOT")"
-            if [ "$version" = "3.18.0" ]; then
+            if [ "$version" = "3.19.0" ]; then
               found=1
               break
             fi
@@ -821,6 +823,6 @@ jobs:
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
           wp plugin update wordpress-calendar-booking --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.18.0"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.19.0"
           wp plugin is-active wordpress-calendar-booking --path="$WP_ROOT"
-          echo "PASS: synthetic 3.17.2 updated through the public GitHub release to 3.18.0."
+          echo "PASS: synthetic 3.17.2 updated through the public GitHub release to 3.19.0."
