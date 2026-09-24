@@ -81,3 +81,12 @@ If WordPress is behind a reverse proxy, configure the web server so `REMOTE_ADDR
 WordPress Calendar Booking registers direct tests in **Tools → Site Health** for core booking readiness, scheduler/queue health and the protected mail-transport diagnostic. Failed tests link back to the relevant plugin administration screen.
 
 The Site Health debug-information tab contains only bounded operational metadata such as plugin/schema versions, readiness state, scheduler state, queue failure counts and the redacted mail diagnostic status. It does not include booking/customer records, recipient addresses, provider credentials, OAuth tokens, Stripe/webhook secrets, video-meeting credentials or raw remote error payloads.
+
+
+## Configuration backup and restore
+
+Use **Kalender & Buchungen → Sicherung & Wiederherstellung** to export a versioned JSON snapshot of booking configuration. The snapshot includes booking types, resources and assignments, form-field definitions, availability rules and exceptions, selected non-secret global settings, email templates, and non-secret calendar connection descriptors.
+
+The export does not contain bookings, customer records, one-time tokens, customer sessions, payments/payment events, waiting-list records, audit/delivery/sync logs, provider credentials, OAuth tokens, Stripe secrets, webhook signing secrets or video-meeting credentials.
+
+Always run the no-write preview before applying a restore. The importer rejects unknown fields and broken references. Existing booking/customer history is not deleted or rewritten. Calendar descriptors restored into a site without an existing matching connection are created disabled with empty credentials and must be reconnected manually. Applied changes use a database transaction; a detected storage failure rolls back the import and restores the previous plugin options.
