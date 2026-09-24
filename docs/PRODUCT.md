@@ -81,6 +81,7 @@ The product must remain useful with no Google, Microsoft, Apple, payment, webhoo
 - Notification and webhook delivery history
 - Mail-transport diagnostic
 - First-run readiness dashboard
+- WordPress Site Health integration for readiness, scheduler and mail diagnostics
 - WordPress privacy tools and retention controls
 - Safe uninstall policy with explicit destructive-delete opt-in
 - Reproducible release ZIPs, browser acceptance tests, dependency audits and WordPress/PHP compatibility CI
