@@ -75,3 +75,16 @@ The destructive uninstall option is not a substitute for privacy erasure or rete
 Administrator-configured public ICS and CalDAV URLs are treated as untrusted network destinations. WordPress Calendar Booking normalizes supported calendar schemes, rejects credential-bearing or WordPress-unsafe/private targets, and sends those requests through WordPress safe HTTP APIs so redirect destinations are validated as well.
 
 Loopback, link-local, RFC1918/private and metadata-style targets are rejected by default. There is no plugin-level local-network bypass. Fixed first-party OAuth/payment/update endpoints are not routed through the configurable calendar URL path.
+
+
+## External calendar response limits
+
+Remote calendar servers are treated as untrusted input sources even after their destination URL passes the outbound-network policy.
+
+- public ICS responses are capped at 2 MiB;
+- CalDAV discovery/query responses are capped at 4 MiB;
+- CalDAV write/delete responses are capped at 256 KiB;
+- generic CalDAV discovery is capped at 250 calendar records;
+- one bounded CalDAV busy-time query is capped at 2,000 response records.
+
+The HTTP client reads at most one byte beyond the configured body ceiling so an oversized response can be distinguished from a response exactly at the limit. Oversized responses, malformed/truncated CalDAV query XML and excessive response cardinality fail closed before they are accepted as authoritative busy-time data.
