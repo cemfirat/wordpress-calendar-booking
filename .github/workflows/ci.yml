@@ -10,15 +10,11 @@ permissions:
   contents: read
 
 jobs:
-  lockfiles_bootstrap:
-    name: Generate dependency lockfiles
+  dependency_locks:
+    name: Dependency lock consistency
     runs-on: ubuntu-latest
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v4
-        with:
-          ref: ${{ github.head_ref || github.ref_name }}
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -27,24 +23,15 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Validate committed Composer lockfile
-        run: |
-          test -s composer.lock
-          composer validate --no-check-publish
-      - name: Generate npm lockfile
-        run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-      - name: Commit generated lockfiles
+      - name: Verify committed dependency graphs
         run: |
           set -euo pipefail
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add composer.lock package-lock.json
-          if git diff --cached --quiet; then
-            echo "Lockfiles already current."
-            exit 0
-          fi
-          git commit -m "Pin Composer and npm dependency graphs"
-          git push origin "HEAD:${{ github.head_ref || github.ref_name }}"
+          test -s composer.lock
+          test -s package-lock.json
+          composer validate --no-check-publish
+          composer install --dry-run --no-interaction --prefer-dist --no-progress
+          npm ci --ignore-scripts --no-audit --no-fund
+          git diff --exit-code -- composer.lock package-lock.json
 
   docs:
     name: Documentation consistency
@@ -125,12 +112,12 @@ jobs:
       - name: Install production PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --no-dev
       - name: Audit PHP dependencies
-        run: composer audit --no-dev
+        run: composer audit --locked --no-dev
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Install production frontend dependencies
-        run: npm install --ignore-scripts --no-fund
+        run: npm ci --ignore-scripts --no-fund
       - name: Audit frontend dependencies
         run: npm audit --omit=dev --audit-level=high
 
@@ -206,7 +193,7 @@ jobs:
           node-version: '22'
       - name: Build local UIkit fallback
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npm run build:assets
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --no-dev
@@ -435,7 +422,7 @@ jobs:
           node-version: '22'
       - name: Build local UIkit fallback
         run: |
-          npm install --no-audit --no-fund
+          npm ci --no-audit --no-fund
           npm run build:assets
       - name: Install production Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --no-dev --optimize-autoloader
@@ -511,7 +498,7 @@ jobs:
           cp "$GITHUB_WORKSPACE/tests/browser-release-mu.php" "$WP_ROOT/wp-content/mu-plugins/wpcb-browser-release.php"
       - name: Install browser test runtime
         run: |
-          npm install --no-save --ignore-scripts @playwright/test@1.55.0
+          npm ci --ignore-scripts --no-audit --no-fund
           npx playwright install --with-deps chromium
       - name: Run packaged release browser acceptance
         env:
