@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.19.0
+Stable tag: 3.19.1
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,11 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.19.1 =
+* Add explicit overwrite-conflict details to configuration restore previews.
+* Reject ambiguous local natural keys before writes and keep conflict output free of customer data and secrets.
+* Prove repeated restores are idempotent for booking types, resources, availability, exceptions, mappings and calendar descriptors.
 
 = 3.19.0 =
 * Add privacy-safe versioned JSON configuration backup and validated restore.
