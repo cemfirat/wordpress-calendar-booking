@@ -21,6 +21,8 @@ $settings['timezone'] = 'Europe/Vienna';
 $settings['icloud_sync_password_enc'] = 'SECRET-CALDAV-CIPHER-TEXT';
 $settings['stripe_secret_key_enc'] = 'SECRET-STRIPE-KEY-TEXT';
 $settings['oauth_access_token'] = 'SECRET-OAUTH-TOKEN-TEXT';
+$settings['calendar_url'] = 'https://calendar.example.test/private.ics?token=SECRET-ICS-URL-TOKEN';
+$settings['calendar_urls'] = "https://calendar.example.test/private.ics?token=SECRET-ICS-URL-TOKEN";
 update_option('wpcb_settings', $settings, false);
 
 $fixtureType = $config->saveBookingType([
@@ -93,6 +95,7 @@ wpcb_backup_assert(strpos($json, 'CONFIG-BACKUP-CUSTOMER-NOTE') === false, 'Expo
 wpcb_backup_assert(strpos($json, 'SECRET-CALDAV-CIPHER-TEXT') === false, 'Export excludes encrypted calendar credentials.');
 wpcb_backup_assert(strpos($json, 'SECRET-STRIPE-KEY-TEXT') === false, 'Export excludes payment credentials.');
 wpcb_backup_assert(strpos($json, 'SECRET-OAUTH-TOKEN-TEXT') === false, 'Export excludes OAuth tokens.');
+wpcb_backup_assert(strpos($json, 'SECRET-ICS-URL-TOKEN') === false, 'Export excludes external calendar URLs that may contain bearer tokens.');
 wpcb_backup_assert(strpos($json, 'BACKUP-SECRET-CALENDAR-PASSWORD') === false, 'Export excludes calendar connection credentials.');
 wpcb_backup_assert(strpos($json, 'Backup Fixture Calendar') !== false, 'Export includes non-secret reconnect metadata for calendar connections.');
 wpcb_backup_assert(strpos($json, '"requires_reconnect":true') !== false, 'Export marks calendar metadata as requiring reconnect.');
