@@ -117,7 +117,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install production frontend dependencies
-        run: npm ci --ignore-scripts --no-fund
+        run: npm ci --omit=dev --ignore-scripts --no-fund
       - name: Audit frontend dependencies
         run: npm audit --omit=dev --audit-level=high
 
@@ -193,7 +193,7 @@ jobs:
           node-version: '22'
       - name: Build local UIkit fallback
         run: |
-          npm ci --no-audit --no-fund
+          npm ci --omit=dev --no-audit --no-fund
           npm run build:assets
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --no-dev
@@ -409,6 +409,7 @@ jobs:
 
   package:
     name: Build release ZIP
+    needs: [dependency_locks]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -422,7 +423,7 @@ jobs:
           node-version: '22'
       - name: Build local UIkit fallback
         run: |
-          npm ci --no-audit --no-fund
+          npm ci --omit=dev --no-audit --no-fund
           npm run build:assets
       - name: Install production Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --no-dev --optimize-autoloader
