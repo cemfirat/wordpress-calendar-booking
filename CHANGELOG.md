@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.17.2
+
+- Publish `wordpress-calendar-booking.zip.sha256` alongside the stable plugin ZIP.
+- Generate signed GitHub Actions/Sigstore build provenance for the exact ZIP after all release gates pass.
+- Verify the packaged checksum before publication and verify both checksum and attestation in the public updater smoke path.
+- Document release-integrity verification commands for operators and users.
+
 ## 3.17.1
 
 - Monitor all recurring maintenance schedules in scheduler health, including privacy retention and customer-portal cleanup.
