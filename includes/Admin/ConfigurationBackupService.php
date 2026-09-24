@@ -510,8 +510,20 @@ final class ConfigurationBackupService {
             return $plan + ['applied'=>true];
         } catch (\Throwable $error) {
             $wpdb->query('ROLLBACK');
+
+            // WordPress may still hold option values written inside the rolled-back
+            // transaction in its in-request option caches. Invalidate those caches
+            // before restoring the snapshots so get_option() cannot observe state
+            // that no longer exists in the database.
+            wp_cache_delete('wpcb_settings', 'options');
+            wp_cache_delete('wpcb_email_templates', 'options');
+            wp_cache_delete('alloptions', 'options');
             update_option('wpcb_settings', $previousSettings, false);
             update_option('wpcb_email_templates', $previousTemplates, false);
+            wp_cache_delete('wpcb_settings', 'options');
+            wp_cache_delete('wpcb_email_templates', 'options');
+            wp_cache_delete('alloptions', 'options');
+
             return new \WP_Error(
                 'wpcb_backup_import',
                 __('Die Konfiguration konnte nicht vollständig importiert werden. Datenbankänderungen wurden zurückgerollt.', 'wordpress-calendar-booking')
