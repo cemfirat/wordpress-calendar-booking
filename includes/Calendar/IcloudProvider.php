@@ -2,6 +2,7 @@
 namespace Wpcb\Calendar;
 
 use Wpcb\Admin\Settings;
+use Wpcb\Security\OutboundUrlPolicy;
 
 class IcloudProvider {
     public function events(string $from, string $to): array {
