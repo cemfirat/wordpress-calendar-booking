@@ -13,7 +13,7 @@ final class ConfigurationBackupService {
         'calendar_cache_minutes','token_ttl_minutes','reservation_ttl_minutes','cancel_min_hours',
         'change_min_hours','honeypot_enabled','timing_enabled','min_form_seconds',
         'rate_limit_enabled','rate_limit_requests','rate_limit_window_minutes',
-        'show_calendar_limit','retention_enabled','retention_days','delete_data_on_uninstall',
+        'show_calendar_limit','retention_enabled','retention_days',
         'icloud_sync_enabled','icloud_sync_target_calendar_name','icloud_sync_updates',
         'icloud_sync_cancellations'
     ];
@@ -203,7 +203,8 @@ final class ConfigurationBackupService {
                     $key
                 ));
             }
-            if ($kind === 'list' && !array_is_list($s[$key])) {
+            $listKeys = $s[$key] ? range(0, count($s[$key]) - 1) : [];
+            if ($kind === 'list' && array_keys($s[$key]) !== $listKeys) {
                 return new \WP_Error('wpcb_backup_section', sprintf(
                     __('Snapshot-Abschnitt muss eine Liste sein: %s', 'wordpress-calendar-booking'),
                     $key
@@ -368,7 +369,9 @@ final class ConfigurationBackupService {
         $p = $wpdb->prefix . 'wpcb_';
         $now = Time::formatUtc(Time::nowUtc());
 
-        $settingsResult = Settings::update($s['settings']);
+        $settings = $s['settings'];
+        $settings['icloud_sync_enabled'] = 0;
+        $settingsResult = Settings::update($settings);
         if (is_wp_error($settingsResult)) {
             return $settingsResult;
         }
