@@ -6,7 +6,7 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.18.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.19.0. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
 ## Product principles
 
@@ -170,3 +170,10 @@ Version 3.6 adds provider-neutral video meeting orchestration for Zoom, Google M
 Version 3.7 adds bounded weekly booking series. The first signed canonical slot anchors the series; every later occurrence is regenerated and revalidated on the server before any booking is stored. Series preserve the configured local wall-clock time across UTC offset changes, reject ambiguous/non-existent DST wall times, and can be cancelled or rescheduled for one occurrence or the selected occurrence plus all remaining appointments.
 
 Series creation is all-or-nothing. If any occurrence is no longer bookable, no partial series is stored. Since 3.15, paid series use one server-authoritative upfront payment obligation shared by all occurrences; payment confirmation and expiry apply consistently to the series. Version 3.17 adds deterministic partial refunds for cancelling one occurrence or the selected occurrence plus the remaining series, with exact minor-unit allocation, cumulative refund tracking and over-refund protection.
+
+
+## Configuration backup and restore
+
+Version 3.19 adds **Kalender & Buchungen → Sicherung & Wiederherstellung**. The JSON snapshot contains booking types, resources, assignments, form-field definitions, availability rules/exceptions, non-secret settings, email templates and reconnect-only calendar connection metadata.
+
+Bookings, customer data, one-time tokens, payment records, waiting-list data, audit/delivery logs and reusable provider/payment credentials are never included. Imported calendar connection descriptors are created disabled and require credentials to be entered again. Restore supports a no-write preview and applies validated changes inside a database transaction without deleting or rewriting booking history.
