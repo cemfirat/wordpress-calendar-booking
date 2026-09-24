@@ -2,6 +2,7 @@
 namespace Wpcb\Admin;
 
 use Wpcb\Security\SecretBox;
+use Wpcb\Security\OutboundUrlPolicy;
 
 class Settings {
     public static function get(): array {
