@@ -376,10 +376,12 @@ final class ConfigurationBackupService {
 
     private function typeIdsBySlug(): array {
         global $wpdb;
-        return array_map('intval', $wpdb->get_results(
-            "SELECT slug,id FROM {$wpdb->prefix}wpcb_booking_types",
-            OBJECT_K
-        ));
+        $rows = $wpdb->get_results("SELECT slug,id FROM {$wpdb->prefix}wpcb_booking_types");
+        $out = [];
+        foreach ($rows as $row) {
+            $out[(string)$row->slug] = (int)$row->id;
+        }
+        return $out;
     }
 
     private function resourceIdsBySlug(): array {
