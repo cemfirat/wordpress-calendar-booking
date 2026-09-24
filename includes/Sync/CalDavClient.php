@@ -5,7 +5,6 @@ use Wpcb\Admin\Settings;
 use Wpcb\Security\OutboundUrlPolicy;
 
 class CalDavClient {
-    private const MAX_DISCOVERED_CALENDARS = 250;
     private string $appleId;
     private string $password;
 
@@ -126,7 +125,7 @@ class CalDavClient {
         $xmlObj->registerXPathNamespace('d', 'DAV:');
         $xmlObj->registerXPathNamespace('cd', 'urn:ietf:params:xml:ns:caldav');
         $responses = $xmlObj->xpath('//d:response') ?: [];
-        if (count($responses) > self::MAX_DISCOVERED_CALENDARS) {
+        if (count($responses) > OutboundUrlPolicy::MAX_CALDAV_DISCOVERY_RECORDS) {
             return [];
         }
         $items = [];
