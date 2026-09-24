@@ -158,7 +158,8 @@ final class ConfigurationBackupService {
         if (array_diff(array_keys($data), $allowed)) {
             return new \WP_Error('wpcb_backup_unknown', __('Die Sicherung enthält unbekannte Felder.', 'wordpress-calendar-booking'));
         }
-        if (($data['format'] ?? '') !== self::FORMAT || (int)($data['format_version'] ?? 0) !== self::FORMAT_VERSION) {
+        if (($data['format'] ?? '') !== self::FORMAT
+            || !$this->validInteger($data['format_version'] ?? null, self::FORMAT_VERSION, self::FORMAT_VERSION)) {
             return new \WP_Error('wpcb_backup_version', __('Das Sicherungsformat wird nicht unterstützt.', 'wordpress-calendar-booking'));
         }
         foreach (['settings','email_templates','booking_types','resources','booking_type_resources','form_fields','availability_rules','exceptions','calendar_connections','booking_type_calendar_connections','resource_calendar_connections'] as $key) {
