@@ -43,6 +43,31 @@ foreach ([
     );
 }
 
+$capturedSafeArgs = null;
+$preemptSafeRequest = static function ($preempt, array $args, string $url) use (&$capturedSafeArgs) {
+    if ($url === 'https://8.8.8.8/calendar.ics') {
+        $capturedSafeArgs = $args;
+        return [
+            'headers' => [],
+            'body' => '',
+            'response' => ['code' => 200, 'message' => 'OK'],
+            'cookies' => [],
+            'filename' => null,
+        ];
+    }
+    return $preempt;
+};
+add_filter('pre_http_request', $preemptSafeRequest, 10, 3);
+$safeProbe = OutboundUrlPolicy::get('https://8.8.8.8/calendar.ics', ['redirection' => 9, 'timeout' => 1]);
+remove_filter('pre_http_request', $preemptSafeRequest, 10);
+wpcb_outbound_assert(!is_wp_error($safeProbe), 'Allowed public target reaches the WordPress safe HTTP layer.');
+wpcb_outbound_assert(
+    is_array($capturedSafeArgs)
+        && !empty($capturedSafeArgs['reject_unsafe_urls'])
+        && (int)($capturedSafeArgs['redirection'] ?? 0) === 3,
+    'Safe HTTP mode revalidates redirect destinations and caps redirect depth.'
+);
+
 wpcb_outbound_assert(
     Settings::normalizeCalendarUrl('http://127.0.0.1/calendar.ics') === '',
     'Calendar settings use the shared outbound URL policy.'
