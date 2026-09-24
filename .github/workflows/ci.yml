@@ -199,6 +199,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-audit-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run setup readiness smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/setup-readiness-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run WordPress Site Health integration smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/site-health-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run configuration CRUD smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/configuration-crud-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run resource scheduling smoke test
