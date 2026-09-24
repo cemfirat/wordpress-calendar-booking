@@ -509,6 +509,19 @@ final class ConfigurationBackupService {
                         throw new \RuntimeException('calendar connection');
                     }
                     $id = (int)$created;
+                } else {
+                    $updated = $wpdb->update(
+                        $wpdb->prefix . 'wpcb_calendar_connections',
+                        [
+                            'blocks_availability' => !empty($row['blocks_availability']) ? 1 : 0,
+                            'receives_bookings' => !empty($row['receives_bookings']) ? 1 : 0,
+                            'updated_at' => Time::formatUtc(Time::nowUtc()),
+                        ],
+                        ['id' => $id]
+                    );
+                    if ($updated === false) {
+                        throw new \RuntimeException('calendar connection update');
+                    }
                 }
                 $connectionIds[$key] = $id;
             }
