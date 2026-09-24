@@ -2,6 +2,10 @@
 namespace Wpcb\Security;
 
 final class OutboundUrlPolicy {
+    public const MAX_ICS_RESPONSE_BYTES = 2097152;
+    public const MAX_CALDAV_RESPONSE_BYTES = 4194304;
+    public const MAX_MUTATION_RESPONSE_BYTES = 262144;
+
     /**
      * Normalize a user-configurable calendar URL and reject unsafe network targets.
      *
@@ -51,14 +55,20 @@ final class OutboundUrlPolicy {
             return self::unsafeError();
         }
 
+        $maxBytes = self::responseLimit($args, self::MAX_CALDAV_RESPONSE_BYTES);
         $remaining = min(3, max(0, (int)($args['redirection'] ?? 3)));
         $method = strtoupper($method);
         $hasAuthorization = self::hasAuthorizationHeader((array)($args['headers'] ?? []));
         $args['redirection'] = 0;
+        $args['limit_response_size'] = $maxBytes + 1;
 
         while (true) {
             $args['method'] = $method;
             $response = wp_safe_remote_request($current, $args);
+            if (is_wp_error($response)) {
+                return $response;
+            }
+            $response = self::validateResponseSize($response, $maxBytes);
             if (is_wp_error($response)) {
                 return $response;
             }
@@ -104,7 +114,40 @@ final class OutboundUrlPolicy {
      * @return array|\WP_Error
      */
     public static function get(string $url, array $args = []) {
+        $requested = isset($args['wpcb_max_response_bytes'])
+            ? (int)$args['wpcb_max_response_bytes']
+            : self::MAX_ICS_RESPONSE_BYTES;
+        $args['wpcb_max_response_bytes'] = max(1, min(self::MAX_ICS_RESPONSE_BYTES, $requested));
         return self::request('GET', $url, $args);
+    }
+
+    private static function responseLimit(array &$args, int $default): int {
+        $requested = isset($args['wpcb_max_response_bytes'])
+            ? (int)$args['wpcb_max_response_bytes']
+            : $default;
+        unset($args['wpcb_max_response_bytes']);
+        return max(1, min($default, $requested));
+    }
+
+    private static function validateResponseSize($response, int $maxBytes) {
+        if (is_wp_error($response)) {
+            return $response;
+        }
+        $contentLength = wp_remote_retrieve_header($response, 'content-length');
+        if (is_numeric($contentLength) && (int)$contentLength > $maxBytes) {
+            return self::responseTooLargeError();
+        }
+        if (strlen((string)wp_remote_retrieve_body($response)) > $maxBytes) {
+            return self::responseTooLargeError();
+        }
+        return $response;
+    }
+
+    private static function responseTooLargeError(): \WP_Error {
+        return new \WP_Error(
+            'wpcb_calendar_response_too_large',
+            __('The remote calendar response is too large to process safely.', 'wordpress-calendar-booking')
+        );
     }
 
     private static function hostResolvesPublicly(string $host): bool {
