@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
 jobs:
   dependency_locks:
     name: Dependency lock consistency
@@ -217,6 +221,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/availability-abuse-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run outbound calendar URL safety smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/outbound-url-policy-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run external calendar response bound smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/calendar-response-bounds-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run booking export smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-export-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run admin booking pagination smoke test
@@ -798,20 +804,38 @@ jobs:
           set -euo pipefail
           (cd dist && sha256sum -c wordpress-calendar-booking.zip.sha256)
           gh attestation verify dist/wordpress-calendar-booking.zip -R "$GITHUB_REPOSITORY"
+      - name: Resolve updater versions
+        run: |
+          set -euo pipefail
+          TARGET_VERSION="$(python3 - <<'PY'
+          import pathlib, re
+          text = pathlib.Path("wordpress-calendar-booking.php").read_text()
+          match = re.search(r"^ \* Version: ([0-9.]+)$", text, re.M)
+          assert match, "plugin header version is missing"
+          print(match.group(1))
+          PY
+          )"
+          echo "TARGET_VERSION=$TARGET_VERSION" >> "$GITHUB_ENV"
+          echo "SYNTHETIC_VERSION=0.0.0" >> "$GITHUB_ENV"
       - name: Build synthetic pre-release installation
         run: |
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/synthetic"
           unzip -q dist/wordpress-calendar-booking.zip -d "$RUNNER_TEMP/synthetic"
           python3 - <<'PY'
-          import os, pathlib
+          import os, pathlib, re
           p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/wordpress-calendar-booking.php"
+          target = os.environ["TARGET_VERSION"]
+          synthetic = os.environ["SYNTHETIC_VERSION"]
           text = p.read_text()
-          text = text.replace(" * Version: 3.19.3", " * Version: 3.19.2")
-          text = text.replace("define('WPCB_VERSION', '3.19.3');", "define('WPCB_VERSION', '3.19.2');")
-          p.write_text(text)
+          text, count = re.subn(r"^ \* Version: " + re.escape(target) + r"$", " * Version: " + synthetic, text, count=1, flags=re.M)
+          assert count == 1, "synthetic header version replacement failed"
+          old_define = "define('WPCB_VERSION', '" + target + "');"
+          new_define = "define('WPCB_VERSION', '" + synthetic + "');"
+          assert old_define in text, "synthetic constant version replacement failed"
+          p.write_text(text.replace(old_define, new_define, 1))
           PY
-          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-3.19.2.zip" wordpress-calendar-booking)
+          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-synthetic.zip" wordpress-calendar-booking)
       - name: Install synthetic old version
         run: |
           set -euo pipefail
@@ -819,9 +843,9 @@ jobs:
           wp core download --path="$WP_ROOT" --version=latest
           wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
           wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBUpdater --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
-          wp plugin install "$RUNNER_TEMP/calendar-booking-3.19.2.zip" --activate --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.19.2"
-      - name: Discover real public v3.19.3 release
+          wp plugin install "$RUNNER_TEMP/calendar-booking-synthetic.zip" --activate --path="$WP_ROOT"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "$SYNTHETIC_VERSION"
+      - name: Discover real public release
         run: |
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
@@ -838,7 +862,7 @@ jobs:
                   echo $updates->response[$basename]->new_version;
               }
             ' --path="$WP_ROOT")"
-            if [ "$version" = "3.19.3" ]; then
+            if [ "$version" = "$TARGET_VERSION" ]; then
               found=1
               break
             fi
@@ -850,6 +874,6 @@ jobs:
           set -euo pipefail
           WP_ROOT="$RUNNER_TEMP/wordpress"
           wp plugin update wordpress-calendar-booking --path="$WP_ROOT"
-          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "3.19.3"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "$TARGET_VERSION"
           wp plugin is-active wordpress-calendar-booking --path="$WP_ROOT"
-          echo "PASS: synthetic 3.19.2 updated through the public GitHub release to 3.19.3."
+          echo "PASS: synthetic $SYNTHETIC_VERSION updated through the public GitHub release to $TARGET_VERSION."
