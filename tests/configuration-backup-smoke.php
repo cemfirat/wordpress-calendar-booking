@@ -220,6 +220,154 @@ $settingsAfterApply = get_option('wpcb_settings', []);
 wpcb_backup_assert(($settingsAfterApply['mode'] ?? '') === 'approval' && ($settingsAfterApply['timezone'] ?? '') === 'UTC', 'Restore applies allowed global settings.');
 wpcb_backup_assert(($settingsAfterApply['icloud_sync_password_enc'] ?? '') === 'SECRET-CALDAV-CIPHER-TEXT', 'Restore does not overwrite existing encrypted credentials.');
 
+// Change existing natural-key matches without changing their identity. Dry-run must
+// describe these overwrites before mutation and must never expose credentials.
+$wpdb->update($wpdb->prefix . 'wpcb_booking_types', ['name'=>'Locally Changed Type'], ['id'=>$restoredType]);
+$wpdb->update($wpdb->prefix . 'wpcb_resources', ['capacity'=>9], ['id'=>$restoredResource]);
+$wpdb->update($wpdb->prefix . 'wpcb_form_fields', ['label'=>'Local Company'], ['field_key'=>'backup_restore_company']);
+$wpdb->update(
+    $wpdb->prefix . 'wpcb_availability_rules',
+    ['max_days_in_advance'=>7],
+    ['scope_type'=>'booking_type','scope_id'=>$restoredType,'weekday'=>2]
+);
+$wpdb->update(
+    $wpdb->prefix . 'wpcb_exceptions',
+    ['all_day'=>1],
+    ['booking_type_id'=>$restoredType,'resource_id'=>$restoredResource,'title'=>'Restore exception']
+);
+$localCalendarSecret = 'LOCAL-CONFLICT-CALENDAR-CREDENTIAL';
+$wpdb->update(
+    $wpdb->prefix . 'wpcb_calendar_connections',
+    ['receives_bookings'=>0,'credentials_enc'=>$localCalendarSecret],
+    ['id'=>$restoredConnection]
+);
+
+$conflictPlan = $service->import($restore, true);
+wpcb_backup_assert(!is_wp_error($conflictPlan), 'Conflict-aware dry-run succeeds for deterministic natural-key matches.');
+foreach (['booking_types','resources','form_fields','availability_rules','exceptions','calendar_connections'] as $section) {
+    wpcb_backup_assert((int)($conflictPlan['conflict'][$section] ?? 0) === 1, 'Dry-run reports one deterministic conflict for ' . $section . '.');
+    wpcb_backup_assert((int)($conflictPlan['update'][$section] ?? 0) === 1, 'Dry-run reports one update for ' . $section . '.');
+}
+$conflictJson = (string)wp_json_encode($conflictPlan);
+wpcb_backup_assert(strpos($conflictJson, $localCalendarSecret) === false, 'Conflict preview never exposes calendar credentials.');
+wpcb_backup_assert(strpos($conflictJson, 'CONFIG-BACKUP-CUSTOMER-NAME') === false, 'Conflict preview contains no customer data.');
+wpcb_backup_assert(
+    (string)$wpdb->get_var($wpdb->prepare("SELECT name FROM {$wpdb->prefix}wpcb_booking_types WHERE id=%d", $restoredType)) === 'Locally Changed Type',
+    'Conflict dry-run performs no writes.'
+);
+
+$resolved = $service->import($restore, false);
+wpcb_backup_assert(!is_wp_error($resolved) && !empty($resolved['applied']), 'Applying the snapshot resolves previewed configuration conflicts.');
+wpcb_backup_assert(
+    (string)$wpdb->get_var($wpdb->prepare("SELECT name FROM {$wpdb->prefix}wpcb_booking_types WHERE id=%d", $restoredType)) === 'Restored Type',
+    'Conflict apply restores booking-type values.'
+);
+wpcb_backup_assert(
+    (int)$wpdb->get_var($wpdb->prepare("SELECT capacity FROM {$wpdb->prefix}wpcb_resources WHERE id=%d", $restoredResource)) === 4,
+    'Conflict apply restores resource values.'
+);
+wpcb_backup_assert(
+    (string)$wpdb->get_var($wpdb->prepare("SELECT credentials_enc FROM {$wpdb->prefix}wpcb_calendar_connections WHERE id=%d", $restoredConnection)) === $localCalendarSecret,
+    'Conflict apply updates reconnect metadata without overwriting existing credentials.'
+);
+
+$cardinality = [
+    'types' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_types WHERE slug='backup-restore-type'"),
+    'resources' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_resources WHERE slug='backup-restore-resource'"),
+    'fields' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_form_fields WHERE field_key='backup_restore_company'"),
+    'rules' => (int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_availability_rules WHERE scope_type='booking_type' AND scope_id=%d AND weekday=2 AND start_time='10:00:00' AND end_time='12:00:00'",
+        $restoredType
+    )),
+    'exceptions' => (int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_exceptions WHERE booking_type_id=%d AND resource_id=%d AND title='Restore exception'",
+        $restoredType,
+        $restoredResource
+    )),
+    'type_resources' => (int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_type_resources WHERE booking_type_id=%d AND resource_id=%d",
+        $restoredType,
+        $restoredResource
+    )),
+    'type_calendars' => (int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_type_calendar_connections WHERE booking_type_id=%d AND connection_id=%d",
+        $restoredType,
+        $restoredConnection
+    )),
+    'resource_calendars' => (int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_resource_calendar_connections WHERE resource_id=%d AND connection_id=%d",
+        $restoredResource,
+        $restoredConnection
+    )),
+];
+
+$repeatPlan = $service->import($restore, true);
+wpcb_backup_assert(!is_wp_error($repeatPlan), 'Dry-run after conflict resolution remains valid.');
+wpcb_backup_assert(array_sum(array_map('intval', (array)$repeatPlan['create'])) === 0, 'Repeated restore plans no duplicate creates.');
+wpcb_backup_assert(array_sum(array_map('intval', (array)$repeatPlan['update'])) === 0, 'Repeated restore plans no unnecessary updates.');
+wpcb_backup_assert(array_sum(array_map('intval', (array)$repeatPlan['conflict'])) === 0, 'Identical configuration produces zero conflicts.');
+
+$repeatApplied = $service->import($restore, false);
+wpcb_backup_assert(!is_wp_error($repeatApplied) && !empty($repeatApplied['applied']), 'Applying the same snapshot twice is supported.');
+$cardinalityAfterRepeat = [
+    'types' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_types WHERE slug='backup-restore-type'"),
+    'resources' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_resources WHERE slug='backup-restore-resource'"),
+    'fields' => (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_form_fields WHERE field_key='backup_restore_company'"),
+    'rules' => (int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_availability_rules WHERE scope_type='booking_type' AND scope_id=%d AND weekday=2 AND start_time='10:00:00' AND end_time='12:00:00'",
+        $restoredType
+    )),
+    'exceptions' => (int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_exceptions WHERE booking_type_id=%d AND resource_id=%d AND title='Restore exception'",
+        $restoredType,
+        $restoredResource
+    )),
+    'type_resources' => (int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_type_resources WHERE booking_type_id=%d AND resource_id=%d",
+        $restoredType,
+        $restoredResource
+    )),
+    'type_calendars' => (int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_type_calendar_connections WHERE booking_type_id=%d AND connection_id=%d",
+        $restoredType,
+        $restoredConnection
+    )),
+    'resource_calendars' => (int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_resource_calendar_connections WHERE resource_id=%d AND connection_id=%d",
+        $restoredResource,
+        $restoredConnection
+    )),
+];
+wpcb_backup_assert($cardinalityAfterRepeat === $cardinality, 'Repeated restore preserves configuration cardinality exactly.');
+
+// Booking-type slugs are historically indexed but not unique. Simulate a damaged
+// local install and prove restore fails closed before selecting an arbitrary row.
+$wpdb->insert($wpdb->prefix . 'wpcb_booking_types', [
+    'name'=>'Ambiguous Duplicate',
+    'slug'=>'backup-restore-type',
+    'description'=>'',
+    'duration_minutes'=>30,
+    'buffer_before_minutes'=>0,
+    'buffer_after_minutes'=>0,
+    'capacity'=>1,
+    'show_remaining_capacity'=>0,
+    'payment_mode'=>'free',
+    'price_minor'=>0,
+    'currency'=>'EUR',
+    'is_active'=>0,
+    'is_public'=>0,
+    'sort_order'=>999,
+    'created_at'=>$now,
+    'updated_at'=>$now,
+]);
+$ambiguousTypeId = (int)$wpdb->insert_id;
+$ambiguous = $service->import($restore, true);
+wpcb_backup_assert(
+    is_wp_error($ambiguous) && $ambiguous->get_error_code() === 'wpcb_backup_ambiguous_local_keys',
+    'Ambiguous local natural-key duplicates fail closed before restore.'
+);
+$wpdb->delete($wpdb->prefix . 'wpcb_booking_types', ['id'=>$ambiguousTypeId]);
+
 $rollback = $restore;
 $rollback['booking_types'][0]['slug'] = 'backup-rollback-type';
 $rollback['booking_types'][0]['name'] = 'Rollback Type';
