@@ -156,6 +156,7 @@ final class ConfigurationBackupService {
             $result = $this->apply($snapshot, $plan);
             if (is_wp_error($result)) {
                 $wpdb->query('ROLLBACK');
+                $this->invalidateSettingsCache();
                 return $result;
             }
             $wpdb->query('COMMIT');
@@ -163,6 +164,7 @@ final class ConfigurationBackupService {
             return $result;
         } catch (\Throwable $error) {
             $wpdb->query('ROLLBACK');
+            $this->invalidateSettingsCache();
             return new \WP_Error('wpcb_backup_restore_failed', $error->getMessage());
         }
     }
@@ -305,6 +307,7 @@ final class ConfigurationBackupService {
             'dry_run' => true,
             'creates' => 0,
             'updates' => 0,
+            'conflicts' => 0,
             'relationships' => count($s['booking_type_resources'])
                 + count($s['booking_type_calendar_connections'])
                 + count($s['resource_calendar_connections']),
@@ -590,6 +593,11 @@ final class ConfigurationBackupService {
         $data['created_at'] = $now;
         $ok = $wpdb->insert($table, $data);
         return $ok === false ? 0 : (int)$wpdb->insert_id;
+    }
+
+    private function invalidateSettingsCache(): void {
+        wp_cache_delete('wpcb_settings', 'options');
+        wp_cache_delete('alloptions', 'options');
     }
 
     private function dbError(string $section): \WP_Error {
