@@ -1,5 +1,13 @@
 # Changelog
 
+## 3.19.3
+
+- Harden administrator-configurable public ICS and CalDAV targets against server-side request forgery.
+- Centralize calendar URL validation, reject embedded credentials and WordPress-unsafe/private network destinations before requests.
+- Route configurable calendar traffic through WordPress safe HTTP APIs so redirect destinations are revalidated.
+- Fail closed without mutating settings when an unsafe calendar target is submitted.
+- Add integration coverage for loopback, RFC1918, link-local, metadata-style and malformed targets.
+
 ## 3.19.2
 
 - Reject oversized configuration backup JSON before decoding.
