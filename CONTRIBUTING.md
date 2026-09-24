@@ -15,3 +15,24 @@ Thanks for helping improve WordPress Calendar Booking.
 The 2.0 baseline targets WordPress 6.5+ and PHP 8.0+ unless an issue explicitly changes that policy.
 
 Frontend work should reuse the shared semantic component layer. YOOtheme and fallback UIkit adapters must not fork booking/domain logic.
+
+## Checks before pushing
+
+Run from a checkout with Python 3.10+, PHP, Node and Bash available:
+
+```sh
+python3 -B scripts/preflight.py
+node --test .github/tests/ci-concurrency.test.mjs
+python3 -B -m unittest discover -s .github/tests -p 'test_*.py' -v
+```
+
+These offline checks validate project PHP, JavaScript, Python, shell and JSON
+syntax plus CI/build-tool contracts. Missing interpreters and malformed files
+fail the checks rather than being silently skipped. Dependencies and generated
+assets are excluded. They do not replace the full WordPress, database, browser,
+dependency-audit and public-updater jobs in GitHub Actions.
+
+The package job builds twice and compares the ZIP bytes. Published releases
+are not overwritten by later CI-only commits. The public updater job separately
+verifies the downloaded release ZIP and its main-workflow attestation, then
+checks every installed plugin file against that verified public archive.
