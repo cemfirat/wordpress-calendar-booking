@@ -5,6 +5,8 @@ final class OutboundUrlPolicy {
     public const MAX_ICS_RESPONSE_BYTES = 2097152;
     public const MAX_CALDAV_RESPONSE_BYTES = 4194304;
     public const MAX_MUTATION_RESPONSE_BYTES = 262144;
+    public const MAX_CALDAV_DISCOVERY_RECORDS = 250;
+    public const MAX_CALDAV_QUERY_RECORDS = 2000;
 
     /**
      * Normalize a user-configurable calendar URL and reject unsafe network targets.
