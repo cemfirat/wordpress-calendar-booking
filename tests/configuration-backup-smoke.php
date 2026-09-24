@@ -158,6 +158,48 @@ $restore = [
     ]],
 ];
 
+wpcb_backup_assert(!is_wp_error($service->validate($snapshot)), 'A current exported snapshot passes strict schema validation.');
+
+$oversized = '{"padding":"' . str_repeat('x', 2097152) . '"}';
+$oversizedResult = $service->decode($oversized);
+wpcb_backup_assert(is_wp_error($oversizedResult) && $oversizedResult->get_error_code() === 'wpcb_backup_too_large', 'Oversized JSON is rejected before decoding.');
+
+$badType = $restore;
+$badType['booking_types'][0]['name'] = ['nested' => 'not-scalar'];
+$beforeMalformed = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_types WHERE slug='backup-restore-type'");
+$badTypeResult = $service->import($badType, false);
+wpcb_backup_assert(is_wp_error($badTypeResult), 'Nested data in a scalar field fails closed.');
+wpcb_backup_assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_types WHERE slug='backup-restore-type'") === $beforeMalformed, 'Malformed scalar input performs no writes.');
+
+$badRange = $restore;
+$badRange['booking_types'][0]['capacity'] = 0;
+wpcb_backup_assert(is_wp_error($service->validate($badRange)), 'Out-of-range capacity is rejected instead of clamped.');
+
+$badEnum = $restore;
+$badEnum['booking_types'][0]['payment_mode'] = 'surprise';
+wpcb_backup_assert(is_wp_error($service->validate($badEnum)), 'Unsupported payment mode is rejected.');
+
+$badTime = $restore;
+$badTime['availability_rules'][0]['start_time'] = '12:00:00';
+$badTime['availability_rules'][0]['end_time'] = '10:00:00';
+wpcb_backup_assert(is_wp_error($service->validate($badTime)), 'Availability start must be before end.');
+
+$badDate = $restore;
+$badDate['exceptions'][0]['date_start'] = '2033-02-10 12:00:00';
+$badDate['exceptions'][0]['date_end'] = '2033-02-10 11:00:00';
+wpcb_backup_assert(is_wp_error($service->validate($badDate)), 'Exception start must be before end.');
+
+$badProvider = $restore;
+$badProvider['calendar_connections'][0]['provider'] = 'unsupported-provider';
+$badProvider['booking_type_calendar_connections'][0]['provider'] = 'unsupported-provider';
+$badProvider['resource_calendar_connections'][0]['provider'] = 'unsupported-provider';
+wpcb_backup_assert(is_wp_error($service->validate($badProvider)), 'Unsupported calendar provider IDs are rejected.');
+
+$tooManyTypes = $restore;
+$tooManyTypes['booking_types'] = array_fill(0, 501, $restore['booking_types'][0]);
+$limitResult = $service->validate($tooManyTypes);
+wpcb_backup_assert(is_wp_error($limitResult) && $limitResult->get_error_code() === 'wpcb_backup_limit', 'Section row-count limits reject pathological snapshots.');
+
 $beforeTypeCount = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_types WHERE slug='backup-restore-type'");
 $beforeResourceCount = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_resources WHERE slug='backup-restore-resource'");
 $settingsBeforeDryRun = get_option('wpcb_settings', []);
@@ -253,23 +295,33 @@ $rollback = $restore;
 $rollback['booking_types'][0]['slug'] = 'backup-rollback-type';
 $rollback['booking_types'][0]['name'] = 'Rollback Type';
 $rollback['resources'][0]['slug'] = 'backup-rollback-resource';
-$rollback['resources'][0]['name'] = '';
+$rollback['resources'][0]['name'] = 'Rollback Resource';
 $rollback['booking_type_resources'][0] = [
     'booking_type_slug'=>'backup-rollback-type',
     'resource_slug'=>'backup-rollback-resource',
 ];
 $rollback['availability_rules'] = [];
 $rollback['exceptions'] = [];
-$rollback['form_fields'] = [];
+$rollback['form_fields'][0]['field_key'] = 'backup_rollback_field';
 $rollback['calendar_connections'] = [];
 $rollback['booking_type_calendar_connections'] = [];
 $rollback['resource_calendar_connections'] = [];
 $rollback['settings'] = ['mode'=>'automatic','timezone'=>'Europe/London'];
 
 $settingsBeforeRollback = get_option('wpcb_settings', []);
+$rollbackFilter = static function(string $query) use ($wpdb): string {
+    $table = $wpdb->prefix . 'wpcb_form_fields';
+    if (stripos($query, 'INSERT INTO ' . $table) !== false) {
+        return str_ireplace($table, $wpdb->prefix . 'wpcb_missing_restore_table', $query);
+    }
+    return $query;
+};
+add_filter('query', $rollbackFilter);
 $rolledBack = $service->import($rollback, false);
+remove_filter('query', $rollbackFilter);
 wpcb_backup_assert(is_wp_error($rolledBack), 'Mid-import storage failure is reported.');
 wpcb_backup_assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_types WHERE slug='backup-rollback-type'") === 0, 'Failed import rolls back earlier booking-type writes.');
+wpcb_backup_assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_resources WHERE slug='backup-rollback-resource'") === 0, 'Failed import rolls back earlier resource writes.');
 wpcb_backup_assert(get_option('wpcb_settings', []) === $settingsBeforeRollback, 'Failed import rolls back option changes.');
 
 $wpdb->delete($wpdb->prefix . 'wpcb_booking_status_log', ['booking_id'=>$fixtureBooking]);
