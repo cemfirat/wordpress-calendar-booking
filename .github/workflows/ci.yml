@@ -13,8 +13,12 @@ jobs:
   lockfiles_bootstrap:
     name: Generate dependency lockfiles
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.head_ref || github.ref_name }}
       - uses: shivammathur/setup-php@v2
         with:
           php-version: '8.3'
@@ -27,14 +31,18 @@ jobs:
         run: composer update --no-install --no-interaction --prefer-dist --no-progress
       - name: Generate npm lockfile
         run: npm install --package-lock-only --ignore-scripts --no-audit --no-fund
-      - uses: actions/upload-artifact@v4
-        with:
-          name: dependency-lockfiles
-          path: |
-            composer.lock
-            package-lock.json
-          if-no-files-found: error
-          retention-days: 1
+      - name: Commit generated lockfiles
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add composer.lock package-lock.json
+          if git diff --cached --quiet; then
+            echo "Lockfiles already current."
+            exit 0
+          fi
+          git commit -m "Pin Composer and npm dependency graphs"
+          git push origin "HEAD:${{ github.head_ref || github.ref_name }}"
 
   docs:
     name: Documentation consistency
