@@ -74,3 +74,10 @@ Public slot generation is intentionally bounded before it can fan out across res
 The defaults can be tuned with the WordPress filters `wpcb_availability_browser_limit`, `wpcb_availability_rest_limit`, `wpcb_availability_window_seconds`, `wpcb_availability_max_days`, `wpcb_availability_max_resources` and `wpcb_availability_max_slots`.
 
 If WordPress is behind a reverse proxy, configure the web server so `REMOTE_ADDR` represents the trusted proxy/client boundary you intend to rate-limit. The plugin deliberately does not consume arbitrary forwarding headers because those can be spoofed when the proxy chain is not explicitly trusted.
+
+
+## WordPress Site Health integration
+
+WordPress Calendar Booking registers direct tests in **Tools → Site Health** for core booking readiness, scheduler/queue health and the protected mail-transport diagnostic. Failed tests link back to the relevant plugin administration screen.
+
+The Site Health debug-information tab contains only bounded operational metadata such as plugin/schema versions, readiness state, scheduler state, queue failure counts and the redacted mail diagnostic status. It does not include booking/customer records, recipient addresses, provider credentials, OAuth tokens, Stripe/webhook secrets, video-meeting credentials or raw remote error payloads.
