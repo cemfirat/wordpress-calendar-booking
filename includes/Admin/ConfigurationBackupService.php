@@ -748,17 +748,6 @@ final class ConfigurationBackupService {
     }
 
     private function ruleId(string $scopeType, ?int $scopeId, array $row): int {
-        global $wpdb;
-        $sql = "SELECT id FROM {$wpdb->prefix}wpcb_availability_rules
-                WHERE scope_type=%s AND weekday=%d AND start_time=%s AND end_time=%s";
-        $params = [$scopeType, (int)($row['weekday'] ?? 0), (string)($row['start_time'] ?? ''), (string)($row['end_time'] ?? '')];
-        if ($scopeId) {
-            $sql .= ' AND scope_id=%d';
-            $params[] = $scopeId;
-        } else {
-            $sql .= ' AND scope_id IS NULL';
-        }
-        $sql .= ' ORDER BY id ASC LIMIT 1';
         $rows = $this->ruleRows($scopeType, $scopeId, $row);
         return $rows ? (int)$rows[0]['id'] : 0;
     }
