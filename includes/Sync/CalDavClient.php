@@ -2,6 +2,7 @@
 namespace Wpcb\Sync;
 
 use Wpcb\Admin\Settings;
+use Wpcb\Security\OutboundUrlPolicy;
 
 class CalDavClient {
     private string $appleId;
