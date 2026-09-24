@@ -31,6 +31,10 @@ jobs:
           node-version: '22'
       - name: Check CI concurrency policy
         run: node --test .github/tests/ci-concurrency.test.mjs
+      - name: Run offline preflight and build-tool regressions
+        run: |
+          python3 -B scripts/preflight.py
+          python3 -B -m unittest discover -s .github/tests -p 'test_*.py' -v
       - name: Verify committed dependency graphs
         run: |
           set -euo pipefail
@@ -166,6 +170,7 @@ jobs:
 
   wordpress:
     name: WordPress ${{ matrix.wordpress }} / PHP ${{ matrix.php }}
+    needs: [dependency_locks]
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -440,7 +445,10 @@ jobs:
       - name: Install production Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --no-dev --optimize-autoloader
       - name: Build reproducible ZIP
-        run: python3 scripts/package.py
+        run: |
+          python3 scripts/package.py
+          python3 scripts/package.py "$RUNNER_TEMP/wpcb-repeat.zip"
+          cmp dist/wordpress-calendar-booking.zip "$RUNNER_TEMP/wpcb-repeat.zip"
       - name: Verify release contents
         run: |
           set -euo pipefail
@@ -801,7 +809,7 @@ jobs:
         with:
           name: release-package
           path: dist
-      - name: Verify release checksum and provenance
+      - name: Verify current build checksum and provenance
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -821,6 +829,10 @@ jobs:
           )"
           echo "TARGET_VERSION=$TARGET_VERSION" >> "$GITHUB_ENV"
           echo "SYNTHETIC_VERSION=0.0.0" >> "$GITHUB_ENV"
+      - name: Verify published release checksum and provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/verify_public_release.py download "$TARGET_VERSION" "$RUNNER_TEMP/wpcb-public-release"
       - name: Build synthetic pre-release installation
         run: |
           set -euo pipefail
@@ -880,4 +892,5 @@ jobs:
           wp plugin update wordpress-calendar-booking --path="$WP_ROOT"
           test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "$TARGET_VERSION"
           wp plugin is-active wordpress-calendar-booking --path="$WP_ROOT"
+          python3 scripts/verify_public_release.py installed "$TARGET_VERSION" "$RUNNER_TEMP/wpcb-public-release/wordpress-calendar-booking.zip" "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking"
           echo "PASS: synthetic $SYNTHETIC_VERSION updated through the public GitHub release to $TARGET_VERSION."

@@ -6,7 +6,6 @@ import hashlib
 import os
 import pathlib
 import re
-import shutil
 import sys
 import tempfile
 import zipfile
@@ -36,6 +35,7 @@ EXCLUDED_FILES = {
     "composer.lock",
 }
 EXCLUDED_SUFFIXES = {".log", ".pyc"}
+EXCLUDED_DIRS = {".git", ".github", "tests", "node_modules", "scripts", "__pycache__"}
 
 RUNTIME_REQUIRED = [
     "wordpress-calendar-booking.php",
@@ -81,7 +81,7 @@ def include(relative: pathlib.Path) -> bool:
     parts = relative.parts
     if not parts:
         return False
-    if parts[0] in EXCLUDED_TOP:
+    if parts[0] in EXCLUDED_TOP or any(part in EXCLUDED_DIRS for part in parts[:-1]):
         return False
     if relative.name in EXCLUDED_FILES or relative.suffix in EXCLUDED_SUFFIXES:
         return False
@@ -90,39 +90,70 @@ def include(relative: pathlib.Path) -> bool:
     return True
 
 
+def source_files(output: pathlib.Path) -> list[pathlib.Path]:
+    files = []
+    checksum = pathlib.Path(str(output) + ".sha256")
+    for directory, dirs, names in os.walk(ROOT, followlinks=False):
+        base = pathlib.Path(directory)
+        dirs[:] = sorted(name for name in dirs if name not in EXCLUDED_DIRS
+                         and include((base / name).relative_to(ROOT)))
+        for name in dirs:
+            if (base / name).is_symlink():
+                raise SystemExit("Symlink directory is not a release input: " + str((base / name).relative_to(ROOT)))
+        for name in sorted(names):
+            path = base / name
+            relative = path.relative_to(ROOT)
+            if path in (output, checksum) or not include(relative):
+                continue
+            if path.is_symlink() or not path.is_file():
+                raise SystemExit("Non-regular release input: " + str(relative))
+            if any(ord(char) < 32 or char in "\\:" for char in relative.as_posix()):
+                raise SystemExit("Non-portable release path: " + repr(str(relative)))
+            files.append(path)
+    return sorted(files, key=lambda path: path.relative_to(ROOT).as_posix())
+
+
 def build(output: pathlib.Path) -> tuple[str, int]:
-    version, _, _ = metadata()
+    metadata()
     guard_runtime()
+    if output.is_symlink() or output.suffix.lower() != ".zip":
+        raise SystemExit("Release output must be a regular .zip path, not a symlink.")
+    # Normalize CLI-relative paths before comparing them with absolute inputs.
+    output = output.resolve()
+    files = source_files(output)
     output.parent.mkdir(parents=True, exist_ok=True)
 
-    files = [
-        p for p in ROOT.rglob("*")
-        if p.is_file() and include(p.relative_to(ROOT)) and p != output
-    ]
-    files.sort(key=lambda p: p.relative_to(ROOT).as_posix())
+    # Never truncate an existing good artifact until the new ZIP is complete
+    # and validated. Enumerate inputs before creating the temporary file.
+    fd, temporary_name = tempfile.mkstemp(prefix=".wpcb-", suffix=".zip", dir=output.parent)
+    os.close(fd)
+    temporary = pathlib.Path(temporary_name)
+    try:
+        with zipfile.ZipFile(temporary, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
+            for path in files:
+                relative = path.relative_to(ROOT).as_posix()
+                info = zipfile.ZipInfo(f"{PLUGIN_DIR}/{relative}", (2026, 1, 1, 0, 0, 0))
+                info.compress_type = zipfile.ZIP_DEFLATED
+                info.external_attr = 0o100644 << 16
+                archive.writestr(info, path.read_bytes())
 
-    with zipfile.ZipFile(output, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=9) as archive:
-        for path in files:
-            relative = path.relative_to(ROOT).as_posix()
-            info = zipfile.ZipInfo(f"{PLUGIN_DIR}/{relative}", (2026, 1, 1, 0, 0, 0))
-            info.compress_type = zipfile.ZIP_DEFLATED
-            info.external_attr = 0o100644 << 16
-            archive.writestr(info, path.read_bytes())
+        with zipfile.ZipFile(temporary) as archive:
+            if archive.testzip() is not None:
+                raise SystemExit("ZIP integrity check failed.")
+            names = archive.namelist()
+            if not names or not all(name.startswith(PLUGIN_DIR + "/") for name in names):
+                raise SystemExit("ZIP does not have one canonical plugin root directory.")
+            forbidden = [name for name in names if any(
+                f"/{part}/" in name for part in EXCLUDED_DIRS
+            )]
+            if forbidden:
+                raise SystemExit("Development-only files leaked into ZIP: " + ", ".join(forbidden[:5]))
 
-    with zipfile.ZipFile(output) as archive:
-        if archive.testzip() is not None:
-            raise SystemExit("ZIP integrity check failed.")
-        names = archive.namelist()
-        if not names or not all(name.startswith(PLUGIN_DIR + "/") for name in names):
-            raise SystemExit("ZIP does not have one canonical plugin root directory.")
-        forbidden = [name for name in names if any(
-            f"/{part}/" in name for part in (".git", ".github", "tests", "node_modules", "scripts")
-        )]
-        if forbidden:
-            raise SystemExit("Development-only files leaked into ZIP: " + ", ".join(forbidden[:5]))
-
-    digest = hashlib.sha256(output.read_bytes()).hexdigest()
-    return digest, len(files)
+        digest = hashlib.sha256(temporary.read_bytes()).hexdigest()
+        os.replace(temporary, output)
+        return digest, len(files)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def main() -> None:
