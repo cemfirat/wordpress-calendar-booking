@@ -138,3 +138,9 @@ Completed.
 - portable SHA-256 checksum asset for every stable plugin ZIP
 - signed GitHub Actions/Sigstore build provenance generated after all release gates
 - checksum and provenance verification in the public updater smoke path
+
+
+### 3.18
+- WordPress Site Health integration for booking readiness, scheduler and mail transport
+- privacy-safe Site Health debug information
+- actionable links from standard WordPress diagnostics to plugin operations screens
