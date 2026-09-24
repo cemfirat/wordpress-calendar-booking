@@ -63,3 +63,6 @@ $wpdb->delete($wpdb->prefix.'wpcb_resources',['id'=>$resourceId]);
 $wpdb->delete($types,['id'=>$typeId]);
 
 echo "PASS: capacity/group booking smoke test complete.\n";
+
+// Exercise the real shared capacity lock from independent WordPress processes.
+require __DIR__ . "/transition-capacity-smoke.php";

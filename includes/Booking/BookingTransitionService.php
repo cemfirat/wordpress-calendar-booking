@@ -33,11 +33,118 @@ final class BookingTransitionService {
      * @return array|\WP_Error
      */
     public function apply(int $bookingId, string $event, string $actor = 'system', string $note = '', bool $allowPaidSeriesCancellation = false) {
-        $booking = $this->bookings->find($bookingId);
-        if (!$booking) {
-            return new \WP_Error('wpcb_booking_missing', 'Booking not found.');
-        }
+        $results = $this->applyBatch([$bookingId], $event, $actor, $note, $allowPaidSeriesCancellation);
+        return is_wp_error($results) ? $results : $results[0];
+    }
 
+    /**
+     * Apply a bounded group under sorted resource locks. All state writes in a
+     * group commit together; callbacks run only after commit and lock release.
+     * This does not replace the durable side-effect outbox tracked in #159.
+     *
+     * @param int[] $bookingIds
+     * @return array|\WP_Error List of transition results, or one group failure.
+     */
+    public function applyBatch(
+        array $bookingIds,
+        string $event,
+        string $actor = 'system',
+        string $note = '',
+        bool $allowPaidSeriesCancellation = false,
+        bool $onlyIfExpired = false
+    ) {
+        $bookingIds = array_values(array_unique(array_map('intval', $bookingIds)));
+        if (!$bookingIds || count($bookingIds) > 24 || min($bookingIds) < 1) {
+            return new \WP_Error('wpcb_transition_batch_invalid', 'Invalid booking transition group.');
+        }
+        $resourcesByBooking = [];
+        foreach ($bookingIds as $id) {
+            $booking = $this->bookings->find($id);
+            if (!$booking) {
+                return new \WP_Error('wpcb_booking_missing', 'Booking not found.');
+            }
+            $resourceId = (int)($booking->resource_id ?? 0);
+            // Legacy resource-less rows may be expired/cancelled (capacity
+            // decreases), but must never acquire new capacity by confirmation.
+            if ($resourceId < 1 && $this->requiresAvailabilityRevalidation($event)
+                && (string)$booking->status !== $this->machine->targetForEvent($event)
+            ) {
+                return new \WP_Error('wpcb_resource_missing', 'The booking has no valid resource.');
+            }
+            $resourcesByBooking[$id] = $resourceId;
+        }
+        $resourceIds = array_values(array_unique(array_filter(array_values($resourcesByBooking))));
+        sort($resourceIds, SORT_NUMERIC);
+        $held = [];
+        $results = [];
+        $notifications = [];
+        $transaction = false;
+        global $wpdb;
+        try {
+            foreach ($resourceIds as $resourceId) {
+                if (!$this->locks->acquire($resourceId, 5)) {
+                    return new \WP_Error('wpcb_reservation_busy', 'The selected resource is busy. Please try again.');
+                }
+                $held[] = $resourceId;
+            }
+            // Start the transaction AFTER all advisory locks. Under InnoDB's
+            // default isolation the first consistent read must see the winner
+            // of any operation we waited for, not a pre-lock snapshot.
+            if (count($bookingIds) > 1) {
+                if ($wpdb->query('START TRANSACTION') === false) {
+                    return new \WP_Error('wpcb_transition_storage', 'The booking transition could not be stored.');
+                }
+                $transaction = true;
+            }
+            foreach ($bookingIds as $id) {
+                $booking = $this->bookings->find($id);
+                // A concurrent cross-resource move may have happened while we
+                // waited. Never chase a newly discovered lock out of order.
+                if (!$booking || (int)($booking->resource_id ?? 0) !== $resourcesByBooking[$id]) {
+                    return new \WP_Error('wpcb_transition_race', 'The booking changed while the transition was being applied.');
+                }
+                $result = $this->applyLocked($booking, $event, $actor, $note,
+                    $allowPaidSeriesCancellation, $onlyIfExpired);
+                if (is_wp_error($result)) {
+                    return $result;
+                }
+                $results[] = $result;
+                if (!empty($result['changed'])) {
+                    $notifications[] = [$result, $this->bookings->find($id)];
+                }
+            }
+            if ($transaction) {
+                if ($wpdb->query('COMMIT') === false) {
+                    return new \WP_Error('wpcb_transition_storage', 'The booking transition could not be stored.');
+                }
+                $transaction = false;
+            }
+        } catch (\Throwable $error) {
+            return new \WP_Error('wpcb_transition_storage', 'The booking transition could not be stored.');
+        } finally {
+            if ($transaction) {
+                $wpdb->query('ROLLBACK');
+            }
+            foreach (array_reverse($held) as $resourceId) {
+                $this->locks->release($resourceId);
+            }
+        }
+        foreach ($notifications as [$result, $booking]) {
+            do_action('wpcb_booking_transitioned', $result, $booking);
+        }
+        return $results;
+    }
+
+    /** @return array|\WP_Error Caller owns the booking's resource lock. */
+    private function applyLocked(
+        object $booking,
+        string $event,
+        string $actor,
+        string $note,
+        bool $allowPaidSeriesCancellation,
+        bool $onlyIfExpired
+    ) {
+        $bookingId = (int)$booking->id;
         if (in_array($event, [
             BookingStateMachine::USER_CANCELLED,
             BookingStateMachine::ADMIN_CANCELLED,
@@ -60,6 +167,25 @@ final class BookingTransitionService {
 
         if ($current === $target) {
             return $this->result($bookingId, $event, $current, $target, $actor, false);
+        }
+
+        $deadline = !empty($booking->reserved_until)
+            ? Time::parseUtc((string)$booking->reserved_until)
+            : null;
+        if ($this->requiresAvailabilityRevalidation($event)
+            && $current === BookingStatus::RESERVED_UNCONFIRMED
+            && !empty($booking->reserved_until)
+            && (!$deadline || $deadline <= Time::nowUtc())
+        ) {
+            return new \WP_Error('wpcb_reservation_expired', __('The reservation has expired. Please select a new slot.', 'wordpress-calendar-booking'));
+        }
+        // Scheduled expiry rechecks eligibility after acquiring the lock.
+        // Explicit compensation calls (e.g. payment setup failure) may still
+        // expire a hold early, and therefore leave onlyIfExpired at false.
+        if ($onlyIfExpired && $event === BookingStateMachine::RESERVATION_EXPIRED
+            && (!$deadline || $deadline > Time::nowUtc())
+        ) {
+            return $this->result($bookingId, $event, $current, $current, $actor, false);
         }
 
         if (in_array($event, [
@@ -122,10 +248,7 @@ final class BookingTransitionService {
             return new \WP_Error('wpcb_transition_race', 'The booking changed while the transition was being applied.');
         }
 
-        $fresh = $this->bookings->find($bookingId);
-        $result = $this->result($bookingId, $event, $current, $target, $actor, true);
-        do_action('wpcb_booking_transitioned', $result, $fresh);
-        return $result;
+        return $this->result($bookingId, $event, $current, $target, $actor, true);
     }
 
     /**
@@ -163,11 +286,16 @@ final class BookingTransitionService {
             return new \WP_Error('wpcb_resource_missing', 'The replacement resource is invalid.');
         }
 
-        if (!$this->locks->acquire($targetResourceId, 5)) {
-            return new \WP_Error('wpcb_reservation_busy', 'The selected resource is busy. Please try again.');
-        }
-
+        $resourceIds = array_values(array_unique(array_filter([(int)$currentResourceId, $targetResourceId])));
+        sort($resourceIds, SORT_NUMERIC);
+        $held = [];
         try {
+            foreach ($resourceIds as $resourceId) {
+                if (!$this->locks->acquire($resourceId, 5)) {
+                    return new \WP_Error('wpcb_reservation_busy', 'The selected resource is busy. Please try again.');
+                }
+                $held[] = $resourceId;
+            }
             $freshBeforeMove = $this->bookings->find($bookingId);
             if (!$freshBeforeMove
                 || (string)$freshBeforeMove->status !== $status
@@ -203,7 +331,9 @@ final class BookingTransitionService {
                 return new \WP_Error('wpcb_event_race', 'The booking changed while it was being rescheduled.');
             }
         } finally {
-            $this->locks->release($targetResourceId);
+            foreach (array_reverse($held) as $resourceId) {
+                $this->locks->release($resourceId);
+            }
         }
 
         $this->bookings->logEvent($bookingId, $status, self::RESCHEDULED, $actor, $note);
@@ -219,13 +349,15 @@ final class BookingTransitionService {
     public function expireReservations(int $limit = 100): int {
         $expired = 0;
         foreach ($this->bookings->expiredReservationIds($limit) as $bookingId) {
-            $result = $this->apply(
-                $bookingId,
+            $results = $this->applyBatch(
+                [$bookingId],
                 BookingStateMachine::RESERVATION_EXPIRED,
                 'system',
-                'Unconfirmed reservation expired'
+                'Unconfirmed reservation expired',
+                false,
+                true
             );
-            if (is_array($result) && !empty($result['changed'])) {
+            if (is_array($results) && !empty($results[0]['changed'])) {
                 ++$expired;
             }
         }
