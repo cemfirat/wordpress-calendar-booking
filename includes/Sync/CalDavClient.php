@@ -124,8 +124,12 @@ class CalDavClient {
         if (!$xmlObj) return [];
         $xmlObj->registerXPathNamespace('d', 'DAV:');
         $xmlObj->registerXPathNamespace('cd', 'urn:ietf:params:xml:ns:caldav');
+        $responses = $xmlObj->xpath('//d:response') ?: [];
+        if (count($responses) > OutboundUrlPolicy::MAX_CALDAV_DISCOVERY_RECORDS) {
+            return [];
+        }
         $items = [];
-        foreach ($xmlObj->xpath('//d:response') as $responseNode) {
+        foreach ($responses as $responseNode) {
             $href = (string)($responseNode->xpath('./d:href')[0] ?? '');
             $display = (string)($responseNode->xpath('.//d:displayname')[0] ?? '');
             $isCalendar = !empty($responseNode->xpath('.//cd:calendar'));
@@ -152,12 +156,16 @@ class CalDavClient {
 
     private function request(string $method, string $url, array $headers = [], ?string $body = null) {
         $headers['Authorization'] = 'Basic ' . base64_encode($this->appleId . ':' . $this->password);
+        $readMethod = strtoupper($method) === 'PROPFIND';
         return OutboundUrlPolicy::request($method, $url, [
             'timeout' => 20,
             'redirection' => 0,
             'headers' => $headers,
             'body' => $body,
             'user-agent' => 'WPCB/' . WPCB_VERSION,
+            'wpcb_max_response_bytes' => $readMethod
+                ? OutboundUrlPolicy::MAX_CALDAV_RESPONSE_BYTES
+                : OutboundUrlPolicy::MAX_MUTATION_RESPONSE_BYTES,
         ]);
     }
 }

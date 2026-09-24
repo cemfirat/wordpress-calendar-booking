@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.19.3
+Stable tag: 3.19.4
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,12 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.19.4 =
+* Bound public ICS and CalDAV response sizes before parsing untrusted remote data.
+* Reject malformed or excessive CalDAV query results instead of treating them as an empty busy set.
+* Cap CalDAV discovery and query cardinality and keep mutation responses narrowly bounded.
+* Preserve the SSRF-safe redirect and DNS policy introduced in 3.19.3.
 
 = 3.19.3 =
 * Harden administrator-configurable ICS and CalDAV targets against SSRF and unsafe redirect destinations.

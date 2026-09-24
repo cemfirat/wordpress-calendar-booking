@@ -182,8 +182,13 @@ final class CalDavClient {
             return new \WP_Error('wpcb_caldav_xml', 'CalDAV discovery returned unreadable XML.');
         }
 
+        $nodes = $xpath->query('//*[local-name()="response"]');
+        if ($nodes && $nodes->length > OutboundUrlPolicy::MAX_CALDAV_DISCOVERY_RECORDS) {
+            return new \WP_Error('wpcb_caldav_discovery_too_large', 'CalDAV discovery returned too many records.');
+        }
+
         $out = [];
-        foreach ($xpath->query('//*[local-name()="response"]') ?: [] as $node) {
+        foreach ($nodes ?: [] as $node) {
             $hrefNode = $xpath->query('./*[local-name()="href"]', $node)->item(0);
             $calendarNode = $xpath->query('.//*[local-name()="calendar"]', $node)->item(0);
             if (!$hrefNode || !$calendarNode) {
@@ -203,14 +208,19 @@ final class CalDavClient {
         return $out;
     }
 
-    private function parseCalendarDataResponses(string $body): array {
+    private function parseCalendarDataResponses(string $body) {
         $xpath = $this->domXPath($body);
         if (!$xpath) {
-            return [];
+            return new \WP_Error('wpcb_caldav_xml', 'CalDAV calendar query returned unreadable XML.');
+        }
+
+        $nodes = $xpath->query('//*[local-name()="response"]');
+        if ($nodes && $nodes->length > OutboundUrlPolicy::MAX_CALDAV_QUERY_RECORDS) {
+            return new \WP_Error('wpcb_caldav_query_too_large', 'CalDAV query returned too many records.');
         }
 
         $out = [];
-        foreach ($xpath->query('//*[local-name()="response"]') ?: [] as $node) {
+        foreach ($nodes ?: [] as $node) {
             $hrefNode = $xpath->query('./*[local-name()="href"]', $node)->item(0);
             $dataNode = $xpath->query('.//*[local-name()="calendar-data"]', $node)->item(0);
             if (!$hrefNode || !$dataNode) {
@@ -263,12 +273,16 @@ final class CalDavClient {
 
     private function request(string $method, string $url, array $headers = [], ?string $body = null) {
         $headers['Authorization'] = 'Basic ' . base64_encode($this->username . ':' . $this->password);
+        $readMethod = in_array(strtoupper($method), ['PROPFIND', 'REPORT'], true);
         return OutboundUrlPolicy::request($method, $url, [
             'timeout' => 20,
             'redirection' => 0,
             'headers' => $headers,
             'body' => $body,
             'user-agent' => 'WPCB/' . WPCB_VERSION,
+            'wpcb_max_response_bytes' => $readMethod
+                ? OutboundUrlPolicy::MAX_CALDAV_RESPONSE_BYTES
+                : OutboundUrlPolicy::MAX_MUTATION_RESPONSE_BYTES,
         ]);
     }
 

@@ -1,5 +1,14 @@
 # Changelog
 
+## 3.19.4
+
+- Bound public ICS responses to 2 MiB, CalDAV discovery/query responses to 4 MiB and CalDAV mutation responses to 256 KiB.
+- Read at most one byte beyond each configured ceiling so oversized responses are rejected before parser work.
+- Cap generic CalDAV discovery at 250 calendars and one busy query at 2,000 response records.
+- Treat malformed/truncated CalDAV query XML as an explicit provider error rather than an empty busy result.
+- Enforce response limits on every manually validated redirect hop without weakening the 3.19.3 SSRF and credential-redirect protections.
+- Add deterministic integration coverage for exact limits, body/header overflow, redirect overflow, malformed XML and excessive record counts.
+
 ## 3.19.3
 
 - Harden administrator-configurable public ICS and CalDAV targets against server-side request forgery.
