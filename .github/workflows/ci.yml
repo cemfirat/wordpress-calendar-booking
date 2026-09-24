@@ -10,6 +10,29 @@ permissions:
   contents: read
 
 jobs:
+  dependency_locks:
+    name: Dependency lock consistency
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify committed dependency graphs
+        run: |
+          set -euo pipefail
+          test -s composer.lock
+          test -s package-lock.json
+          composer validate --no-check-publish
+          composer install --dry-run --no-interaction --prefer-dist --no-progress
+          npm ci --ignore-scripts --no-audit --no-fund
+          git diff --exit-code -- composer.lock package-lock.json
+
   docs:
     name: Documentation consistency
     runs-on: ubuntu-latest
@@ -89,12 +112,12 @@ jobs:
       - name: Install production PHP dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --no-dev
       - name: Audit PHP dependencies
-        run: composer audit --no-dev
+        run: composer audit --locked --no-dev
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
       - name: Install production frontend dependencies
-        run: npm install --ignore-scripts --no-fund
+        run: npm ci --omit=dev --ignore-scripts --no-fund
       - name: Audit frontend dependencies
         run: npm audit --omit=dev --audit-level=high
 
@@ -170,7 +193,7 @@ jobs:
           node-version: '22'
       - name: Build local UIkit fallback
         run: |
-          npm install --no-audit --no-fund
+          npm ci --omit=dev --no-audit --no-fund
           npm run build:assets
       - name: Install Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --no-dev
@@ -388,6 +411,7 @@ jobs:
 
   package:
     name: Build release ZIP
+    needs: [dependency_locks]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -401,7 +425,7 @@ jobs:
           node-version: '22'
       - name: Build local UIkit fallback
         run: |
-          npm install --no-audit --no-fund
+          npm ci --omit=dev --no-audit --no-fund
           npm run build:assets
       - name: Install production Composer dependencies
         run: composer install --no-interaction --prefer-dist --no-progress --no-dev --optimize-autoloader
@@ -477,7 +501,7 @@ jobs:
           cp "$GITHUB_WORKSPACE/tests/browser-release-mu.php" "$WP_ROOT/wp-content/mu-plugins/wpcb-browser-release.php"
       - name: Install browser test runtime
         run: |
-          npm install --no-save --ignore-scripts @playwright/test@1.55.0
+          npm ci --ignore-scripts --no-audit --no-fund
           npx playwright install --with-deps chromium
       - name: Run packaged release browser acceptance
         env:
