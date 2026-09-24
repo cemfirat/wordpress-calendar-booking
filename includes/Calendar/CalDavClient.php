@@ -2,6 +2,7 @@
 namespace Wpcb\Calendar;
 
 use Wpcb\Support\Time;
+use Wpcb\Security\OutboundUrlPolicy;
 
 final class CalDavClient {
     private string $endpoint;
