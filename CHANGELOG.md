@@ -1,5 +1,12 @@
 # Changelog
 
+## 3.19.0
+
+- Add versioned privacy-safe JSON backup for booking types, resources, assignments, availability, custom fields, safe global settings and non-secret calendar metadata.
+- Exclude bookings, booking metadata, customer sessions, tokens, payments/events, waiting lists, delivery/audit logs and reusable credentials from configuration exports.
+- Add strict schema validation, no-write dry-run planning, deterministic relationship remapping and transactional restore rollback.
+- Restore calendar connections disabled and without importing credentials, requiring administrators to re-enter access material explicitly.
+
 ## 3.18.0
 
 - Integrate core booking readiness, scheduler/queue health and mail-transport diagnostics with WordPress Site Health.
