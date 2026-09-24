@@ -42,6 +42,27 @@ $fixtureType = $config->saveBookingType([
 $defaultResource = $resources->ensureDefault();
 $resources->setForBookingType($fixtureType, [$defaultResource]);
 
+$connections = new Wpcb\Calendar\CalendarConnectionRepository();
+$fixtureConnection = $connections->create([
+    'provider'=>'caldav',
+    'name'=>'Backup Fixture Calendar',
+    'remote_calendar_id'=>'safe-calendar-id',
+    'blocks_availability'=>1,
+    'receives_bookings'=>0,
+    'is_active'=>1,
+], ['password'=>'BACKUP-SECRET-CALENDAR-PASSWORD']);
+wpcb_backup_assert(is_int($fixtureConnection) && $fixtureConnection > 0, 'Calendar connection fixture is created.');
+$connections->setForBookingType($fixtureType, [[
+    'connection_id'=>$fixtureConnection,
+    'blocks_availability'=>1,
+    'receives_bookings'=>0,
+]]);
+$connections->setForResource($defaultResource, [[
+    'connection_id'=>$fixtureConnection,
+    'blocks_availability'=>1,
+    'receives_bookings'=>0,
+]]);
+
 $now = gmdate('Y-m-d H:i:s');
 $wpdb->insert($wpdb->prefix . 'wpcb_bookings', [
     'booking_uuid' => wp_generate_uuid4(),
@@ -72,6 +93,9 @@ wpcb_backup_assert(strpos($json, 'CONFIG-BACKUP-CUSTOMER-NOTE') === false, 'Expo
 wpcb_backup_assert(strpos($json, 'SECRET-CALDAV-CIPHER-TEXT') === false, 'Export excludes encrypted calendar credentials.');
 wpcb_backup_assert(strpos($json, 'SECRET-STRIPE-KEY-TEXT') === false, 'Export excludes payment credentials.');
 wpcb_backup_assert(strpos($json, 'SECRET-OAUTH-TOKEN-TEXT') === false, 'Export excludes OAuth tokens.');
+wpcb_backup_assert(strpos($json, 'BACKUP-SECRET-CALENDAR-PASSWORD') === false, 'Export excludes calendar connection credentials.');
+wpcb_backup_assert(strpos($json, 'Backup Fixture Calendar') !== false, 'Export includes non-secret reconnect metadata for calendar connections.');
+wpcb_backup_assert(strpos($json, '"requires_reconnect":true') !== false, 'Export marks calendar metadata as requiring reconnect.');
 wpcb_backup_assert(strpos($json, 'backup-fixture-type') !== false, 'Export includes booking configuration.');
 
 $unknown = $snapshot;
@@ -117,6 +141,9 @@ $restore = [
         'date_end'=>'2033-02-10 11:00:00','all_day'=>0,'is_active'=>1,
         'booking_type_slug'=>'backup-restore-type','resource_slug'=>'backup-restore-resource',
     ]],
+    'calendar_connections' => [],
+    'booking_type_calendar_connections' => [],
+    'resource_calendar_connections' => [],
 ];
 
 $beforeTypeCount = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_types WHERE slug='backup-restore-type'");
@@ -187,6 +214,7 @@ $wpdb->delete($wpdb->prefix . 'wpcb_booking_type_resources', ['booking_type_id'=
 $wpdb->delete($wpdb->prefix . 'wpcb_form_fields', ['field_key'=>'backup_restore_company']);
 $wpdb->delete($wpdb->prefix . 'wpcb_booking_types', ['id'=>$restoredType]);
 $wpdb->delete($wpdb->prefix . 'wpcb_resources', ['id'=>$restoredResource]);
+$connections->delete((int)$fixtureConnection);
 $wpdb->delete($wpdb->prefix . 'wpcb_booking_type_resources', ['booking_type_id'=>$fixtureType]);
 $wpdb->delete($wpdb->prefix . 'wpcb_booking_types', ['id'=>$fixtureType]);
 update_option('wpcb_settings', $originalSettings, false);
