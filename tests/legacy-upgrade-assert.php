@@ -13,7 +13,7 @@ function wpcb_legacy_assert($condition, string $message): void {
 global $wpdb;
 $p = $wpdb->prefix . 'wpcb_';
 
-wpcb_legacy_assert(defined('WPCB_VERSION') && WPCB_VERSION === '3.17.2', 'Legacy fixture boots the 3.17.2 release.');
+wpcb_legacy_assert(defined('WPCB_VERSION') && WPCB_VERSION === '3.18.0', 'Legacy fixture boots the 3.18.0 release.');
 $booking = $wpdb->get_row("SELECT * FROM {$p}bookings WHERE id = 99");
 wpcb_legacy_assert($booking !== null, 'Legacy booking is preserved.');
 wpcb_legacy_assert($booking->status === Wpcb\Booking\BookingStatus::RESERVED_UNCONFIRMED, 'Legacy booking status migrates to canonical lifecycle state.');
