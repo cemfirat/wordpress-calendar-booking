@@ -667,7 +667,7 @@ final class ConfigurationBackupService {
         foreach ($data['booking_types'] as $row) {
             if (!$this->validString($row['name'], 190, false)
                 || !$this->validSlug($row['slug'])
-                || !$this->validString($row['description'], 10000)
+                || !$this->validNullableString($row['description'], 10000)
                 || !$this->validInteger($row['duration_minutes'], 1, 1440)
                 || !$this->validInteger($row['buffer_before_minutes'], 0, 1440)
                 || !$this->validInteger($row['buffer_after_minutes'], 0, 1440)
@@ -688,8 +688,8 @@ final class ConfigurationBackupService {
         foreach ($data['resources'] as $row) {
             if (!$this->validString($row['name'], 190, false)
                 || !$this->validSlug($row['slug'])
-                || !$this->validString($row['public_label'], 190)
-                || !$this->validString($row['description'], 10000)
+                || !$this->validNullableString($row['public_label'], 190)
+                || !$this->validNullableString($row['description'], 10000)
                 || !$this->validInteger($row['capacity'], 1, 10000)
                 || !$this->validBoolean($row['is_active'])
                 || !$this->validBoolean($row['is_public'])
