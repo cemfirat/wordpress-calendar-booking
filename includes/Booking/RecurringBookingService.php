@@ -187,6 +187,29 @@ final class RecurringBookingService {
         $members = $this->series->members((int)$booking->series_id, (int)$booking->series_occurrence);
         $transitions = new BookingTransitionService($this->bookings);
         $changed = [];
+        if (in_array($event, [
+            BookingStateMachine::EMAIL_CONFIRMED_APPROVAL,
+            BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC,
+            BookingStateMachine::ADMIN_APPROVED,
+        ], true)) {
+            // Validate/write the complete requested confirmation scope under
+            // sorted resource locks, rolling back if ANY occurrence fails.
+            $results = $transitions->applyBatch(
+                array_map(static fn($member) => (int)$member->id, $members),
+                $event,
+                $actor,
+                $note
+            );
+            if (is_wp_error($results)) {
+                return $results;
+            }
+            foreach ($results as $result) {
+                if (!empty($result['changed'])) {
+                    $changed[] = (int)$result['booking_id'];
+                }
+            }
+            return ['series_id' => (int)$booking->series_id, 'changed_booking_ids' => $changed];
+        }
         $isCancellation = in_array($event, [
             BookingStateMachine::USER_CANCELLED,
             BookingStateMachine::ADMIN_CANCELLED,
@@ -292,10 +315,12 @@ final class RecurringBookingService {
             ];
         }
 
-        $resourceIds = array_values(array_unique(array_filter([
-            (int)($booking->resource_id ?? 0),
-            $newResourceId,
-        ])));
+        // Individual occurrences may have moved to different resources.
+        // Cover every source, not only the selected occurrence's resource.
+        $resourceIds = array_values(array_unique(array_filter(array_merge(
+            array_map(static fn($member) => (int)($member->resource_id ?? 0), $members),
+            [$newResourceId]
+        ))));
         sort($resourceIds);
         foreach ($resourceIds as $resourceId) {
             if (!$this->locks->acquire($resourceId, 8)) {

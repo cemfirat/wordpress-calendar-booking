@@ -2,7 +2,7 @@
 namespace Wpcb\Resources;
 
 final class ResourceLock {
-    /** @var string[] */
+    /** @var array<string,int> Acquisition count owned by this instance. */
     private array $held = [];
 
     public function acquire(int $resourceId, int $timeoutSeconds = 5): bool {
@@ -20,7 +20,7 @@ final class ResourceLock {
         if ((int)$result !== 1) {
             return false;
         }
-        $this->held[$name] = $name;
+        $this->held[$name] = ($this->held[$name] ?? 0) + 1;
         return true;
     }
 
@@ -31,13 +31,17 @@ final class ResourceLock {
         }
         global $wpdb;
         $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $name));
-        unset($this->held[$name]);
+        if (--$this->held[$name] === 0) {
+            unset($this->held[$name]);
+        }
     }
 
     public function releaseAll(): void {
         foreach (array_keys($this->held) as $name) {
             global $wpdb;
-            $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $name));
+            for ($remaining = $this->held[$name]; $remaining > 0; --$remaining) {
+                $wpdb->get_var($wpdb->prepare('SELECT RELEASE_LOCK(%s)', $name));
+            }
             unset($this->held[$name]);
         }
     }
