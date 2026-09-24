@@ -87,7 +87,7 @@ final class ConfigurationBackupService {
             ARRAY_A
         );
         $connections = $wpdb->get_results(
-            "SELECT provider, name, remote_calendar_id, blocks_availability, receives_bookings
+            "SELECT provider, name, COALESCE(remote_calendar_id,'') AS remote_calendar_id, blocks_availability, receives_bookings
              FROM {$wpdb->prefix}wpcb_calendar_connections ORDER BY id ASC",
             ARRAY_A
         );
@@ -96,7 +96,7 @@ final class ConfigurationBackupService {
         }
         unset($connection);
         $typeConnections = $wpdb->get_results(
-            "SELECT c.provider, c.name AS connection_name, c.remote_calendar_id,
+            "SELECT c.provider, c.name AS connection_name, COALESCE(c.remote_calendar_id,'') AS remote_calendar_id,
                     t.slug AS booking_type_slug, m.blocks_availability, m.receives_bookings
              FROM {$wpdb->prefix}wpcb_booking_type_calendar_connections m
              INNER JOIN {$wpdb->prefix}wpcb_calendar_connections c ON c.id=m.connection_id
@@ -105,7 +105,7 @@ final class ConfigurationBackupService {
             ARRAY_A
         );
         $resourceConnections = $wpdb->get_results(
-            "SELECT c.provider, c.name AS connection_name, c.remote_calendar_id,
+            "SELECT c.provider, c.name AS connection_name, COALESCE(c.remote_calendar_id,'') AS remote_calendar_id,
                     r.slug AS resource_slug, m.blocks_availability, m.receives_bookings
              FROM {$wpdb->prefix}wpcb_resource_calendar_connections m
              INNER JOIN {$wpdb->prefix}wpcb_calendar_connections c ON c.id=m.connection_id
@@ -442,7 +442,7 @@ final class ConfigurationBackupService {
             }
         }
 
-        $providers = array_keys((new ProviderRegistry())->all());
+        $providers = array_values(array_unique(array_merge(['ics'], array_keys((new ProviderRegistry())->all()))));
         foreach ($data['calendar_connections'] as $row) {
             if (!is_string($row['provider'] ?? null)
                 || !in_array($row['provider'], $providers, true)
