@@ -2,6 +2,7 @@
 namespace Wpcb\Admin;
 
 use Wpcb\Security\SecretBox;
+use Wpcb\Security\OutboundUrlPolicy;
 
 class Settings {
     public static function get(): array {
@@ -62,17 +63,42 @@ class Settings {
             $data['timezone'] = self::normalizeTimezone((string)$data['timezone']);
         }
         if (array_key_exists('calendar_url', $data)) {
-            $data['calendar_url'] = self::normalizeCalendarUrl((string)$data['calendar_url']);
+            $rawCalendarUrl = trim((string)$data['calendar_url']);
+            $data['calendar_url'] = self::normalizeCalendarUrl($rawCalendarUrl);
+            if ($rawCalendarUrl !== '' && $data['calendar_url'] === '') {
+                return new \WP_Error(
+                    'wpcb_calendar_url_unsafe',
+                    __('The configured calendar URL is not allowed.', 'wordpress-calendar-booking')
+                );
+            }
         }
         if (array_key_exists('calendar_urls', $data)) {
-            $data['calendar_urls'] = self::normalizeCalendarUrlList((string)$data['calendar_urls']);
+            $rawCalendarUrls = (string)$data['calendar_urls'];
+            $rawParts = array_values(array_filter(array_map(
+                'trim',
+                preg_split('/[\r\n,]+/', $rawCalendarUrls) ?: []
+            ), static fn(string $value): bool => $value !== ''));
+            $normalizedUrls = self::publicCalendarUrlsFromString($rawCalendarUrls);
+            if (count($normalizedUrls) !== count(array_unique($rawParts))) {
+                return new \WP_Error(
+                    'wpcb_calendar_url_unsafe',
+                    __('One or more configured calendar URLs are not allowed.', 'wordpress-calendar-booking')
+                );
+            }
+            $data['calendar_urls'] = implode("\n", $normalizedUrls);
             if (empty($data['calendar_url'])) {
-                $first = self::publicCalendarUrlsFromString($data['calendar_urls']);
-                $data['calendar_url'] = $first[0] ?? '';
+                $data['calendar_url'] = $normalizedUrls[0] ?? '';
             }
         }
         if (array_key_exists('icloud_sync_target_calendar_url', $data)) {
-            $data['icloud_sync_target_calendar_url'] = self::normalizeCalendarUrl((string)$data['icloud_sync_target_calendar_url']);
+            $rawTarget = trim((string)$data['icloud_sync_target_calendar_url']);
+            $data['icloud_sync_target_calendar_url'] = self::normalizeCalendarUrl($rawTarget);
+            if ($rawTarget !== '' && $data['icloud_sync_target_calendar_url'] === '') {
+                return new \WP_Error(
+                    'wpcb_calendar_url_unsafe',
+                    __('The configured CalDAV target URL is not allowed.', 'wordpress-calendar-booking')
+                );
+            }
         }
 
         if (array_key_exists('icloud_sync_password', $data)) {
@@ -134,14 +160,7 @@ class Settings {
     }
 
     public static function normalizeCalendarUrl(string $url): string {
-        $url = trim($url);
-        if ($url === '') {
-            return '';
-        }
-        if (stripos($url, 'webcal://') === 0) {
-            $url = 'https://' . substr($url, 9);
-        }
-        return esc_url_raw($url);
+        return OutboundUrlPolicy::normalizeCalendarUrl($url);
     }
 
     public static function getIcloudSyncPassword(): string {

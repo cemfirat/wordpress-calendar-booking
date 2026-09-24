@@ -163,3 +163,10 @@ Completed.
 - pre-decode JSON size limits and bounded restore section cardinality
 - strict enum/range/time/date/provider validation before mutation
 - malformed restore snapshots remain no-write
+
+
+### 3.19.3
+- committed Composer/npm dependency locks and lock-consistency release gating
+- SSRF-safe outbound URL policy for configurable ICS and CalDAV targets
+- safe redirect validation and private-network rejection for calendar HTTP requests
+- no-write administrator errors for unsafe calendar configuration

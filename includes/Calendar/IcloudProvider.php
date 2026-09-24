@@ -2,6 +2,7 @@
 namespace Wpcb\Calendar;
 
 use Wpcb\Admin\Settings;
+use Wpcb\Security\OutboundUrlPolicy;
 
 class IcloudProvider {
     public function events(string $from, string $to): array {
@@ -16,7 +17,7 @@ class IcloudProvider {
             $cacheKey = 'wpcb_ical_' . md5($url);
             $body = get_transient($cacheKey);
             if ($body === false) {
-                $response = wp_remote_get($url, [
+                $response = OutboundUrlPolicy::get($url, [
                     'timeout' => 20,
                     'redirection' => 5,
                     'user-agent' => 'WPCB/' . WPCB_VERSION,

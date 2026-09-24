@@ -2,6 +2,7 @@
 namespace Wpcb\Calendar;
 
 use Wpcb\Support\Time;
+use Wpcb\Security\OutboundUrlPolicy;
 
 final class CalDavClient {
     private string $endpoint;
@@ -262,10 +263,9 @@ final class CalDavClient {
 
     private function request(string $method, string $url, array $headers = [], ?string $body = null) {
         $headers['Authorization'] = 'Basic ' . base64_encode($this->username . ':' . $this->password);
-        return wp_remote_request($url, [
-            'method' => $method,
+        return OutboundUrlPolicy::request($method, $url, [
             'timeout' => 20,
-            'redirection' => 3,
+            'redirection' => 0,
             'headers' => $headers,
             'body' => $body,
             'user-agent' => 'WPCB/' . WPCB_VERSION,
@@ -293,10 +293,6 @@ final class CalDavClient {
     }
 
     private function normalizeUrl(string $url): string {
-        $url = trim($url);
-        if (stripos($url, 'webcal://') === 0) {
-            $url = 'https://' . substr($url, 9);
-        }
-        return esc_url_raw($url);
+        return OutboundUrlPolicy::normalizeCalendarUrl($url);
     }
 }

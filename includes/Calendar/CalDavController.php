@@ -1,6 +1,8 @@
 <?php
 namespace Wpcb\Calendar;
 
+use Wpcb\Security\OutboundUrlPolicy;
+
 final class CalDavController {
     private const DISCOVERY_PREFIX = 'wpcb_caldav_discovery_';
 
@@ -136,7 +138,7 @@ final class CalDavController {
         $this->requireAdmin();
         check_admin_referer('wpcb_caldav_discover');
 
-        $endpoint = esc_url_raw((string)wp_unslash($_POST['endpoint'] ?? ''));
+        $endpoint = OutboundUrlPolicy::normalizeCalendarUrl((string)wp_unslash($_POST['endpoint'] ?? ''));
         $username = sanitize_text_field(wp_unslash($_POST['username'] ?? ''));
         $password = (string)wp_unslash($_POST['password'] ?? '');
 
@@ -163,11 +165,11 @@ final class CalDavController {
             $preset = 'generic';
         }
 
-        $endpoint = esc_url_raw((string)wp_unslash($_POST['endpoint'] ?? ''));
+        $endpoint = OutboundUrlPolicy::normalizeCalendarUrl((string)wp_unslash($_POST['endpoint'] ?? ''));
         if ($preset === 'icloud') {
             $endpoint = 'https://caldav.icloud.com/';
         }
-        $calendarUrl = esc_url_raw((string)wp_unslash($_POST['calendar_url'] ?? ''));
+        $calendarUrl = OutboundUrlPolicy::normalizeCalendarUrl((string)wp_unslash($_POST['calendar_url'] ?? ''));
         $username = sanitize_text_field(wp_unslash($_POST['username'] ?? ''));
         $password = (string)wp_unslash($_POST['password'] ?? '');
 

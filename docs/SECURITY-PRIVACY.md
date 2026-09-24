@@ -68,3 +68,10 @@ Uninstalling the plugin preserves durable booking, customer, payment, audit and 
 Administrators can explicitly enable **Daten bei Deinstallation** in the plugin settings before uninstalling. With that opt-in enabled, uninstall permanently removes the site's plugin-owned `wpcb_*` database tables and `wpcb_*` options. On multisite, the decision is evaluated per site so a site's data is removed only when that site explicitly opted in.
 
 The destructive uninstall option is not a substitute for privacy erasure or retention. WordPress privacy exporter/eraser integrations and the configurable retention/anonymization policy remain the normal tools for handling individual personal-data lifecycle requests.
+
+
+## Outbound calendar URL safety
+
+Administrator-configured public ICS and CalDAV URLs are treated as untrusted network destinations. WordPress Calendar Booking normalizes supported calendar schemes, rejects credential-bearing or WordPress-unsafe/private targets, and sends those requests through WordPress safe HTTP APIs so redirect destinations are validated as well.
+
+Loopback, link-local, RFC1918/private and metadata-style targets are rejected by default. There is no plugin-level local-network bypass. Fixed first-party OAuth/payment/update endpoints are not routed through the configurable calendar URL path.

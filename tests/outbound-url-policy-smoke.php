@@ -1,0 +1,194 @@
+<?php
+if (!defined('ABSPATH')) {
+    exit(1);
+}
+
+function wpcb_outbound_assert($condition, string $message): void {
+    if (!$condition) {
+        throw new RuntimeException($message);
+    }
+    WP_CLI::log('PASS: ' . $message);
+}
+
+use Wpcb\Security\OutboundUrlPolicy;
+use Wpcb\Admin\Settings;
+
+wpcb_outbound_assert(
+    OutboundUrlPolicy::normalizeCalendarUrl('https://8.8.8.8/calendar.ics') === 'https://8.8.8.8/calendar.ics',
+    'Public HTTPS calendar targets are accepted.'
+);
+wpcb_outbound_assert(
+    OutboundUrlPolicy::normalizeCalendarUrl('webcal://8.8.8.8/calendar.ics') === 'https://8.8.8.8/calendar.ics',
+    'webcal targets normalize to HTTPS before validation.'
+);
+
+foreach ([
+    'http://127.0.0.1/',
+    'http://10.0.0.1/',
+    'http://172.16.0.1/',
+    'http://192.168.1.1/',
+    'http://169.254.169.254/latest/meta-data/',
+    'http://[::1]/',
+    'https://user:password@8.8.8.8/calendar.ics',
+    'file:///etc/passwd',
+] as $blocked) {
+    wpcb_outbound_assert(
+        OutboundUrlPolicy::normalizeCalendarUrl($blocked) === '',
+        'Unsafe calendar target is rejected: ' . $blocked
+    );
+    $result = OutboundUrlPolicy::get($blocked, ['timeout' => 1]);
+    wpcb_outbound_assert(
+        is_wp_error($result) && $result->get_error_code() === 'wpcb_outbound_url_unsafe',
+        'Unsafe target fails before an HTTP request is attempted.'
+    );
+}
+
+$capturedSafeArgs = null;
+$preemptSafeRequest = static function ($preempt, array $args, string $url) use (&$capturedSafeArgs) {
+    if ($url === 'https://8.8.8.8/calendar.ics') {
+        $capturedSafeArgs = $args;
+        return [
+            'headers' => [],
+            'body' => '',
+            'response' => ['code' => 200, 'message' => 'OK'],
+            'cookies' => [],
+            'filename' => null,
+        ];
+    }
+    return $preempt;
+};
+add_filter('pre_http_request', $preemptSafeRequest, 10, 3);
+$safeProbe = OutboundUrlPolicy::get('https://8.8.8.8/calendar.ics', ['redirection' => 9, 'timeout' => 1]);
+remove_filter('pre_http_request', $preemptSafeRequest, 10);
+wpcb_outbound_assert(!is_wp_error($safeProbe), 'Allowed public target reaches the WordPress safe HTTP layer.');
+wpcb_outbound_assert(
+    is_array($capturedSafeArgs)
+        && !empty($capturedSafeArgs['reject_unsafe_urls'])
+        && (int)($capturedSafeArgs['redirection'] ?? -1) === 0,
+    'Each HTTP hop uses WordPress safe mode with automatic redirects disabled.'
+);
+
+$redirectRequests = [];
+$redirectFilter = static function ($preempt, array $args, string $url) use (&$redirectRequests) {
+    $redirectRequests[] = $url;
+    if ($url === 'https://8.8.8.8/start.ics') {
+        return [
+            'headers' => ['location' => 'http://127.0.0.1/private.ics'],
+            'body' => '',
+            'response' => ['code' => 302, 'message' => 'Found'],
+            'cookies' => [],
+            'filename' => null,
+        ];
+    }
+    return $preempt;
+};
+add_filter('pre_http_request', $redirectFilter, 10, 3);
+$blockedRedirect = OutboundUrlPolicy::get('https://8.8.8.8/start.ics', ['redirection' => 3, 'timeout' => 1]);
+remove_filter('pre_http_request', $redirectFilter, 10);
+wpcb_outbound_assert(
+    is_wp_error($blockedRedirect)
+        && $blockedRedirect->get_error_code() === 'wpcb_outbound_url_unsafe'
+        && $redirectRequests === ['https://8.8.8.8/start.ics'],
+    'Redirects to private targets are rejected before the second request.'
+);
+
+$safeRedirectRequests = [];
+$safeRedirectFilter = static function ($preempt, array $args, string $url) use (&$safeRedirectRequests) {
+    $safeRedirectRequests[] = $url;
+    if ($url === 'https://8.8.8.8/start-safe.ics') {
+        return [
+            'headers' => ['location' => '/final-safe.ics'],
+            'body' => '',
+            'response' => ['code' => 302, 'message' => 'Found'],
+            'cookies' => [],
+            'filename' => null,
+        ];
+    }
+    if ($url === 'https://8.8.8.8/final-safe.ics') {
+        return [
+            'headers' => [],
+            'body' => 'OK',
+            'response' => ['code' => 200, 'message' => 'OK'],
+            'cookies' => [],
+            'filename' => null,
+        ];
+    }
+    return $preempt;
+};
+add_filter('pre_http_request', $safeRedirectFilter, 10, 3);
+$safeRedirect = OutboundUrlPolicy::get('https://8.8.8.8/start-safe.ics', ['redirection' => 3, 'timeout' => 1]);
+remove_filter('pre_http_request', $safeRedirectFilter, 10);
+wpcb_outbound_assert(
+    !is_wp_error($safeRedirect)
+        && wp_remote_retrieve_response_code($safeRedirect) === 200
+        && $safeRedirectRequests === ['https://8.8.8.8/start-safe.ics', 'https://8.8.8.8/final-safe.ics'],
+    'Allowed redirects are followed only after the destination passes the shared policy.'
+);
+
+$credentialRedirectFilter = static function ($preempt, array $args, string $url) {
+    if ($url === 'https://8.8.8.8/auth-start') {
+        return [
+            'headers' => ['location' => 'https://1.1.1.1/auth-target'],
+            'body' => '',
+            'response' => ['code' => 302, 'message' => 'Found'],
+            'cookies' => [],
+            'filename' => null,
+        ];
+    }
+    return $preempt;
+};
+add_filter('pre_http_request', $credentialRedirectFilter, 10, 3);
+$credentialRedirect = OutboundUrlPolicy::request('PROPFIND', 'https://8.8.8.8/auth-start', [
+    'redirection' => 3,
+    'timeout' => 1,
+    'headers' => ['Authorization' => 'Basic TEST'],
+]);
+remove_filter('pre_http_request', $credentialRedirectFilter, 10);
+wpcb_outbound_assert(
+    is_wp_error($credentialRedirect)
+        && $credentialRedirect->get_error_code() === 'wpcb_outbound_redirect_credentials',
+    'Credentialed calendar requests cannot redirect to another origin.'
+);
+
+wpcb_outbound_assert(
+    Settings::normalizeCalendarUrl('http://127.0.0.1/calendar.ics') === '',
+    'Calendar settings use the shared outbound URL policy.'
+);
+
+$beforeSettings = get_option('wpcb_settings');
+$unsafeUpdate = Settings::update(['calendar_urls' => "https://8.8.8.8/feed.ics\nhttp://127.0.0.1/private.ics"]);
+wpcb_outbound_assert(
+    is_wp_error($unsafeUpdate) && $unsafeUpdate->get_error_code() === 'wpcb_calendar_url_unsafe',
+    'Unsafe calendar settings fail closed with an administrator-facing error.'
+);
+wpcb_outbound_assert(
+    get_option('wpcb_settings') === $beforeSettings,
+    'Rejected calendar settings do not mutate stored configuration.'
+);
+
+$feedSource = file_get_contents(WPCB_DIR . 'includes/Calendar/IcloudProvider.php');
+$calDavSource = file_get_contents(WPCB_DIR . 'includes/Calendar/CalDavClient.php');
+$syncSource = file_get_contents(WPCB_DIR . 'includes/Sync/CalDavClient.php');
+
+wpcb_outbound_assert(
+    strpos($feedSource, 'OutboundUrlPolicy::get') !== false
+        && strpos($feedSource, 'wp_remote_get(') === false,
+    'Public ICS fetching uses the safe outbound policy.'
+);
+wpcb_outbound_assert(
+    strpos($calDavSource, 'OutboundUrlPolicy::request') !== false
+        && strpos($calDavSource, 'wp_remote_request(') === false,
+    'Generic CalDAV uses the safe outbound policy.'
+);
+wpcb_outbound_assert(
+    strpos($syncSource, 'OutboundUrlPolicy::request') !== false
+        && strpos($syncSource, 'wp_remote_request(') === false,
+    'iCloud CalDAV sync uses the safe outbound policy.'
+);
+wpcb_outbound_assert(
+    strpos($calDavSource, "'redirection' => 0") !== false
+        && strpos($syncSource, "'redirection' => 0") !== false,
+    'Authenticated CalDAV requests disable redirects so credentials cannot cross origins.'
+);
+
+WP_CLI::success('Outbound calendar URL policy smoke test passed.');

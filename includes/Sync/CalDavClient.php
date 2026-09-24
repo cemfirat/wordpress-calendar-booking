@@ -2,6 +2,7 @@
 namespace Wpcb\Sync;
 
 use Wpcb\Admin\Settings;
+use Wpcb\Security\OutboundUrlPolicy;
 
 class CalDavClient {
     private string $appleId;
@@ -151,10 +152,9 @@ class CalDavClient {
 
     private function request(string $method, string $url, array $headers = [], ?string $body = null) {
         $headers['Authorization'] = 'Basic ' . base64_encode($this->appleId . ':' . $this->password);
-        return wp_remote_request($url, [
-            'method' => $method,
+        return OutboundUrlPolicy::request($method, $url, [
             'timeout' => 20,
-            'redirection' => 5,
+            'redirection' => 0,
             'headers' => $headers,
             'body' => $body,
             'user-agent' => 'WPCB/' . WPCB_VERSION,
