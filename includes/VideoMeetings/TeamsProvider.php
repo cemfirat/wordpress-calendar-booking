@@ -8,10 +8,14 @@ final class TeamsProvider extends AbstractBearerProvider {
     public function create(array $booking, object $connection): array {
         $token=$this->token($connection);
         if($token==='') return ['ok'=>false,'message'=>'Microsoft Teams access token missing.'];
+        $bookingUuid=trim((string)($booking['booking_uuid']??''));
+        if($bookingUuid==='') return ['ok'=>false,'message'=>'Microsoft Teams requires a stable booking identity.'];
         $cfg=is_array($connection->config ?? null)?$connection->config:[];
         $user=trim((string)($cfg['user_id']??''));
         $base=$user!==''?'https://graph.microsoft.com/v1.0/users/'.rawurlencode($user).'/onlineMeetings':'https://graph.microsoft.com/v1.0/me/onlineMeetings';
-        $r=$this->request('POST',$base,$token,[
+        $externalId='wpcb-' . substr(hash('sha256', home_url('/') . '|' . $bookingUuid . '|' . (int)$connection->id),0,48);
+        $r=$this->request('POST',$base.'/createOrGet',$token,[
+            'externalId'=>$externalId,
             'startDateTime'=>(new \DateTimeImmutable((string)$booking['slot_start'],new \DateTimeZone('UTC')))->format(DATE_ATOM),
             'endDateTime'=>(new \DateTimeImmutable((string)$booking['slot_end'],new \DateTimeZone('UTC')))->format(DATE_ATOM),
             'subject'=>$this->topic($booking),
