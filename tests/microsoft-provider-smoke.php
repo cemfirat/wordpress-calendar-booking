@@ -254,6 +254,20 @@ $booking = [
 ];
 $created = $provider->createEvent($booking, ['subject' => 'Microsoft CI'], $work);
 wpcb_ms_assert(is_array($created) && ($created['event_id'] ?? '') === 'event-ci', 'Microsoft event create returns the Graph event ID.');
+$eventCreateCalls = array_values(array_filter(
+    $calls,
+    static fn($call): bool =>
+        strtoupper((string)($call['method'] ?? '')) === 'POST'
+        && str_ends_with((string)($call['url'] ?? ''), '/me/calendar/events')
+));
+$eventCreatePayload = $eventCreateCalls
+    ? json_decode((string)($eventCreateCalls[array_key_last($eventCreateCalls)]['body'] ?? ''), true)
+    : null;
+wpcb_ms_assert(
+    is_array($eventCreatePayload)
+    && ($eventCreatePayload['transactionId'] ?? '') === $booking['booking_uuid'],
+    'Microsoft event creation keeps the stable booking UUID transactionId for retry deduplication.'
+);
 
 $updated = $provider->updateEvent($booking, ['subject' => 'Microsoft CI updated'], $work, 'event-ci');
 wpcb_ms_assert(is_array($updated) && !empty($updated['ok']), 'Microsoft event update succeeds.');
