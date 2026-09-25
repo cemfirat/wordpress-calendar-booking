@@ -110,7 +110,7 @@ class StableUpgradeTests(unittest.TestCase):
         env = {'GITHUB_ACTIONS': 'true', 'RUNNER_TEMP': str(self.root), 'GITHUB_WORKSPACE': str(workspace)}
         with patch.dict(os.environ, env), patch.object(upgrade, 'wp', return_value='production.example') as command, patch.object(upgrade.urllib.request, 'urlopen') as network:
             with self.assertRaises(RuntimeError):
-                upgrade.main(source, '3.19.7')
+                upgrade.main(source, '3.19.8')
             self.assertEqual(command.call_count, 1)
             network.assert_not_called()
 
