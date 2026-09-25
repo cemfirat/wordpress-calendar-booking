@@ -3,8 +3,21 @@ namespace Wpcb\Database;
 
 class Schema {
     public static function install(): void {
-        global $wpdb;
         require_once ABSPATH . 'wp-admin/includes/upgrade.php';
+        foreach (self::statements() as $statement) {
+            dbDelta($statement);
+        }
+    }
+
+    /**
+     * Canonical idempotent DDL used both by dbDelta and post-migration
+     * verification. Keeping one source of truth prevents the verifier from
+     * drifting away from the schema that WordPress is asked to install.
+     *
+     * @return string[]
+     */
+    public static function statements(): array {
+        global $wpdb;
         $charset = $wpdb->get_charset_collate();
         $prefix = $wpdb->prefix . 'wpcb_';
 
@@ -486,8 +499,6 @@ class Schema {
             KEY updated_at (updated_at)
         ) {$charset};";
 
-        foreach ($sql as $statement) {
-            dbDelta($statement);
-        }
+        return $sql;
     }
 }

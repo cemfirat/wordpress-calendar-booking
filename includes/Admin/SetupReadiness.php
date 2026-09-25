@@ -2,10 +2,24 @@
 namespace Wpcb\Admin;
 
 use Wpcb\Reliability\SchedulerHealth;
+use Wpcb\Database\SchemaMigration;
 
 final class SetupReadiness {
     public function snapshot(): array {
         global $wpdb;
+
+        if (!SchemaMigration::isReady()) {
+            $items = [
+                $this->item(
+                    'schema',
+                    false,
+                    __('Datenbankstruktur', 'wordpress-calendar-booking'),
+                    __('Die erforderlichen Plugin-Tabellen, Spalten oder Indizes sind noch nicht vollständig verifiziert. Neue Buchungen bleiben bis zur erfolgreichen Reparatur gesperrt.', 'wordpress-calendar-booking'),
+                    admin_url('site-health.php')
+                ),
+            ];
+            return ['ready' => false, 'items' => $items];
+        }
 
         $settings = Settings::get();
         $health = (new SchedulerHealth())->snapshot();

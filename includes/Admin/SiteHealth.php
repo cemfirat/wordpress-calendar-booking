@@ -117,7 +117,8 @@ final class SiteHealth {
             'description' => __('Nicht-sensitive Betriebsmetadaten für Diagnosezwecke. Kunden-, Zahlungs-, Kalender- und Zugangsdaten werden nicht ausgegeben.', 'wordpress-calendar-booking'),
             'fields' => [
                 'version' => $this->field(__('Plugin-Version', 'wordpress-calendar-booking'), defined('WPCB_VERSION') ? WPCB_VERSION : ''),
-                'schema_version' => $this->field(__('Datenbankschema', 'wordpress-calendar-booking'), (string)SchemaMigration::currentVersion()),
+                'schema_version' => $this->field(__('Datenbankschema (gespeichert / erwartet)', 'wordpress-calendar-booking'), SchemaMigration::recordedVersion() . ' / ' . SchemaMigration::currentVersion()),
+                'schema_verified' => $this->field(__('Datenbankschema verifiziert', 'wordpress-calendar-booking'), SchemaMigration::isReady() ? 'yes' : 'no'),
                 'resource_model_version' => $this->field(__('Ressourcenmodell', 'wordpress-calendar-booking'), (string)ResourceMigration::currentVersion()),
                 'core_ready' => $this->field(__('Kern-Bereitschaft', 'wordpress-calendar-booking'), !empty($readiness['ready']) ? 'yes' : 'no'),
                 'scheduler_healthy' => $this->field(__('Scheduler gesund', 'wordpress-calendar-booking'), !empty($scheduler['healthy']) ? 'yes' : 'no'),

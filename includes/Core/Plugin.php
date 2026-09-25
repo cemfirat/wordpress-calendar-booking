@@ -39,13 +39,20 @@ use Wpcb\Admin\ConfigurationBackupPage;
 
 class Plugin {
     public function boot(): void {
-        SchemaMigration::maybeRun();
+        $schemaReady = SchemaMigration::maybeRun();
+        load_plugin_textdomain('wordpress-calendar-booking', false, dirname(WPCB_BASENAME) . '/languages');
+        (new SiteHealth())->boot();
+
+        if (!$schemaReady || !SchemaMigration::isReady()) {
+            add_action('admin_notices', [SchemaMigration::class, 'renderAdminNotice']);
+            return;
+        }
+
         ResourceMigration::maybeRun();
         TokenMigration::maybeRun();
         SecretMigration::maybeRun();
         TimeMigration::maybeRun();
         BookingStatusMigration::maybeRun();
-        load_plugin_textdomain('wordpress-calendar-booking', false, dirname(WPCB_BASENAME) . '/languages');
         (new BookingTransitionEffects())->boot();
         (new Admin())->boot();
         (new \Wpcb\Admin\DemoCalendarPage())->boot();
@@ -70,7 +77,6 @@ class Plugin {
         (new WaitingListPrivacy())->boot();
         (new VideoMeetingService())->boot();
         (new VideoMeetingAdminPage())->boot();
-        (new SiteHealth())->boot();
         (new ConfigurationBackupPage())->boot();
         (new Shortcodes())->boot();
         (new \Wpcb\Frontend\BookingEntryGuard())->boot();

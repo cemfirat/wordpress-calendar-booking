@@ -10,7 +10,9 @@ use Wpcb\Resources\ResourceMigration;
 
 class Activator {
     public static function activate(): void {
-        SchemaMigration::maybeRun();
+        if (!SchemaMigration::maybeRun()) {
+            return;
+        }
         TokenMigration::maybeRun();
         SecretMigration::maybeRun();
         TimeMigration::maybeRun();

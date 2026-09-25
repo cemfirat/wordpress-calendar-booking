@@ -224,6 +224,1377 @@ jobs:
           wp plugin activate wordpress-calendar-booking --path="$WP_ROOT"
       - name: Run WordPress smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Verify schema migration failure and recovery
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/schema-migration-recovery.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Verify concurrent schema migration lock
+        if: matrix.wordpress == 'latest'
+        run: |
+          set -euo pipefail
+          wp eval-file "$GITHUB_WORKSPACE/tests/schema-lock-holder.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/schema-lock-holder.txt" 2>&1 &
+          holder_pid=$!
+
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if grep -q '^LOCKED      - name: Run booking abuse-protection smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/security-guard-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run availability abuse/cost smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/availability-abuse-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run outbound calendar URL safety smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/outbound-url-policy-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run external calendar response bound smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/calendar-response-bounds-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run booking export smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-export-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run admin booking pagination smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-pagination-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run booking audit history smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-audit-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run setup readiness smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/setup-readiness-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run WordPress Site Health integration smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/site-health-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run configuration CRUD smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/configuration-crud-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run configuration backup and restore smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/configuration-backup-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run resource scheduling smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/resource-scheduling-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run scheduling buffer policy smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/buffer-policy-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run capacity/group booking smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/capacity-booking-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run scheduler health smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/scheduler-health-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run notification delivery smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/notification-delivery-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run retryable email delivery smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/email-retry-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run portal durable mail smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/portal-mail-retry-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run waiting-list durable mail smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/waiting-list-mail-retry-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run video-ready durable mail smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/video-mail-retry-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run mail diagnostics smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/mail-diagnostics-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run Gutenberg blocks smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/gutenberg-blocks-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run Microsoft Graph provider smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/microsoft-provider-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run CalDAV provider smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/caldav-provider-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run provider diagnostics smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/provider-diagnostics-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run REST API and webhook smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/api-webhook-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run customer portal smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/customer-portal-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run payment lifecycle smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/payment-lifecycle-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run Stripe Checkout smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/stripe-payment-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run Stripe Checkout resume smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/stripe-resume-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run waiting list smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/waiting-list-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run video meeting smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/video-meeting-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run recurring booking series smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/recurring-series-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run paid recurring series smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/paid-recurring-series-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Verify partial refund cancellation and provider races
+        if: matrix.wordpress == 'latest'
+        run: |
+          set -euo pipefail
+          fixture="$(wp eval-file "$GITHUB_WORKSPACE/tests/create-partial-refund-race-fixture.php" --path="$RUNNER_TEMP/wordpress")"
+          booking_a="${fixture%%|*}"
+          rest="${fixture#*|}"
+          booking_b="${rest%%|*}"
+          rest="${rest#*|}"
+          payment_id="${rest%%|*}"
+          rest="${rest#*|}"
+          expected_pending="${rest%%|*}"
+
+          WPCB_TEST_BOOKING_ID="$booking_a" wp eval-file "$GITHUB_WORKSPACE/tests/cancel-partial-refund-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/refund-cancel-a.txt" &
+          first_pid=$!
+          WPCB_TEST_BOOKING_ID="$booking_b" wp eval-file "$GITHUB_WORKSPACE/tests/cancel-partial-refund-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/refund-cancel-b.txt" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+          cat "$RUNNER_TEMP/refund-cancel-a.txt" "$RUNNER_TEMP/refund-cancel-b.txt"
+          test "$(grep -c '^CANCELLED' "$RUNNER_TEMP/refund-cancel-a.txt" "$RUNNER_TEMP/refund-cancel-b.txt" | awk -F: '{n+=$NF} END{print n+0}')" -eq 2
+
+          queued="$(WPCB_TEST_STATE_ACTION=payment WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/partial-refund-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$queued" = "refund_pending|0|$expected_pending|10001"
+
+          WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/refund-partial-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/refund-a.txt" &
+          first_pid=$!
+          WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/refund-partial-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/refund-b.txt" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+          cat "$RUNNER_TEMP/refund-a.txt" "$RUNNER_TEMP/refund-b.txt"
+          refunded_count="$(awk '/^REFUNDED /{n++} END{print n+0}' "$RUNNER_TEMP/refund-a.txt" "$RUNNER_TEMP/refund-b.txt")"
+          rejected_count="$(awk '/^REJECTED /{n++} END{print n+0}' "$RUNNER_TEMP/refund-a.txt" "$RUNNER_TEMP/refund-b.txt")"
+          test "$refunded_count" -eq 1
+          test "$rejected_count" -eq 1
+
+          final="$(WPCB_TEST_STATE_ACTION=payment WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/partial-refund-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$final" = "paid|$expected_pending|0|10001"
+
+          cleanup="$(WPCB_TEST_STATE_ACTION=cleanup WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/partial-refund-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$cleanup" = "CLEAN"
+
+      - name: Verify GET-safe and POST-only public booking actions
+        if: matrix.wordpress == 'latest'
+        run: python3 "$GITHUB_WORKSPACE/tests/public-action-flow.py"
+      - name: Verify concurrent reservation serialization
+        if: matrix.wordpress == 'latest'
+        run: |
+          set -euo pipefail
+          fixture="$(wp eval-file "$GITHUB_WORKSPACE/tests/create-reservation-fixture.php" --path="$RUNNER_TEMP/wordpress")"
+          export WPCB_TEST_TYPE_ID="${fixture%%|*}"
+          export WPCB_TEST_SLOT_TOKEN="${fixture#*|}"
+          echo "Fixture type: $WPCB_TEST_TYPE_ID"
+          echo "Slot token length: ${#WPCB_TEST_SLOT_TOKEN}"
+          printf '%s' "$WPCB_TEST_SLOT_TOKEN" | grep -Eq '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
+
+          token_check="$(wp eval-file "$GITHUB_WORKSPACE/tests/verify-slot-token.php" --path="$RUNNER_TEMP/wordpress")"
+          echo "$token_check"
+          test "$token_check" = "TOKEN_OK"
+
+          WPCB_TEST_EMAIL=first@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-a.txt" &
+          first_pid=$!
+          WPCB_TEST_EMAIL=second@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-b.txt" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+          cat "$RUNNER_TEMP/reserve-a.txt" "$RUNNER_TEMP/reserve-b.txt"
+          reserved_count="$(awk '/^RESERVED /{n++} END{print n+0}' "$RUNNER_TEMP/reserve-a.txt" "$RUNNER_TEMP/reserve-b.txt")"
+          rejected_count="$(awk '/^REJECTED /{n++} END{print n+0}' "$RUNNER_TEMP/reserve-a.txt" "$RUNNER_TEMP/reserve-b.txt")"
+          test "$reserved_count" -eq 1
+          test "$rejected_count" -eq 1
+
+          booking_count="$(WPCB_TEST_STATE_ACTION=count wp eval-file "$GITHUB_WORKSPACE/tests/reservation-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$booking_count" -eq 1
+
+          expire_result="$(WPCB_TEST_STATE_ACTION=expire wp eval-file "$GITHUB_WORKSPACE/tests/reservation-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$expire_result" = "EXPIRED"
+
+          WPCB_TEST_EMAIL=after-expiry@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-after-expiry.txt"
+          cat "$RUNNER_TEMP/reserve-after-expiry.txt"
+          grep -q '^RESERVED ' "$RUNNER_TEMP/reserve-after-expiry.txt"
+
+          booking_count="$(WPCB_TEST_STATE_ACTION=count wp eval-file "$GITHUB_WORKSPACE/tests/reservation-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$booking_count" -eq 2
+
+      - name: Verify independent resources reserve concurrently
+        if: matrix.wordpress == 'latest'
+        run: |
+          set -euo pipefail
+          fixture="$(wp eval-file "$GITHUB_WORKSPACE/tests/create-resource-race-fixture.php" --path="$RUNNER_TEMP/wordpress")"
+          export WPCB_TEST_TYPE_ID="${fixture%%|*}"
+          rest="${fixture#*|}"
+          token_a="${rest%%|*}"
+          token_b="${rest#*|}"
+
+          test -n "$token_a"
+          test -n "$token_b"
+
+          WPCB_TEST_SLOT_TOKEN="$token_a" WPCB_TEST_EMAIL=resource-a@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/resource-a.txt" &
+          first_pid=$!
+          WPCB_TEST_SLOT_TOKEN="$token_b" WPCB_TEST_EMAIL=resource-b@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/resource-b.txt" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+          cat "$RUNNER_TEMP/resource-a.txt" "$RUNNER_TEMP/resource-b.txt"
+          grep -q '^RESERVED ' "$RUNNER_TEMP/resource-a.txt"
+          grep -q '^RESERVED ' "$RUNNER_TEMP/resource-b.txt"
+      - name: Verify last-seat capacity race
+        if: matrix.wordpress == 'latest'
+        run: |
+          set -euo pipefail
+          fixture="$(wp eval-file "$GITHUB_WORKSPACE/tests/create-capacity-race-fixture.php" --path="$RUNNER_TEMP/wordpress")"
+          export WPCB_TEST_TYPE_ID="${fixture%%|*}"
+          export WPCB_TEST_SLOT_TOKEN="${fixture#*|}"
+
+          WPCB_TEST_PARTY_SIZE=2 WPCB_TEST_EMAIL=capacity-a@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/capacity-a.txt" &
+          first_pid=$!
+          WPCB_TEST_PARTY_SIZE=2 WPCB_TEST_EMAIL=capacity-b@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/capacity-b.txt" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+          cat "$RUNNER_TEMP/capacity-a.txt" "$RUNNER_TEMP/capacity-b.txt"
+          reserved_count="$(awk '/^RESERVED /{n++} END{print n+0}' "$RUNNER_TEMP/capacity-a.txt" "$RUNNER_TEMP/capacity-b.txt")"
+          rejected_count="$(awk '/^REJECTED /{n++} END{print n+0}' "$RUNNER_TEMP/capacity-a.txt" "$RUNNER_TEMP/capacity-b.txt")"
+          test "$reserved_count" -eq 1
+          test "$rejected_count" -eq 1
+
+
+  package:
+    name: Build release ZIP
+    needs: [dependency_locks]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build local UIkit fallback
+        run: |
+          npm ci --omit=dev --no-audit --no-fund
+          npm run build:assets
+      - name: Install production Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --no-dev --optimize-autoloader
+      - name: Build reproducible ZIP
+        run: |
+          python3 scripts/package.py
+          python3 scripts/package.py "$RUNNER_TEMP/wpcb-repeat.zip"
+          cmp dist/wordpress-calendar-booking.zip "$RUNNER_TEMP/wpcb-repeat.zip"
+      - name: Verify release contents
+        run: |
+          set -euo pipefail
+          unzip -t dist/wordpress-calendar-booking.zip
+          unzip -l dist/wordpress-calendar-booking.zip > "$RUNNER_TEMP/zip-list.txt"
+          cat "$RUNNER_TEMP/zip-list.txt"
+          ! grep -E '/(tests|node_modules|scripts|\.git|\.github)/' "$RUNNER_TEMP/zip-list.txt"
+          ! grep -E '/(package(-lock)?\.json|composer\.json|composer\.lock)$' "$RUNNER_TEMP/zip-list.txt"
+          grep -q 'wordpress-calendar-booking/vendor/autoload.php' "$RUNNER_TEMP/zip-list.txt"
+          grep -q 'wordpress-calendar-booking/assets/vendor/uikit/uikit.min.css' "$RUNNER_TEMP/zip-list.txt"
+          grep -q 'wordpress-calendar-booking/LICENSE' "$RUNNER_TEMP/zip-list.txt"
+      - name: Generate and verify release checksum
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum wordpress-calendar-booking.zip > wordpress-calendar-booking.zip.sha256
+          sha256sum -c wordpress-calendar-booking.zip.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-package
+          path: |
+            dist/wordpress-calendar-booking.zip
+            dist/wordpress-calendar-booking.zip.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  browser_release:
+    name: Browser release acceptance
+    needs: [package]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Install WordPress and packaged plugin
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCB-Browser --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+          mkdir -p "$WP_ROOT/wp-content/mu-plugins"
+          cp "$GITHUB_WORKSPACE/tests/browser-release-mu.php" "$WP_ROOT/wp-content/mu-plugins/wpcb-browser-release.php"
+      - name: Install browser test runtime
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Run packaged release browser acceptance
+        env:
+          WP_ROOT: ${{ runner.temp }}/wordpress
+          WPCB_E2E_BASE_URL: http://127.0.0.1:8080
+          WPCB_E2E_ADMIN_USER: admin
+          WPCB_E2E_ADMIN_PASSWORD: integration-only
+        run: |
+          set -euo pipefail
+          wp server --host=127.0.0.1 --port=8080 --path="$WP_ROOT" > "$RUNNER_TEMP/wpcb-browser-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/ >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+
+          npx playwright test tests/browser-release.spec.mjs --reporter=line
+      - name: Upload redacted browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-release-failure
+          path: tests/browser-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
+  fresh_release:
+    name: Fresh install release ZIP
+    needs: [package]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Install WordPress and release ZIP
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBRelease --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+          wp eval-file "$GITHUB_WORKSPACE/tests/release-fresh.php" --path="$WP_ROOT"
+
+  legacy_upgrade:
+    name: Imported 1.x migration
+    needs: [package]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Create imported 1.x fixture
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBLegacy --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp eval-file "$GITHUB_WORKSPACE/tests/legacy-1x-fixture.php" --path="$WP_ROOT"
+      - name: Install release ZIP and verify migrations
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+          wp eval-file "$GITHUB_WORKSPACE/tests/legacy-upgrade-assert.php" --path="$WP_ROOT"
+
+  uninstall_release:
+    name: Packaged uninstall policy
+    needs: [package]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Install WordPress and packaged plugin
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCB-Uninstall --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+      - name: Verify default uninstall preserves durable data
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp eval '
+            $s=(array)get_option("wpcb_settings",[]);
+            $s["delete_data_on_uninstall"]=0;
+            update_option("wpcb_settings",$s);
+            set_transient("wpcb_uninstall_fixture","cache",HOUR_IN_SECONDS);
+            wp_schedule_single_event(time()+3600,"wpcb_waitlist_send_offer",[999999]);
+            global $wpdb;
+            $now=gmdate("Y-m-d H:i:s");
+            $wpdb->insert($wpdb->prefix."wpcb_booking_types",[
+              "name"=>"Uninstall fixture","slug"=>"uninstall-fixture","description"=>"",
+              "duration_minutes"=>30,"buffer_before_minutes"=>0,"buffer_after_minutes"=>0,
+              "capacity"=>1,"show_remaining_capacity"=>0,"payment_mode"=>"free","price_minor"=>0,
+              "currency"=>"EUR","is_active"=>1,"is_public"=>0,"sort_order"=>0,
+              "created_at"=>$now,"updated_at"=>$now
+            ]);
+          ' --path="$WP_ROOT"
+          wp plugin uninstall wordpress-calendar-booking --deactivate --path="$WP_ROOT"
+          test "$(wp db query "SHOW TABLES LIKE 'wp_wpcb_booking_types'" --skip-column-names --path="$WP_ROOT")" = "wp_wpcb_booking_types"
+          test "$(wp option get wpcb_settings --format=json --path="$WP_ROOT" >/dev/null 2>&1; echo $?)" -eq 0
+          test "$(wp eval 'echo get_transient("wpcb_uninstall_fixture")===false ? "clean" : "left";' --path="$WP_ROOT")" = "clean"
+          test "$(wp eval '$c=_get_cron_array(); $found=false; foreach((array)$c as $events){ if(isset($events["wpcb_waitlist_send_offer"])){$found=true;}} echo $found?"left":"clean";' --path="$WP_ROOT")" = "clean"
+      - name: Verify explicit destructive uninstall removes plugin-owned data
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+          wp eval '
+            $s=(array)get_option("wpcb_settings",[]);
+            $s["delete_data_on_uninstall"]=1;
+            update_option("wpcb_settings",$s);
+          ' --path="$WP_ROOT"
+          wp plugin uninstall wordpress-calendar-booking --deactivate --path="$WP_ROOT"
+          table_count="$(wp db query "SHOW TABLES LIKE 'wp_wpcb_%'" --skip-column-names --path="$WP_ROOT" | wc -l | tr -d ' ')"
+          test "$table_count" -eq 0
+          option_count="$(wp db query "SELECT COUNT(*) FROM wp_options WHERE option_name LIKE 'wpcb\\_%'" --skip-column-names --path="$WP_ROOT")"
+          test "$option_count" -eq 0
+
+  release:
+    name: Publish stable release
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [docs, php, dependency_audit, i18n, wordpress, fresh_release, legacy_upgrade, browser_release, uninstall_release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    concurrency:
+      group: calendar-booking-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Prepare release metadata
+        id: metadata
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          text = pathlib.Path('wordpress-calendar-booking.php').read_text()
+          def header(name):
+              match = re.search(r'^ \* ' + re.escape(name) + r': ([0-9.]+)$', text, re.M)
+              assert match, name
+              return match.group(1)
+          version = header('Version')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'tag=v{version}\n')
+          changelog = pathlib.Path('CHANGELOG.md').read_text()
+          section = changelog.split(f'## {version}\n', 1)[1].split('\n## ', 1)[0].strip()
+          notes = f"Requires WordPress: {header('Requires at least')}\nRequires PHP: {header('Requires PHP')}\n\n{section}\n"
+          pathlib.Path('dist/release-notes.md').write_text(notes)
+          PY
+      - name: Verify packaged checksum
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum -c wordpress-calendar-booking.zip.sha256
+      - name: Generate release build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/wordpress-calendar-booking.zip
+      - name: Publish exact stable asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' > "$RUNNER_TEMP/release-draft" 2>/dev/null; then
+            if [ "$(cat "$RUNNER_TEMP/release-draft")" = false ]; then
+              echo "Release $RELEASE_TAG already published; keeping it immutable."
+              exit 0
+            fi
+          else
+            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "WordPress Calendar Booking $RELEASE_TAG" --notes-file dist/release-notes.md --draft
+          fi
+          gh release upload "$RELEASE_TAG" dist/wordpress-calendar-booking.zip dist/wordpress-calendar-booking.zip.sha256 --clobber
+          gh release edit "$RELEASE_TAG" --notes-file dist/release-notes.md --draft=false --latest
+
+  production_update:
+    name: Public GitHub updater smoke test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      attestations: read
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Verify current build checksum and provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum -c wordpress-calendar-booking.zip.sha256)
+          gh attestation verify dist/wordpress-calendar-booking.zip -R "$GITHUB_REPOSITORY"
+      - name: Resolve updater versions
+        run: |
+          set -euo pipefail
+          TARGET_VERSION="$(python3 - <<'PY'
+          import pathlib, re
+          text = pathlib.Path("wordpress-calendar-booking.php").read_text()
+          match = re.search(r"^ \* Version: ([0-9.]+)$", text, re.M)
+          assert match, "plugin header version is missing"
+          print(match.group(1))
+          PY
+          )"
+          echo "TARGET_VERSION=$TARGET_VERSION" >> "$GITHUB_ENV"
+          echo "SYNTHETIC_VERSION=0.0.0" >> "$GITHUB_ENV"
+      - name: Verify published release checksum and provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/verify_public_release.py download "$TARGET_VERSION" "$RUNNER_TEMP/wpcb-public-release"
+      - name: Build synthetic pre-release installation
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/synthetic"
+          unzip -q dist/wordpress-calendar-booking.zip -d "$RUNNER_TEMP/synthetic"
+          python3 - <<'PY'
+          import os, pathlib, re
+          p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/wordpress-calendar-booking.php"
+          target = os.environ["TARGET_VERSION"]
+          synthetic = os.environ["SYNTHETIC_VERSION"]
+          text = p.read_text()
+          text, count = re.subn(r"^ \* Version: " + re.escape(target) + r"$", " * Version: " + synthetic, text, count=1, flags=re.M)
+          assert count == 1, "synthetic header version replacement failed"
+          old_define = "define('WPCB_VERSION', '" + target + "');"
+          new_define = "define('WPCB_VERSION', '" + synthetic + "');"
+          assert old_define in text, "synthetic constant version replacement failed"
+          p.write_text(text.replace(old_define, new_define, 1))
+          PY
+          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-synthetic.zip" wordpress-calendar-booking)
+      - name: Install synthetic old version
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBUpdater --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp plugin install "$RUNNER_TEMP/calendar-booking-synthetic.zip" --activate --path="$WP_ROOT"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "$SYNTHETIC_VERSION"
+      - name: Discover real public release
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          found=0
+          for attempt in 1 2 3 4 5 6; do
+            version="$(wp eval '
+              require_once ABSPATH . "wp-admin/includes/update.php";
+              delete_site_transient(Wpcb\Updates\GitHubUpdater::CACHE_KEY);
+              delete_site_transient("update_plugins");
+              wp_update_plugins();
+              $updates = get_site_transient("update_plugins");
+              $basename = plugin_basename(WPCB_FILE);
+              if (isset($updates->response[$basename])) {
+                  echo $updates->response[$basename]->new_version;
+              }
+            ' --path="$WP_ROOT")"
+            if [ "$version" = "$TARGET_VERSION" ]; then
+              found=1
+              break
+            fi
+            sleep 5
+          done
+          test "$found" -eq 1
+      - name: Update through WordPress from public GitHub
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp plugin update wordpress-calendar-booking --path="$WP_ROOT"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "$TARGET_VERSION"
+          wp plugin is-active wordpress-calendar-booking --path="$WP_ROOT"
+          python3 scripts/verify_public_release.py installed "$TARGET_VERSION" "$RUNNER_TEMP/wpcb-public-release/wordpress-calendar-booking.zip" "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking"
+          echo "PASS: synthetic $SYNTHETIC_VERSION updated through the public GitHub release to $TARGET_VERSION."
+ "$RUNNER_TEMP/schema-lock-holder.txt"; then
+              break
+            fi
+            sleep 0.5
+          done
+          cat "$RUNNER_TEMP/schema-lock-holder.txt"
+          grep -q '^LOCKED      - name: Run booking abuse-protection smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/security-guard-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run availability abuse/cost smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/availability-abuse-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run outbound calendar URL safety smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/outbound-url-policy-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run external calendar response bound smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/calendar-response-bounds-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run booking export smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-export-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run admin booking pagination smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-pagination-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run booking audit history smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/booking-audit-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run setup readiness smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/setup-readiness-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run WordPress Site Health integration smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/site-health-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run configuration CRUD smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/configuration-crud-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run configuration backup and restore smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/configuration-backup-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run resource scheduling smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/resource-scheduling-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run scheduling buffer policy smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/buffer-policy-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run capacity/group booking smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/capacity-booking-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run scheduler health smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/scheduler-health-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run notification delivery smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/notification-delivery-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run retryable email delivery smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/email-retry-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run portal durable mail smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/portal-mail-retry-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run waiting-list durable mail smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/waiting-list-mail-retry-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run video-ready durable mail smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/video-mail-retry-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run mail diagnostics smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/mail-diagnostics-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run Gutenberg blocks smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/gutenberg-blocks-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run Microsoft Graph provider smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/microsoft-provider-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run CalDAV provider smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/caldav-provider-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run provider diagnostics smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/provider-diagnostics-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run REST API and webhook smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/api-webhook-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run customer portal smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/customer-portal-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run payment lifecycle smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/payment-lifecycle-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run Stripe Checkout smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/stripe-payment-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run Stripe Checkout resume smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/stripe-resume-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run waiting list smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/waiting-list-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run video meeting smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/video-meeting-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run recurring booking series smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/recurring-series-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run paid recurring series smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/paid-recurring-series-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Verify partial refund cancellation and provider races
+        if: matrix.wordpress == 'latest'
+        run: |
+          set -euo pipefail
+          fixture="$(wp eval-file "$GITHUB_WORKSPACE/tests/create-partial-refund-race-fixture.php" --path="$RUNNER_TEMP/wordpress")"
+          booking_a="${fixture%%|*}"
+          rest="${fixture#*|}"
+          booking_b="${rest%%|*}"
+          rest="${rest#*|}"
+          payment_id="${rest%%|*}"
+          rest="${rest#*|}"
+          expected_pending="${rest%%|*}"
+
+          WPCB_TEST_BOOKING_ID="$booking_a" wp eval-file "$GITHUB_WORKSPACE/tests/cancel-partial-refund-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/refund-cancel-a.txt" &
+          first_pid=$!
+          WPCB_TEST_BOOKING_ID="$booking_b" wp eval-file "$GITHUB_WORKSPACE/tests/cancel-partial-refund-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/refund-cancel-b.txt" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+          cat "$RUNNER_TEMP/refund-cancel-a.txt" "$RUNNER_TEMP/refund-cancel-b.txt"
+          test "$(grep -c '^CANCELLED' "$RUNNER_TEMP/refund-cancel-a.txt" "$RUNNER_TEMP/refund-cancel-b.txt" | awk -F: '{n+=$NF} END{print n+0}')" -eq 2
+
+          queued="$(WPCB_TEST_STATE_ACTION=payment WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/partial-refund-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$queued" = "refund_pending|0|$expected_pending|10001"
+
+          WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/refund-partial-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/refund-a.txt" &
+          first_pid=$!
+          WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/refund-partial-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/refund-b.txt" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+          cat "$RUNNER_TEMP/refund-a.txt" "$RUNNER_TEMP/refund-b.txt"
+          refunded_count="$(awk '/^REFUNDED /{n++} END{print n+0}' "$RUNNER_TEMP/refund-a.txt" "$RUNNER_TEMP/refund-b.txt")"
+          rejected_count="$(awk '/^REJECTED /{n++} END{print n+0}' "$RUNNER_TEMP/refund-a.txt" "$RUNNER_TEMP/refund-b.txt")"
+          test "$refunded_count" -eq 1
+          test "$rejected_count" -eq 1
+
+          final="$(WPCB_TEST_STATE_ACTION=payment WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/partial-refund-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$final" = "paid|$expected_pending|0|10001"
+
+          cleanup="$(WPCB_TEST_STATE_ACTION=cleanup WPCB_TEST_PAYMENT_ID="$payment_id" wp eval-file "$GITHUB_WORKSPACE/tests/partial-refund-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$cleanup" = "CLEAN"
+
+      - name: Verify GET-safe and POST-only public booking actions
+        if: matrix.wordpress == 'latest'
+        run: python3 "$GITHUB_WORKSPACE/tests/public-action-flow.py"
+      - name: Verify concurrent reservation serialization
+        if: matrix.wordpress == 'latest'
+        run: |
+          set -euo pipefail
+          fixture="$(wp eval-file "$GITHUB_WORKSPACE/tests/create-reservation-fixture.php" --path="$RUNNER_TEMP/wordpress")"
+          export WPCB_TEST_TYPE_ID="${fixture%%|*}"
+          export WPCB_TEST_SLOT_TOKEN="${fixture#*|}"
+          echo "Fixture type: $WPCB_TEST_TYPE_ID"
+          echo "Slot token length: ${#WPCB_TEST_SLOT_TOKEN}"
+          printf '%s' "$WPCB_TEST_SLOT_TOKEN" | grep -Eq '^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$'
+
+          token_check="$(wp eval-file "$GITHUB_WORKSPACE/tests/verify-slot-token.php" --path="$RUNNER_TEMP/wordpress")"
+          echo "$token_check"
+          test "$token_check" = "TOKEN_OK"
+
+          WPCB_TEST_EMAIL=first@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-a.txt" &
+          first_pid=$!
+          WPCB_TEST_EMAIL=second@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-b.txt" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+          cat "$RUNNER_TEMP/reserve-a.txt" "$RUNNER_TEMP/reserve-b.txt"
+          reserved_count="$(awk '/^RESERVED /{n++} END{print n+0}' "$RUNNER_TEMP/reserve-a.txt" "$RUNNER_TEMP/reserve-b.txt")"
+          rejected_count="$(awk '/^REJECTED /{n++} END{print n+0}' "$RUNNER_TEMP/reserve-a.txt" "$RUNNER_TEMP/reserve-b.txt")"
+          test "$reserved_count" -eq 1
+          test "$rejected_count" -eq 1
+
+          booking_count="$(WPCB_TEST_STATE_ACTION=count wp eval-file "$GITHUB_WORKSPACE/tests/reservation-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$booking_count" -eq 1
+
+          expire_result="$(WPCB_TEST_STATE_ACTION=expire wp eval-file "$GITHUB_WORKSPACE/tests/reservation-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$expire_result" = "EXPIRED"
+
+          WPCB_TEST_EMAIL=after-expiry@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/reserve-after-expiry.txt"
+          cat "$RUNNER_TEMP/reserve-after-expiry.txt"
+          grep -q '^RESERVED ' "$RUNNER_TEMP/reserve-after-expiry.txt"
+
+          booking_count="$(WPCB_TEST_STATE_ACTION=count wp eval-file "$GITHUB_WORKSPACE/tests/reservation-race-state.php" --path="$RUNNER_TEMP/wordpress")"
+          test "$booking_count" -eq 2
+
+      - name: Verify independent resources reserve concurrently
+        if: matrix.wordpress == 'latest'
+        run: |
+          set -euo pipefail
+          fixture="$(wp eval-file "$GITHUB_WORKSPACE/tests/create-resource-race-fixture.php" --path="$RUNNER_TEMP/wordpress")"
+          export WPCB_TEST_TYPE_ID="${fixture%%|*}"
+          rest="${fixture#*|}"
+          token_a="${rest%%|*}"
+          token_b="${rest#*|}"
+
+          test -n "$token_a"
+          test -n "$token_b"
+
+          WPCB_TEST_SLOT_TOKEN="$token_a" WPCB_TEST_EMAIL=resource-a@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/resource-a.txt" &
+          first_pid=$!
+          WPCB_TEST_SLOT_TOKEN="$token_b" WPCB_TEST_EMAIL=resource-b@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/resource-b.txt" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+          cat "$RUNNER_TEMP/resource-a.txt" "$RUNNER_TEMP/resource-b.txt"
+          grep -q '^RESERVED ' "$RUNNER_TEMP/resource-a.txt"
+          grep -q '^RESERVED ' "$RUNNER_TEMP/resource-b.txt"
+      - name: Verify last-seat capacity race
+        if: matrix.wordpress == 'latest'
+        run: |
+          set -euo pipefail
+          fixture="$(wp eval-file "$GITHUB_WORKSPACE/tests/create-capacity-race-fixture.php" --path="$RUNNER_TEMP/wordpress")"
+          export WPCB_TEST_TYPE_ID="${fixture%%|*}"
+          export WPCB_TEST_SLOT_TOKEN="${fixture#*|}"
+
+          WPCB_TEST_PARTY_SIZE=2 WPCB_TEST_EMAIL=capacity-a@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/capacity-a.txt" &
+          first_pid=$!
+          WPCB_TEST_PARTY_SIZE=2 WPCB_TEST_EMAIL=capacity-b@example.com wp eval-file "$GITHUB_WORKSPACE/tests/reserve-once.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/capacity-b.txt" &
+          second_pid=$!
+          wait "$first_pid"
+          wait "$second_pid"
+
+          cat "$RUNNER_TEMP/capacity-a.txt" "$RUNNER_TEMP/capacity-b.txt"
+          reserved_count="$(awk '/^RESERVED /{n++} END{print n+0}' "$RUNNER_TEMP/capacity-a.txt" "$RUNNER_TEMP/capacity-b.txt")"
+          rejected_count="$(awk '/^REJECTED /{n++} END{print n+0}' "$RUNNER_TEMP/capacity-a.txt" "$RUNNER_TEMP/capacity-b.txt")"
+          test "$reserved_count" -eq 1
+          test "$rejected_count" -eq 1
+
+
+  package:
+    name: Build release ZIP
+    needs: [dependency_locks]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          tools: composer
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build local UIkit fallback
+        run: |
+          npm ci --omit=dev --no-audit --no-fund
+          npm run build:assets
+      - name: Install production Composer dependencies
+        run: composer install --no-interaction --prefer-dist --no-progress --no-dev --optimize-autoloader
+      - name: Build reproducible ZIP
+        run: |
+          python3 scripts/package.py
+          python3 scripts/package.py "$RUNNER_TEMP/wpcb-repeat.zip"
+          cmp dist/wordpress-calendar-booking.zip "$RUNNER_TEMP/wpcb-repeat.zip"
+      - name: Verify release contents
+        run: |
+          set -euo pipefail
+          unzip -t dist/wordpress-calendar-booking.zip
+          unzip -l dist/wordpress-calendar-booking.zip > "$RUNNER_TEMP/zip-list.txt"
+          cat "$RUNNER_TEMP/zip-list.txt"
+          ! grep -E '/(tests|node_modules|scripts|\.git|\.github)/' "$RUNNER_TEMP/zip-list.txt"
+          ! grep -E '/(package(-lock)?\.json|composer\.json|composer\.lock)$' "$RUNNER_TEMP/zip-list.txt"
+          grep -q 'wordpress-calendar-booking/vendor/autoload.php' "$RUNNER_TEMP/zip-list.txt"
+          grep -q 'wordpress-calendar-booking/assets/vendor/uikit/uikit.min.css' "$RUNNER_TEMP/zip-list.txt"
+          grep -q 'wordpress-calendar-booking/LICENSE' "$RUNNER_TEMP/zip-list.txt"
+      - name: Generate and verify release checksum
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum wordpress-calendar-booking.zip > wordpress-calendar-booking.zip.sha256
+          sha256sum -c wordpress-calendar-booking.zip.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-package
+          path: |
+            dist/wordpress-calendar-booking.zip
+            dist/wordpress-calendar-booking.zip.sha256
+          if-no-files-found: error
+          retention-days: 7
+
+  browser_release:
+    name: Browser release acceptance
+    needs: [package]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Install WordPress and packaged plugin
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCB-Browser --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+          mkdir -p "$WP_ROOT/wp-content/mu-plugins"
+          cp "$GITHUB_WORKSPACE/tests/browser-release-mu.php" "$WP_ROOT/wp-content/mu-plugins/wpcb-browser-release.php"
+      - name: Install browser test runtime
+        run: |
+          npm ci --ignore-scripts --no-audit --no-fund
+          npx playwright install --with-deps chromium
+      - name: Run packaged release browser acceptance
+        env:
+          WP_ROOT: ${{ runner.temp }}/wordpress
+          WPCB_E2E_BASE_URL: http://127.0.0.1:8080
+          WPCB_E2E_ADMIN_USER: admin
+          WPCB_E2E_ADMIN_PASSWORD: integration-only
+        run: |
+          set -euo pipefail
+          wp server --host=127.0.0.1 --port=8080 --path="$WP_ROOT" > "$RUNNER_TEMP/wpcb-browser-server.log" 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+
+          ready=0
+          for attempt in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8080/ >/dev/null; then
+              ready=1
+              break
+            fi
+            sleep 1
+          done
+          test "$ready" -eq 1
+
+          npx playwright test tests/browser-release.spec.mjs --reporter=line
+      - name: Upload redacted browser failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-release-failure
+          path: tests/browser-artifacts
+          if-no-files-found: ignore
+          retention-days: 7
+
+  fresh_release:
+    name: Fresh install release ZIP
+    needs: [package]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Install WordPress and release ZIP
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBRelease --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+          wp eval-file "$GITHUB_WORKSPACE/tests/release-fresh.php" --path="$WP_ROOT"
+
+  legacy_upgrade:
+    name: Imported 1.x migration
+    needs: [package]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Create imported 1.x fixture
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBLegacy --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp eval-file "$GITHUB_WORKSPACE/tests/legacy-1x-fixture.php" --path="$WP_ROOT"
+      - name: Install release ZIP and verify migrations
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+          wp eval-file "$GITHUB_WORKSPACE/tests/legacy-upgrade-assert.php" --path="$WP_ROOT"
+
+  uninstall_release:
+    name: Packaged uninstall policy
+    needs: [package]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Install WordPress and packaged plugin
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCB-Uninstall --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+      - name: Verify default uninstall preserves durable data
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp eval '
+            $s=(array)get_option("wpcb_settings",[]);
+            $s["delete_data_on_uninstall"]=0;
+            update_option("wpcb_settings",$s);
+            set_transient("wpcb_uninstall_fixture","cache",HOUR_IN_SECONDS);
+            wp_schedule_single_event(time()+3600,"wpcb_waitlist_send_offer",[999999]);
+            global $wpdb;
+            $now=gmdate("Y-m-d H:i:s");
+            $wpdb->insert($wpdb->prefix."wpcb_booking_types",[
+              "name"=>"Uninstall fixture","slug"=>"uninstall-fixture","description"=>"",
+              "duration_minutes"=>30,"buffer_before_minutes"=>0,"buffer_after_minutes"=>0,
+              "capacity"=>1,"show_remaining_capacity"=>0,"payment_mode"=>"free","price_minor"=>0,
+              "currency"=>"EUR","is_active"=>1,"is_public"=>0,"sort_order"=>0,
+              "created_at"=>$now,"updated_at"=>$now
+            ]);
+          ' --path="$WP_ROOT"
+          wp plugin uninstall wordpress-calendar-booking --deactivate --path="$WP_ROOT"
+          test "$(wp db query "SHOW TABLES LIKE 'wp_wpcb_booking_types'" --skip-column-names --path="$WP_ROOT")" = "wp_wpcb_booking_types"
+          test "$(wp option get wpcb_settings --format=json --path="$WP_ROOT" >/dev/null 2>&1; echo $?)" -eq 0
+          test "$(wp eval 'echo get_transient("wpcb_uninstall_fixture")===false ? "clean" : "left";' --path="$WP_ROOT")" = "clean"
+          test "$(wp eval '$c=_get_cron_array(); $found=false; foreach((array)$c as $events){ if(isset($events["wpcb_waitlist_send_offer"])){$found=true;}} echo $found?"left":"clean";' --path="$WP_ROOT")" = "clean"
+      - name: Verify explicit destructive uninstall removes plugin-owned data
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --activate --path="$WP_ROOT"
+          wp eval '
+            $s=(array)get_option("wpcb_settings",[]);
+            $s["delete_data_on_uninstall"]=1;
+            update_option("wpcb_settings",$s);
+          ' --path="$WP_ROOT"
+          wp plugin uninstall wordpress-calendar-booking --deactivate --path="$WP_ROOT"
+          table_count="$(wp db query "SHOW TABLES LIKE 'wp_wpcb_%'" --skip-column-names --path="$WP_ROOT" | wc -l | tr -d ' ')"
+          test "$table_count" -eq 0
+          option_count="$(wp db query "SELECT COUNT(*) FROM wp_options WHERE option_name LIKE 'wpcb\\_%'" --skip-column-names --path="$WP_ROOT")"
+          test "$option_count" -eq 0
+
+  release:
+    name: Publish stable release
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [docs, php, dependency_audit, i18n, wordpress, fresh_release, legacy_upgrade, browser_release, uninstall_release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    concurrency:
+      group: calendar-booking-release
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Prepare release metadata
+        id: metadata
+        run: |
+          python3 - <<'PY'
+          import os, pathlib, re
+          text = pathlib.Path('wordpress-calendar-booking.php').read_text()
+          def header(name):
+              match = re.search(r'^ \* ' + re.escape(name) + r': ([0-9.]+)$', text, re.M)
+              assert match, name
+              return match.group(1)
+          version = header('Version')
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as output:
+              output.write(f'tag=v{version}\n')
+          changelog = pathlib.Path('CHANGELOG.md').read_text()
+          section = changelog.split(f'## {version}\n', 1)[1].split('\n## ', 1)[0].strip()
+          notes = f"Requires WordPress: {header('Requires at least')}\nRequires PHP: {header('Requires PHP')}\n\n{section}\n"
+          pathlib.Path('dist/release-notes.md').write_text(notes)
+          PY
+      - name: Verify packaged checksum
+        run: |
+          set -euo pipefail
+          cd dist
+          sha256sum -c wordpress-calendar-booking.zip.sha256
+      - name: Generate release build provenance
+        uses: actions/attest@v4
+        with:
+          subject-path: dist/wordpress-calendar-booking.zip
+      - name: Publish exact stable asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if gh release view "$RELEASE_TAG" --json isDraft --jq '.isDraft' > "$RUNNER_TEMP/release-draft" 2>/dev/null; then
+            if [ "$(cat "$RUNNER_TEMP/release-draft")" = false ]; then
+              echo "Release $RELEASE_TAG already published; keeping it immutable."
+              exit 0
+            fi
+          else
+            gh release create "$RELEASE_TAG" --target "$GITHUB_SHA" --title "WordPress Calendar Booking $RELEASE_TAG" --notes-file dist/release-notes.md --draft
+          fi
+          gh release upload "$RELEASE_TAG" dist/wordpress-calendar-booking.zip dist/wordpress-calendar-booking.zip.sha256 --clobber
+          gh release edit "$RELEASE_TAG" --notes-file dist/release-notes.md --draft=false --latest
+
+  production_update:
+    name: Public GitHub updater smoke test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    needs: [release]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      attestations: read
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Verify current build checksum and provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          (cd dist && sha256sum -c wordpress-calendar-booking.zip.sha256)
+          gh attestation verify dist/wordpress-calendar-booking.zip -R "$GITHUB_REPOSITORY"
+      - name: Resolve updater versions
+        run: |
+          set -euo pipefail
+          TARGET_VERSION="$(python3 - <<'PY'
+          import pathlib, re
+          text = pathlib.Path("wordpress-calendar-booking.php").read_text()
+          match = re.search(r"^ \* Version: ([0-9.]+)$", text, re.M)
+          assert match, "plugin header version is missing"
+          print(match.group(1))
+          PY
+          )"
+          echo "TARGET_VERSION=$TARGET_VERSION" >> "$GITHUB_ENV"
+          echo "SYNTHETIC_VERSION=0.0.0" >> "$GITHUB_ENV"
+      - name: Verify published release checksum and provenance
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python3 scripts/verify_public_release.py download "$TARGET_VERSION" "$RUNNER_TEMP/wpcb-public-release"
+      - name: Build synthetic pre-release installation
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/synthetic"
+          unzip -q dist/wordpress-calendar-booking.zip -d "$RUNNER_TEMP/synthetic"
+          python3 - <<'PY'
+          import os, pathlib, re
+          p = pathlib.Path(os.environ["RUNNER_TEMP"]) / "synthetic/wordpress-calendar-booking/wordpress-calendar-booking.php"
+          target = os.environ["TARGET_VERSION"]
+          synthetic = os.environ["SYNTHETIC_VERSION"]
+          text = p.read_text()
+          text, count = re.subn(r"^ \* Version: " + re.escape(target) + r"$", " * Version: " + synthetic, text, count=1, flags=re.M)
+          assert count == 1, "synthetic header version replacement failed"
+          old_define = "define('WPCB_VERSION', '" + target + "');"
+          new_define = "define('WPCB_VERSION', '" + synthetic + "');"
+          assert old_define in text, "synthetic constant version replacement failed"
+          p.write_text(text.replace(old_define, new_define, 1))
+          PY
+          (cd "$RUNNER_TEMP/synthetic" && zip -qr "$RUNNER_TEMP/calendar-booking-synthetic.zip" wordpress-calendar-booking)
+      - name: Install synthetic old version
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core install --path="$WP_ROOT" --url=http://127.0.0.1:8080 --title=WPCBUpdater --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp plugin install "$RUNNER_TEMP/calendar-booking-synthetic.zip" --activate --path="$WP_ROOT"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "$SYNTHETIC_VERSION"
+      - name: Discover real public release
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          found=0
+          for attempt in 1 2 3 4 5 6; do
+            version="$(wp eval '
+              require_once ABSPATH . "wp-admin/includes/update.php";
+              delete_site_transient(Wpcb\Updates\GitHubUpdater::CACHE_KEY);
+              delete_site_transient("update_plugins");
+              wp_update_plugins();
+              $updates = get_site_transient("update_plugins");
+              $basename = plugin_basename(WPCB_FILE);
+              if (isset($updates->response[$basename])) {
+                  echo $updates->response[$basename]->new_version;
+              }
+            ' --path="$WP_ROOT")"
+            if [ "$version" = "$TARGET_VERSION" ]; then
+              found=1
+              break
+            fi
+            sleep 5
+          done
+          test "$found" -eq 1
+      - name: Update through WordPress from public GitHub
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp plugin update wordpress-calendar-booking --path="$WP_ROOT"
+          test "$(wp plugin get wordpress-calendar-booking --field=version --path="$WP_ROOT")" = "$TARGET_VERSION"
+          wp plugin is-active wordpress-calendar-booking --path="$WP_ROOT"
+          python3 scripts/verify_public_release.py installed "$TARGET_VERSION" "$RUNNER_TEMP/wpcb-public-release/wordpress-calendar-booking.zip" "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking"
+          echo "PASS: synthetic $SYNTHETIC_VERSION updated through the public GitHub release to $TARGET_VERSION."
+ "$RUNNER_TEMP/schema-lock-holder.txt"
+
+          started="$(date +%s)"
+          wp eval-file "$GITHUB_WORKSPACE/tests/schema-lock-contender.php" --path="$RUNNER_TEMP/wordpress"
+          elapsed="$(( $(date +%s) - started ))"
+          test "$elapsed" -ge 4
+          test "$elapsed" -le 8
+
+          wait "$holder_pid"
+          cat "$RUNNER_TEMP/schema-lock-holder.txt"
+          wp eval 'if (!Wpcb\\Database\\SchemaMigration::isReady()) { throw new RuntimeException("Schema readiness was not restored."); }' --path="$RUNNER_TEMP/wordpress"
       - name: Run booking abuse-protection smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/security-guard-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run availability abuse/cost smoke test
