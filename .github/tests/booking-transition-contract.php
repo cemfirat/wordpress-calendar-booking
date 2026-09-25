@@ -7,6 +7,50 @@ namespace Wpcb\Payments {
         public function validateSeriesCancellation(int $id, bool $whole) { return true; }
     }
 }
+namespace Wpcb\Sync {
+    final class JobRepository {
+        public function enqueue(string $jobType, int $bookingId, array $payload, string $idempotencyKey = ''): int {
+            foreach ($GLOBALS['outboxJobs'] as $job) {
+                if ($idempotencyKey !== '' && $job['idempotency_key'] === $idempotencyKey) {
+                    return (int)$job['id'];
+                }
+            }
+            $id = count($GLOBALS['outboxJobs']) + 1;
+            $GLOBALS['outboxJobs'][] = [
+                'id' => $id,
+                'job_type' => $jobType,
+                'booking_id' => $bookingId,
+                'payload' => $payload,
+                'idempotency_key' => $idempotencyKey,
+                'done' => false,
+            ];
+            return $id;
+        }
+    }
+    final class QueueService {
+        public function runNow(int $limit = 10): void {
+            $processed = 0;
+            foreach ($GLOBALS['outboxJobs'] as &$job) {
+                if (!empty($job['done']) || $processed >= $limit) continue;
+                $payload = $job['payload'];
+                if ($job['job_type'] !== \Wpcb\Booking\BookingEffectOutbox::JOB_TYPE) continue;
+                $kind = (string)($payload['kind'] ?? '');
+                $booking = (object)($payload['booking'] ?? []);
+                $event = (array)($payload['event'] ?? []);
+                if ($kind === 'created') {
+                    \do_action('wpcb_booking_created', $booking);
+                } elseif ($kind === 'transition') {
+                    \do_action('wpcb_booking_transitioned', $event, $booking);
+                } elseif ($kind === 'event') {
+                    \do_action('wpcb_booking_event_recorded', $event, $booking);
+                }
+                $job['done'] = true;
+                ++$processed;
+            }
+            unset($job);
+        }
+    }
+}
 namespace {
     class WP_Error {
         public string $code;
@@ -16,13 +60,15 @@ namespace {
     function is_wp_error($value): bool { return $value instanceof WP_Error; }
     function __($text, $domain = '') { return $text; }
     function home_url($path = '') { return 'https://example.test' . $path; }
+    function wp_json_encode($value) { return json_encode($value, JSON_UNESCAPED_SLASHES); }
+    function sanitize_text_field($value) { return trim((string)$value); }
     function do_action($hook, ...$args): void {
         $GLOBALS['effects'][] = [$hook, $args, $GLOBALS['wpdb']->held];
     }
     $root = getenv('WPCB_CONTRACT_ROOT') ?: dirname(__DIR__, 2);
     foreach (['Support/Time', 'Booking/BookingStatus', 'Booking/BookingStateMachine',
         'Booking/BookingRepository', 'Availability/SlotService', 'Resources/ResourceLock',
-        'Booking/BookingTransitionService'] as $class) {
+        'Booking/BookingEffectOutbox', 'Booking/BookingTransitionService'] as $class) {
         require $root . '/includes/' . $class . '.php';
     }
 
@@ -55,9 +101,13 @@ namespace {
         }
         public function query($sql) {
             if ($sql === 'START TRANSACTION') {
-                $this->snapshot = unserialize(serialize($GLOBALS['repo']->rows));
+                $this->snapshot = [
+                    'rows' => unserialize(serialize($GLOBALS['repo']->rows)),
+                    'jobs' => unserialize(serialize($GLOBALS['outboxJobs'])),
+                ];
             } elseif ($sql === 'ROLLBACK') {
-                $GLOBALS['repo']->rows = $this->snapshot;
+                $GLOBALS['repo']->rows = $this->snapshot['rows'];
+                $GLOBALS['outboxJobs'] = $this->snapshot['jobs'];
             } elseif ($sql !== 'COMMIT') {
                 throw new \RuntimeException('Unexpected transaction SQL');
             }
@@ -109,7 +159,7 @@ namespace {
         check(is_wp_error($value) && $value->get_error_code() === $code, 'expected ' . $code);
     }
     function row(int $id, int $resource = 1, string $status = 'reserved_unconfirmed'): object {
-        return (object)['id' => $id, 'resource_id' => $resource, 'booking_type_id' => 1,
+        return (object)['id' => $id, 'booking_uuid' => 'contract-' . $id, 'resource_id' => $resource, 'booking_type_id' => 1,
             'slot_start' => gmdate('Y-m-d 09:00:00', time() + 86400 * 7),
             'slot_end' => gmdate('Y-m-d 09:30:00', time() + 86400 * 7), 'party_size' => 1,
             'status' => $status, 'reserved_until' => gmdate('Y-m-d H:i:s', time() + 1800)];
@@ -118,6 +168,7 @@ namespace {
         $GLOBALS['wpdb'] = new ContractDatabase();
         $GLOBALS['repo'] = $repo = new ContractBookings();
         $GLOBALS['effects'] = [];
+        $GLOBALS['outboxJobs'] = [];
         \Wpcb\Payments\PaymentService::$paid = true;
         $repo->rows[1] = row(1);
         $slots = new ContractSlots();

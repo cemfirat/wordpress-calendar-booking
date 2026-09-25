@@ -38,9 +38,9 @@ final class BookingTransitionService {
     }
 
     /**
-     * Apply a bounded group under sorted resource locks. All state writes in a
-     * group commit together; callbacks run only after commit and lock release.
-     * This does not replace the durable side-effect outbox tracked in #159.
+     * Apply a bounded group under sorted resource locks. State writes and their
+     * privacy-minimal lifecycle-effect intents commit together. Effects may be
+     * drained immediately after commit, but remain durable for retry/recovery.
      *
      * @param int[] $bookingIds
      * @return array|\WP_Error List of transition results, or one group failure.
@@ -77,7 +77,8 @@ final class BookingTransitionService {
         sort($resourceIds, SORT_NUMERIC);
         $held = [];
         $results = [];
-        $notifications = [];
+        $outbox = new BookingEffectOutbox();
+        $shouldKick = false;
         $transaction = false;
         global $wpdb;
         try {
@@ -87,15 +88,13 @@ final class BookingTransitionService {
                 }
                 $held[] = $resourceId;
             }
-            // Start the transaction AFTER all advisory locks. Under InnoDB's
-            // default isolation the first consistent read must see the winner
-            // of any operation we waited for, not a pre-lock snapshot.
-            if (count($bookingIds) > 1) {
-                if ($wpdb->query('START TRANSACTION') === false) {
-                    return new \WP_Error('wpcb_transition_storage', 'The booking transition could not be stored.');
-                }
-                $transaction = true;
+            // Start the transaction AFTER all advisory locks. Even one booking
+            // needs a database boundary that also contains its durable effect
+            // intent; otherwise a process death after the status write loses work.
+            if ($wpdb->query('START TRANSACTION') === false) {
+                return new \WP_Error('wpcb_transition_storage', 'The booking transition could not be stored.');
             }
+            $transaction = true;
             foreach ($bookingIds as $id) {
                 $booking = $this->bookings->find($id);
                 // A concurrent cross-resource move may have happened while we
@@ -110,7 +109,11 @@ final class BookingTransitionService {
                 }
                 $results[] = $result;
                 if (!empty($result['changed'])) {
-                    $notifications[] = [$result, $this->bookings->find($id)];
+                    $fresh = $this->bookings->find($id);
+                    if (!$fresh || $outbox->recordTransition($result, $fresh) < 1) {
+                        return new \WP_Error('wpcb_effect_storage', 'The booking follow-up work could not be stored.');
+                    }
+                    $shouldKick = true;
                 }
             }
             if ($transaction) {
@@ -129,8 +132,8 @@ final class BookingTransitionService {
                 $this->locks->release($resourceId);
             }
         }
-        foreach ($notifications as [$result, $booking]) {
-            do_action('wpcb_booking_transitioned', $result, $booking);
+        if ($shouldKick) {
+            $outbox->kick();
         }
         return $results;
     }
@@ -289,6 +292,10 @@ final class BookingTransitionService {
         $resourceIds = array_values(array_unique(array_filter([(int)$currentResourceId, $targetResourceId])));
         sort($resourceIds, SORT_NUMERIC);
         $held = [];
+        $transaction = false;
+        $outbox = new BookingEffectOutbox();
+        $result = null;
+        global $wpdb;
         try {
             foreach ($resourceIds as $resourceId) {
                 if (!$this->locks->acquire($resourceId, 5)) {
@@ -296,6 +303,11 @@ final class BookingTransitionService {
                 }
                 $held[] = $resourceId;
             }
+            if ($wpdb->query('START TRANSACTION') === false) {
+                return new \WP_Error('wpcb_event_storage', 'The reschedule could not be stored.');
+            }
+            $transaction = true;
+
             $freshBeforeMove = $this->bookings->find($bookingId);
             if (!$freshBeforeMove
                 || (string)$freshBeforeMove->status !== $status
@@ -330,19 +342,32 @@ final class BookingTransitionService {
             if (!$updated) {
                 return new \WP_Error('wpcb_event_race', 'The booking changed while it was being rescheduled.');
             }
+
+            $this->bookings->logEvent($bookingId, $status, self::RESCHEDULED, $actor, $note);
+            $fresh = $this->bookings->find($bookingId);
+            $result = $this->result($bookingId, self::RESCHEDULED, $status, $status, $actor, true);
+            $result['previous_resource_id'] = (int)($currentResourceId ?? 0);
+            $result['previous_slot_start'] = (string)$booking->slot_start;
+            $result['previous_slot_end'] = (string)$booking->slot_end;
+            if (!$fresh || $outbox->recordEvent($result, $fresh) < 1) {
+                return new \WP_Error('wpcb_effect_storage', 'The reschedule follow-up work could not be stored.');
+            }
+            if ($wpdb->query('COMMIT') === false) {
+                return new \WP_Error('wpcb_event_storage', 'The reschedule could not be stored.');
+            }
+            $transaction = false;
+        } catch (\Throwable $error) {
+            return new \WP_Error('wpcb_event_storage', 'The reschedule could not be stored.');
         } finally {
+            if ($transaction) {
+                $wpdb->query('ROLLBACK');
+            }
             foreach (array_reverse($held) as $resourceId) {
                 $this->locks->release($resourceId);
             }
         }
 
-        $this->bookings->logEvent($bookingId, $status, self::RESCHEDULED, $actor, $note);
-        $fresh = $this->bookings->find($bookingId);
-        $result = $this->result($bookingId, self::RESCHEDULED, $status, $status, $actor, true);
-        $result['previous_resource_id'] = (int)($currentResourceId ?? 0);
-        $result['previous_slot_start'] = (string)$booking->slot_start;
-        $result['previous_slot_end'] = (string)$booking->slot_end;
-        do_action('wpcb_booking_event_recorded', $result, $fresh);
+        $outbox->kick();
         return $result;
     }
 

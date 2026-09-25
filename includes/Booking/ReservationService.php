@@ -48,6 +48,9 @@ class ReservationService {
             return new \WP_Error('wpcb_reservation_busy', 'The selected resource is busy. Please try again.');
         }
 
+        $transaction = false;
+        $outbox = new BookingEffectOutbox();
+        global $wpdb;
         try {
             // The second check is the important one: it runs after all other
             // reservation writers using this service have been serialized.
@@ -64,6 +67,10 @@ class ReservationService {
             )) {
                 return new \WP_Error('wpcb_capacity_unavailable', 'The selected slot does not have enough remaining capacity.');
             }
+            if ($wpdb->query('START TRANSACTION') === false) {
+                return new \WP_Error('wpcb_reservation_storage', 'The booking reservation could not be stored.');
+            }
+            $transaction = true;
 
             $settings = Settings::get();
             $now = Time::formatUtc(Time::nowUtc());
@@ -86,26 +93,34 @@ class ReservationService {
                 ),
                 'created_at' => $now,
                 'updated_at' => $now,
-            ], $meta);
+            ], $meta, false);
 
             if ($bookingId < 1) {
                 return new \WP_Error('wpcb_reservation_storage', 'The booking reservation could not be stored.');
             }
+            $booking = $this->bookings->find($bookingId);
+            if (!$booking || $outbox->recordCreated($booking) < 1) {
+                return new \WP_Error('wpcb_effect_storage', 'The booking follow-up work could not be stored.');
+            }
 
             $payment = (new PaymentService())->ensureForBooking($bookingId);
             if (is_wp_error($payment)) {
-                (new BookingTransitionService($this->bookings))->apply(
-                    $bookingId,
-                    BookingStateMachine::RESERVATION_EXPIRED,
-                    'payment',
-                    'Payment obligation could not be created'
-                );
                 return $payment;
             }
-
-            return $bookingId;
+            if ($wpdb->query('COMMIT') === false) {
+                return new \WP_Error('wpcb_reservation_storage', 'The booking reservation could not be stored.');
+            }
+            $transaction = false;
+        } catch (\Throwable $error) {
+            return new \WP_Error('wpcb_reservation_storage', 'The booking reservation could not be stored.');
         } finally {
+            if ($transaction) {
+                $wpdb->query('ROLLBACK');
+            }
             $this->locks->release($resourceId);
         }
+
+        $outbox->kick();
+        return $bookingId;
     }
 }
