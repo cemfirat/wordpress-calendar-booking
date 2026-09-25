@@ -93,6 +93,7 @@ $firstRow=$waitRepo->find($first);
 $secondRow=$waitRepo->find($second);
 wpcb_wait_assert($firstRow && $firstRow->status==='offered','First waiter receives the promotion hold.');
 wpcb_wait_assert($secondRow && $secondRow->status==='waiting','Second waiter remains queued.');
+wpcb_wait_assert($service->promoteSlot($typeId,$resourceId,$start,$end)===0,'A second promotion cannot create a duplicate hold for already protected capacity.');
 wpcb_wait_assert((new Wpcb\Booking\CapacityService())->remaining($typeId,$resourceId,$start,$end)===0,'Active promotion hold removes the seat from public capacity.');
 
 $verifier=(new Wpcb\Security\SecretBox())->decrypt((string)$firstRow->offer_secret_enc);
