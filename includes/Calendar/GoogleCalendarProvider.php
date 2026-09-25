@@ -81,10 +81,12 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
                 $start = new \DateTimeImmutable((string)$interval['start']);
                 $end = new \DateTimeImmutable((string)$interval['end']);
             } catch (\Exception $e) {
-                continue;
+                $this->connections->setHealthError($connection->id, 'Google Calendar availability response contained an invalid busy interval.');
+                return new \WP_Error('wpcb_google_freebusy_incomplete', 'Google Calendar availability could not be read completely.');
             }
             if ($end <= $start) {
-                continue;
+                $this->connections->setHealthError($connection->id, 'Google Calendar availability response contained an invalid busy interval.');
+                return new \WP_Error('wpcb_google_freebusy_incomplete', 'Google Calendar availability could not be read completely.');
             }
             $out[] = [
                 'start' => Time::formatUtc($start),

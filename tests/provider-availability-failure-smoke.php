@@ -96,6 +96,24 @@ remove_filter('pre_http_request',$msFilter,10);
 wpcb_availability_failure_assert(is_wp_error($msResult)&&count($msCalls)===2,'Microsoft schedule-level error does not become healthy empty availability and calendarView fallback is attempted.');
 $connectionRepo->delete((int)$msId);
 
+$msPersonalId=$connectionRepo->create([
+    'provider'=>'microsoft','name'=>'Microsoft incomplete view fixture','remote_calendar_id'=>'primary',
+    'blocks_availability'=>1,'receives_bookings'=>0,
+], ['access_token'=>'CI-MS-PERSONAL','expires_at'=>time()+3600,'account_type'=>'personal']);
+$msPersonal=$connectionRepo->find((int)$msPersonalId);
+$msViewFilter=static function($pre,array $args,string $url){
+    if(strpos($url,'https://graph.microsoft.com/v1.0/me/calendar/calendarView?')!==0)return $pre;
+    return ['headers'=>[],'response'=>['code'=>200,'message'=>'OK'],'body'=>'{}'];
+};
+add_filter('pre_http_request',$msViewFilter,10,3);
+$msViewResult=(new Wpcb\Calendar\MicrosoftGraphProvider($connectionRepo))->busyBetween('2026-10-01 09:00:00','2026-10-01 10:00:00',$msPersonal);
+remove_filter('pre_http_request',$msViewFilter,10);
+wpcb_availability_failure_assert(
+    is_wp_error($msViewResult)&&$msViewResult->get_error_code()==='wpcb_microsoft_calendar_view_incomplete',
+    'Microsoft calendarView HTTP 200 without a complete value collection is unknown availability.'
+);
+$connectionRepo->delete((int)$msPersonalId);
+
 $settingsBefore=get_option('wpcb_settings',[]);
 $settings=Wpcb\Admin\Settings::get();
 $settings['calendar_url']='https://8.8.8.8/fail-closed.ics';
