@@ -252,6 +252,23 @@ wpcb_wait_assert(count($export['data'])===1,'Waiting-list data participates in W
 $erase=$privacy->eraser('second-waiter@example.com',1);
 wpcb_wait_assert(!empty($erase['items_removed']) && !$waitRepo->find($second),'Waiting-list data participates in WordPress privacy erasure.');
 
+foreach($advancedWaitIds as $waitId){ $wpdb->delete($wpdb->prefix.'wpcb_waiting_list',['id'=>$waitId]); }
+foreach($advancedBookingIds as $bookingId){
+    $wpdb->delete($wpdb->prefix.'wpcb_booking_status_log',['booking_id'=>$bookingId]);
+    $wpdb->delete($wpdb->prefix.'wpcb_booking_meta',['booking_id'=>$bookingId]);
+    $wpdb->delete($wpdb->prefix.'wpcb_payments',['booking_id'=>$bookingId]);
+    $wpdb->delete($wpdb->prefix.'wpcb_bookings',['id'=>$bookingId]);
+}
+if($advancedRuleId>0) $wpdb->delete($wpdb->prefix.'wpcb_availability_rules',['id'=>$advancedRuleId]);
+foreach($advancedTypeIds as $advancedTypeId){
+    $wpdb->delete($wpdb->prefix.'wpcb_booking_type_resources',['booking_type_id'=>$advancedTypeId]);
+    $wpdb->delete($types,['id'=>$advancedTypeId]);
+}
+if($advancedResourceId>0){
+    $wpdb->delete($wpdb->prefix.'wpcb_resource_calendar_connections',['resource_id'=>$advancedResourceId]);
+    $wpdb->delete($wpdb->prefix.'wpcb_resources',['id'=>$advancedResourceId]);
+}
+
 $wpdb->delete($wpdb->prefix.'wpcb_waiting_list',['id'=>$first]);
 $wpdb->delete($wpdb->prefix.'wpcb_booking_status_log',['booking_id'=>$blockingId]);
 $wpdb->delete($wpdb->prefix.'wpcb_booking_status_log',['booking_id'=>$accepted]);
