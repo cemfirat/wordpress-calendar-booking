@@ -113,7 +113,11 @@ try {
         return Wpcb\Support\Time::formatUtc($local);
     };
 
-    $start0900 = $utc($localDay, '09:00:00');
+    $start0830 = $utc($localDay, '08:30:00');
+    $end0850 = $utc($localDay, '08:50:00');
+    $start0840 = $utc($localDay, '08:40:00');
+    $end0900 = $utc($localDay, '09:00:00');
+    $start0900 = $end0900;
     $end0930 = $utc($localDay, '09:30:00');
     $start0930 = $end0930;
     $end1000 = $utc($localDay, '10:00:00');
@@ -145,6 +149,14 @@ try {
     wpcb_buffer_assert(
         $inherited['before'] === 10 && $inherited['after'] === 15,
         'Zero type buffers inherit the matching availability rule.'
+    );
+    wpcb_buffer_assert(
+        !$capacity->canFit($candidateTypeId, $resourceId, $start0840, $end0900, 1),
+        'Existing before-buffer blocks a candidate ending at the appointment start.'
+    );
+    wpcb_buffer_assert(
+        $capacity->canFit($candidateTypeId, $resourceId, $start0830, $end0850, 1),
+        'Half-open boundary allows a candidate ending exactly when the existing before-buffer starts.'
     );
     wpcb_buffer_assert(
         !$capacity->canFit($candidateTypeId, $resourceId, $start0930, $end1000, 1),
