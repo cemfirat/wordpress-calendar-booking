@@ -121,6 +121,7 @@ wpcb_schema_recovery_assert(
 );
 
 wp_set_current_user(1);
+set_current_screen('dashboard');
 ob_start();
 Wpcb\Database\SchemaMigration::renderAdminNotice();
 $notice = (string)ob_get_clean();
