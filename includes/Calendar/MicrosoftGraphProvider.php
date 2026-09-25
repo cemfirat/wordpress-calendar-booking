@@ -9,6 +9,11 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
     private const TOKEN_URL = 'https://login.microsoftonline.com/common/oauth2/v2.0/token';
     private const API_BASE = 'https://graph.microsoft.com/v1.0';
     private const PERSONAL_TENANT_ID = '9188040d-6c67-4c5b-b112-36a304b66dad';
+    private const CALENDAR_VIEW_MAX_PAGES = 10;
+    private const CALENDAR_VIEW_MAX_EVENTS = 5000;
+    private const CALENDAR_VIEW_MAX_PAGE_BYTES = 2097152;
+    private const CALENDAR_VIEW_MAX_TOTAL_BYTES = 8388608;
+    private const CALENDAR_VIEW_MAX_SECONDS = 30;
 
     private CalendarConnectionRepository $connections;
     private MicrosoftOAuthConfig $oauth;
@@ -196,37 +201,139 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
         ], '', '&', PHP_QUERY_RFC3986);
 
         $url = self::API_BASE . $this->calendarPath($connection) . '/calendarView?' . $query;
-        $response = $this->apiRequest($connection, 'GET', $url, null);
+        $expectedPath = (string)parse_url($url, PHP_URL_PATH);
+        if ($expectedPath === '') {
+            return $this->calendarViewError($connection, 'Microsoft calendarView URL could not be validated.');
+        }
+
+        $seen = [];
+        $out = [];
+        $eventCount = 0;
+        $totalBytes = 0;
+        $started = microtime(true);
+
+        for ($page = 1; ; $page++) {
+            if ($page > self::CALENDAR_VIEW_MAX_PAGES) {
+                return $this->calendarViewError($connection, 'Microsoft calendarView exceeded the page limit.');
+            }
+            if (isset($seen[$url])) {
+                return $this->calendarViewError($connection, 'Microsoft calendarView returned a repeated page link.');
+            }
+            if (!$this->trustedCalendarViewUrl($url, $expectedPath)) {
+                return $this->calendarViewError($connection, 'Microsoft calendarView returned an untrusted page link.');
+            }
+            $seen[$url] = true;
+
+            $remaining = self::CALENDAR_VIEW_MAX_SECONDS - (microtime(true) - $started);
+            if ($remaining <= 0) {
+                return $this->calendarViewError($connection, 'Microsoft calendarView exceeded the time limit.');
+            }
+
+            $pageResult = $this->calendarViewPage(
+                $connection,
+                $url,
+                max(1, min(20, (int)ceil($remaining)))
+            );
+            if (is_wp_error($pageResult)) {
+                return $pageResult;
+            }
+
+            $totalBytes += (int)$pageResult['bytes'];
+            if ($totalBytes > self::CALENDAR_VIEW_MAX_TOTAL_BYTES) {
+                return $this->calendarViewError($connection, 'Microsoft calendarView exceeded the total response limit.');
+            }
+
+            $response = $pageResult['data'];
+            if (!empty($response['error']) || !array_key_exists('value', $response) || !is_array($response['value'])) {
+                return $this->calendarViewError($connection, 'Microsoft calendarView response was incomplete.');
+            }
+
+            $eventCount += count($response['value']);
+            if ($eventCount > self::CALENDAR_VIEW_MAX_EVENTS) {
+                return $this->calendarViewError($connection, 'Microsoft calendarView exceeded the event limit.');
+            }
+
+            foreach ($response['value'] as $event) {
+                if (!is_array($event) || !empty($event['isCancelled']) || ($event['showAs'] ?? '') === 'free') {
+                    continue;
+                }
+                $interval = $this->graphInterval($event['start'] ?? null, $event['end'] ?? null);
+                if (!$interval) {
+                    return $this->calendarViewError($connection, 'Microsoft calendarView response contained an invalid event interval.');
+                }
+                $interval['source'] = 'microsoft_calendar_view';
+                $interval['connection_id'] = $connection->id;
+                $key = $interval['start'] . '|' . $interval['end'];
+                $out[$key] = $interval;
+            }
+
+            $next = trim((string)($response['@odata.nextLink'] ?? ''));
+            if ($next === '') {
+                break;
+            }
+            if (!$this->trustedCalendarViewUrl($next, $expectedPath)) {
+                return $this->calendarViewError($connection, 'Microsoft calendarView returned an untrusted page link.');
+            }
+            $url = $next;
+        }
+
+        return array_values($out);
+    }
+
+    private function calendarViewPage(
+        CalendarConnection $connection,
+        string $url,
+        int $timeoutSeconds
+    ) {
+        $response = $this->rawRequest(
+            $connection,
+            'GET',
+            $url,
+            null,
+            $timeoutSeconds,
+            self::CALENDAR_VIEW_MAX_PAGE_BYTES + 1
+        );
         if (is_wp_error($response)) {
             return $response;
         }
 
-        if (!empty($response['error']) || !array_key_exists('value', $response) || !is_array($response['value'])) {
-            $this->connections->setHealthError($connection->id, 'Microsoft calendarView response was incomplete.');
-            return new \WP_Error(
-                'wpcb_microsoft_calendar_view_incomplete',
-                'Microsoft calendar availability could not be read completely.'
-            );
+        $body = (string)wp_remote_retrieve_body($response);
+        $bytes = strlen($body);
+        $declared = (int)wp_remote_retrieve_header($response, 'content-length');
+        if ($bytes > self::CALENDAR_VIEW_MAX_PAGE_BYTES || $declared > self::CALENDAR_VIEW_MAX_PAGE_BYTES) {
+            return $this->calendarViewError($connection, 'Microsoft calendarView response exceeded the page-size limit.');
         }
-        $events = $response['value'];
-        $out = [];
-        foreach ($events as $event) {
-            if (!is_array($event) || !empty($event['isCancelled']) || ($event['showAs'] ?? '') === 'free') {
-                continue;
-            }
-            $interval = $this->graphInterval($event['start'] ?? null, $event['end'] ?? null);
-            if (!$interval) {
-                $this->connections->setHealthError($connection->id, 'Microsoft calendarView response contained an invalid event interval.');
-                return new \WP_Error(
-                    'wpcb_microsoft_calendar_view_incomplete',
-                    'Microsoft calendar availability could not be read completely.'
-                );
-            }
-            $interval['source'] = 'microsoft_calendar_view';
-            $interval['connection_id'] = $connection->id;
-            $out[] = $interval;
+
+        $decoded = $body !== '' ? json_decode($body, true) : [];
+        if ($body !== '' && !is_array($decoded)) {
+            return $this->calendarViewError($connection, 'Microsoft calendarView returned invalid JSON.');
         }
-        return $out;
+        return ['data' => is_array($decoded) ? $decoded : [], 'bytes' => $bytes];
+    }
+
+    private function trustedCalendarViewUrl(string $url, string $expectedPath): bool {
+        if ($url === '' || strlen($url) > 4096) {
+            return false;
+        }
+        $parts = parse_url($url);
+        if (!is_array($parts)
+            || strtolower((string)($parts['scheme'] ?? '')) !== 'https'
+            || strtolower((string)($parts['host'] ?? '')) !== 'graph.microsoft.com'
+            || isset($parts['user']) || isset($parts['pass']) || isset($parts['fragment'])
+            || (isset($parts['port']) && (int)$parts['port'] !== 443)
+            || (string)($parts['path'] ?? '') !== $expectedPath
+        ) {
+            return false;
+        }
+        return true;
+    }
+
+    private function calendarViewError(CalendarConnection $connection, string $healthMessage) {
+        $this->connections->setHealthError($connection->id, $healthMessage);
+        return new \WP_Error(
+            'wpcb_microsoft_calendar_view_incomplete',
+            'Microsoft calendar availability could not be read completely.'
+        );
     }
 
     private function graphInterval($start, $end): ?array {
@@ -314,7 +421,9 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
         CalendarConnection $connection,
         string $method,
         string $url,
-        ?array $payload
+        ?array $payload,
+        ?int $timeoutSeconds = null,
+        ?int $responseLimitBytes = null
     ) {
         $token = $this->accessToken($connection);
         if (is_wp_error($token)) {
@@ -324,7 +433,7 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
 
         $args = [
             'method' => $method,
-            'timeout' => 20,
+            'timeout' => $timeoutSeconds !== null ? max(1, min(20, $timeoutSeconds)) : 20,
             'redirection' => 0,
             'headers' => [
                 'Authorization' => 'Bearer ' . $token,
@@ -335,6 +444,9 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
         if ($payload !== null) {
             $args['headers']['Content-Type'] = 'application/json; charset=utf-8';
             $args['body'] = wp_json_encode($payload);
+        }
+        if ($responseLimitBytes !== null && $responseLimitBytes > 0) {
+            $args['limit_response_size'] = $responseLimitBytes;
         }
 
         $response = wp_remote_request($url, $args);
