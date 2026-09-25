@@ -109,33 +109,48 @@ final class PrivacyService {
         (new CustomerSessionRepository())->deleteForEmail($emailAddress);
 
         $table = $wpdb->prefix . 'wpcb_bookings';
-        // Always process the first matching batch. Successful anonymization
-        // removes rows from this email lookup, so offset pagination would skip
-        // records on subsequent WordPress eraser calls.
+        // Process only erasable rows. Retained rows must never consume the
+        // bounded batch, otherwise a full first page of retained bookings can
+        // permanently hide later erasable records.
         $rows = $wpdb->get_results(
             $wpdb->prepare(
-                "SELECT id FROM {$table} WHERE email = %s ORDER BY id ASC LIMIT %d",
+                "SELECT b.id FROM {$table} b
+                 WHERE b.email = %s
+                   AND NOT EXISTS (
+                       SELECT 1 FROM {$wpdb->prefix}wpcb_booking_meta m
+                       WHERE m.booking_id = b.id
+                         AND m.meta_key = %s
+                         AND m.meta_value = '1'
+                   )
+                 ORDER BY b.id ASC
+                 LIMIT %d",
                 $emailAddress,
+                self::RETAIN_META_KEY,
                 self::PAGE_SIZE
             )
         );
 
         $removed = false;
-        $retained = false;
-        $messages = [];
+        $retained = (int)$wpdb->get_var(
+            $wpdb->prepare(
+                "SELECT COUNT(*) FROM {$table} b
+                 WHERE b.email = %s
+                   AND EXISTS (
+                       SELECT 1 FROM {$wpdb->prefix}wpcb_booking_meta m
+                       WHERE m.booking_id = b.id
+                         AND m.meta_key = %s
+                         AND m.meta_value = '1'
+                   )",
+                $emailAddress,
+                self::RETAIN_META_KEY
+            )
+        ) > 0;
+        $messages = $retained
+            ? [__('One or more bookings were retained because an administrator marked them for retention.', 'wordpress-calendar-booking')]
+            : [];
 
         foreach ($rows as $row) {
-            $bookingId = (int)$row->id;
-            if ($this->isRetained($bookingId)) {
-                $retained = true;
-                $messages[] = sprintf(
-                    __('Booking #%d was retained because an administrator marked it for retention.', 'wordpress-calendar-booking'),
-                    $bookingId
-                );
-                continue;
-            }
-
-            if ($this->anonymizeBooking($bookingId)) {
+            if ($this->anonymizeBooking((int)$row->id)) {
                 $removed = true;
             }
         }
@@ -186,6 +201,7 @@ final class PrivacyService {
                 FROM {$bookings} b
                 WHERE b.status IN ({$placeholders})
                   AND b.slot_end < %s
+                  AND b.email NOT LIKE %s
                   AND NOT EXISTS (
                     SELECT 1 FROM {$meta} m
                     WHERE m.booking_id = b.id
@@ -194,7 +210,9 @@ final class PrivacyService {
                   )
                 ORDER BY b.id ASC
                 LIMIT 200";
-        $params = array_merge($statuses, [$cutoff, self::RETAIN_META_KEY]);
+        // Anonymized rows use this reserved non-deliverable address shape.
+        // Excluding them keeps every bounded retention run moving forward.
+        $params = array_merge($statuses, [$cutoff, 'anonymized-%@example.invalid', self::RETAIN_META_KEY]);
         $ids = $wpdb->get_col($wpdb->prepare($sql, ...$params));
 
         $count = 0;
