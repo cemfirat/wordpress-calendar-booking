@@ -8,15 +8,15 @@ final class TimeMigration {
     private const OPTION = 'wpcb_time_storage_version';
     private const VERSION = 2;
 
-    public static function maybeRun(): void {
+    public static function maybeRun(): bool {
         if ((int)get_option(self::OPTION, 0) >= self::VERSION) {
-            return;
+            return true;
         }
 
         global $wpdb;
         $prefix = $wpdb->prefix . 'wpcb_';
 
-        self::migrateTable(
+        if (!self::migrateTable(
             $prefix . 'bookings',
             'id',
             [
@@ -24,14 +24,22 @@ final class TimeMigration {
                 'cancelled_at', 'updated_at_user', 'reserved_until',
                 'created_at', 'updated_at',
             ]
-        );
-        self::migrateTable($prefix . 'exceptions', 'id', ['date_start', 'date_end', 'created_at', 'updated_at']);
-        self::migrateTable($prefix . 'tokens', 'id', ['expires_at', 'used_at', 'created_at']);
-        self::migrateTable($prefix . 'booking_status_log', 'id', ['created_at']);
-        self::migrateTable($prefix . 'sync_jobs', 'id', ['available_at', 'created_at', 'updated_at']);
-        self::migrateTable($prefix . 'sync_log', 'id', ['created_at']);
+        )
+            || !self::migrateTable($prefix . 'exceptions', 'id', ['date_start', 'date_end', 'created_at', 'updated_at'])
+            || !self::migrateTable($prefix . 'tokens', 'id', ['expires_at', 'used_at', 'created_at'])
+            || !self::migrateTable($prefix . 'booking_status_log', 'id', ['created_at'])
+            || !self::migrateTable($prefix . 'sync_jobs', 'id', ['available_at', 'created_at', 'updated_at'])
+            || !self::migrateTable($prefix . 'sync_log', 'id', ['created_at'])
+        ) {
+            return false;
+        }
 
         update_option(self::OPTION, self::VERSION, false);
+        return (int)get_option(self::OPTION, 0) >= self::VERSION;
+    }
+
+    public static function currentVersion(): int {
+        return self::VERSION;
     }
 
     private static function legacyLocalToUtc(string $value): ?string {
@@ -50,12 +58,12 @@ final class TimeMigration {
         return Time::formatUtc($date);
     }
 
-    private static function migrateTable(string $table, string $primaryKey, array $columns): void {
+    private static function migrateTable(string $table, string $primaryKey, array $columns): bool {
         global $wpdb;
 
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
         if ($exists !== $table) {
-            return;
+            return false;
         }
 
         $select = array_merge([$primaryKey], $columns);
@@ -74,9 +82,10 @@ final class TimeMigration {
                 }
             }
 
-            if ($changes) {
-                $wpdb->update($table, $changes, [$primaryKey => (int)$row->$primaryKey]);
+            if ($changes && $wpdb->update($table, $changes, [$primaryKey => (int)$row->$primaryKey]) === false) {
+                return false;
             }
         }
+        return true;
     }
 }

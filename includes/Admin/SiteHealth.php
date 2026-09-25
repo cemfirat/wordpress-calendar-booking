@@ -2,6 +2,7 @@
 namespace Wpcb\Admin;
 
 use Wpcb\Database\SchemaMigration;
+use Wpcb\Database\MigrationReadiness;
 use Wpcb\Mail\MailDiagnostics;
 use Wpcb\Reliability\SchedulerHealth;
 use Wpcb\Resources\ResourceMigration;
@@ -119,6 +120,7 @@ final class SiteHealth {
                 'version' => $this->field(__('Plugin-Version', 'wordpress-calendar-booking'), defined('WPCB_VERSION') ? WPCB_VERSION : ''),
                 'schema_version' => $this->field(__('Datenbankschema (gespeichert / erwartet)', 'wordpress-calendar-booking'), SchemaMigration::recordedVersion() . ' / ' . SchemaMigration::currentVersion()),
                 'schema_verified' => $this->field(__('Datenbankschema verifiziert', 'wordpress-calendar-booking'), SchemaMigration::isReady() ? 'yes' : 'no'),
+                'data_migrations_ready' => $this->field(__('Datenmigrationen abgeschlossen', 'wordpress-calendar-booking'), MigrationReadiness::isReady() ? 'yes' : 'no'),
                 'resource_model_version' => $this->field(__('Ressourcenmodell', 'wordpress-calendar-booking'), (string)ResourceMigration::currentVersion()),
                 'core_ready' => $this->field(__('Kern-Bereitschaft', 'wordpress-calendar-booking'), !empty($readiness['ready']) ? 'yes' : 'no'),
                 'scheduler_healthy' => $this->field(__('Scheduler gesund', 'wordpress-calendar-booking'), !empty($scheduler['healthy']) ? 'yes' : 'no'),

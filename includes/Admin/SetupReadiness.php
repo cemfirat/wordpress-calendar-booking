@@ -3,6 +3,7 @@ namespace Wpcb\Admin;
 
 use Wpcb\Reliability\SchedulerHealth;
 use Wpcb\Database\SchemaMigration;
+use Wpcb\Database\MigrationReadiness;
 
 final class SetupReadiness {
     public function snapshot(): array {
@@ -15,6 +16,19 @@ final class SetupReadiness {
                     false,
                     __('Datenbankstruktur', 'wordpress-calendar-booking'),
                     __('Die erforderlichen Plugin-Tabellen, Spalten oder Indizes sind noch nicht vollständig verifiziert. Neue Buchungen bleiben bis zur erfolgreichen Reparatur gesperrt.', 'wordpress-calendar-booking'),
+                    admin_url('site-health.php')
+                ),
+            ];
+            return ['ready' => false, 'items' => $items];
+        }
+
+        if (!MigrationReadiness::isReady()) {
+            $items = [
+                $this->item(
+                    'data_migrations',
+                    false,
+                    __('Datenmigrationen', 'wordpress-calendar-booking'),
+                    __('Mindestens eine erforderliche Datenmigration ist noch nicht vollständig abgeschlossen. Neue Buchungen bleiben bis zur erfolgreichen Wiederholung gesperrt.', 'wordpress-calendar-booking'),
                     admin_url('site-health.php')
                 ),
             ];

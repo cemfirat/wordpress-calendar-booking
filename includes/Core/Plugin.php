@@ -6,6 +6,7 @@ use Wpcb\Admin\BookingAuditPage;
 use Wpcb\Admin\ResourceAdminPage;
 use Wpcb\Admin\WebhookAdminPage;
 use Wpcb\Database\SchemaMigration;
+use Wpcb\Database\MigrationReadiness;
 use Wpcb\Resources\ResourceMigration;
 use Wpcb\Frontend\Shortcodes;
 use Wpcb\Frontend\Actions;
@@ -48,11 +49,17 @@ class Plugin {
             return;
         }
 
-        ResourceMigration::maybeRun();
-        TokenMigration::maybeRun();
-        SecretMigration::maybeRun();
-        TimeMigration::maybeRun();
-        BookingStatusMigration::maybeRun();
+        $migrationsReady = TokenMigration::maybeRun()
+            && SecretMigration::maybeRun()
+            && TimeMigration::maybeRun()
+            && BookingStatusMigration::maybeRun()
+            && ResourceMigration::maybeRun();
+
+        if (!$migrationsReady || !MigrationReadiness::isReady()) {
+            add_action('admin_notices', [MigrationReadiness::class, 'renderAdminNotice']);
+            return;
+        }
+
         (new BookingTransitionEffects())->boot();
         (new Admin())->boot();
         (new \Wpcb\Admin\DemoCalendarPage())->boot();

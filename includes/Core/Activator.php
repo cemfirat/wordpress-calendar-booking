@@ -7,17 +7,24 @@ use Wpcb\Support\TimeMigration;
 use Wpcb\Tokens\TokenMigration;
 use Wpcb\Security\SecretMigration;
 use Wpcb\Resources\ResourceMigration;
+use Wpcb\Booking\BookingStatusMigration;
 
 class Activator {
     public static function activate(): void {
         if (!SchemaMigration::maybeRun()) {
             return;
         }
-        TokenMigration::maybeRun();
-        SecretMigration::maybeRun();
-        TimeMigration::maybeRun();
+        if (!TokenMigration::maybeRun()
+            || !SecretMigration::maybeRun()
+            || !TimeMigration::maybeRun()
+            || !BookingStatusMigration::maybeRun()
+        ) {
+            return;
+        }
         self::seed_defaults();
-        ResourceMigration::maybeRun();
+        if (!ResourceMigration::maybeRun()) {
+            return;
+        }
         flush_rewrite_rules();
     }
 

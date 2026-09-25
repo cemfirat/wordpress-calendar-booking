@@ -12,9 +12,9 @@ final class SecretMigration {
     private const OPTION = 'wpcb_secret_storage_version';
     private const VERSION = 2;
 
-    public static function maybeRun(): void {
+    public static function maybeRun(): bool {
         if ((int)get_option(self::OPTION, 0) >= self::VERSION) {
-            return;
+            return true;
         }
 
         $settings = (array)get_option('wpcb_settings', []);
@@ -24,10 +24,20 @@ final class SecretMigration {
             $settings['icloud_sync_password_enc'] = '';
             $settings['icloud_sync_enabled'] = 0;
             update_option('wpcb_settings', $settings);
+            $storedSettings = (array)get_option('wpcb_settings', []);
+            if (!empty($storedSettings['icloud_sync_password_enc'])
+                || !empty($storedSettings['icloud_sync_enabled'])
+            ) {
+                return false;
+            }
             update_option('wpcb_secret_reentry_required', 1, false);
+            if ((int)get_option('wpcb_secret_reentry_required', 0) !== 1) {
+                return false;
+            }
         }
 
         update_option(self::OPTION, self::VERSION, false);
+        return (int)get_option(self::OPTION, 0) >= self::VERSION;
     }
 
     public static function currentVersion(): int {
