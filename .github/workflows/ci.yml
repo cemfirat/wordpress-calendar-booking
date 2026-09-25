@@ -250,7 +250,7 @@ jobs:
 
           wait "$holder_pid"
           cat "$RUNNER_TEMP/schema-lock-holder.txt"
-          wp eval 'if (!Wpcb\\Database\\SchemaMigration::isReady()) { throw new RuntimeException("Schema readiness was not restored."); }' --path="$RUNNER_TEMP/wordpress"
+          wp eval 'if (!Wpcb\Database\SchemaMigration::isReady()) { throw new RuntimeException("Schema readiness was not restored."); }' --path="$RUNNER_TEMP/wordpress"
       - name: Run booking abuse-protection smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/security-guard-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run availability abuse/cost smoke test
