@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.19.6
+
+- Use a single effective buffer policy for candidate and existing bookings across slot generation, capacity checks, confirmation/approval and rescheduling; keep half-open interval boundaries explicit.
+- Revalidate current weekly availability, exceptions and buffered calendar/internal occupancy while the resource lock is held before capacity-acquiring transitions.
+- Verify every required schema table/column/index before recording migration completion, serialize migration attempts and fail closed on incomplete required state.
+- Make token/secret/time/status/resource migration markers verifiable and retryable after partial failures, including rollback-safe legacy time conversion.
+- Make first-install default settings/types/fields/rules/templates resumable and verified with a bounded seed lock, duplicate-safe retry and adoption of already configured installations.
+- Upgrade acceptance now starts from the immutable published 3.19.5 package and must preserve synthetic historical data/configuration before release.
+
+
 ## 3.19.5
 
 - Serialize booking confirmation, approval, expiry and resource moves with shared resource locks; recheck state and reservation deadlines after waiting and roll back failed grouped confirmations.

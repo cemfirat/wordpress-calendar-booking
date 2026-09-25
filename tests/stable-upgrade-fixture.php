@@ -36,7 +36,7 @@ if (!defined('ABSPATH') || getenv('GITHUB_ACTIONS') !== 'true'
     $tokens = new Wpcb\Tokens\TokenService();
     $phase = getenv('WPCB_UPGRADE_PHASE');
     if ($phase === 'seed') {
-        $assert(WPCB_VERSION === '3.19.4', 'Synthetic customer records are created with the actual old release loaded.');
+        $assert(WPCB_VERSION === '3.19.5', 'Synthetic customer records are created with the actual old release loaded.');
         $settings = (array)get_option('wpcb_settings');
         $settings['timezone'] = 'Europe/Vienna';
         $settings['sender_name'] = 'Upgrade fixture sender';
@@ -83,6 +83,9 @@ if (!defined('ABSPATH') || getenv('GITHUB_ACTIONS') !== 'true'
         $assert(add_option('wpcb_upgrade_test_fixture', $fixture, '', false), 'Isolated acceptance snapshot is persisted.');
     } elseif ($phase === 'assert') {
         $assert(WPCB_VERSION === getenv('WPCB_UPGRADE_VERSION'), 'New PHP process boots the exact candidate version.');
+        $assert(Wpcb\Database\SchemaMigration::isReady(), 'Upgraded schema verification is complete.');
+        $assert(Wpcb\Database\DefaultSeedMigration::isReady(), 'Upgraded default seed migration is complete.');
+        $assert(Wpcb\Database\MigrationReadiness::isReady(), 'Upgraded required migrations are ready.');
         $fixture = get_option('wpcb_upgrade_test_fixture');
         $assert(is_array($fixture) && $fixture['snapshot'] === $snapshot(), 'All 27 plugin tables and saved configuration survive the actual upgrade byte-equivalently.');
         $settings = (array)get_option('wpcb_settings');

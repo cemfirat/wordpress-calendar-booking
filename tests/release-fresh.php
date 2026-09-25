@@ -10,7 +10,7 @@ function wpcb_release_assert($condition, string $message): void {
     WP_CLI::log('PASS: ' . $message);
 }
 
-wpcb_release_assert(defined('WPCB_VERSION') && WPCB_VERSION === '3.19.5', 'Release ZIP boots version 3.19.5.');
+wpcb_release_assert(defined('WPCB_VERSION') && WPCB_VERSION === '3.19.6', 'Release ZIP boots version 3.19.6.');
 wpcb_release_assert(class_exists('Sabre\\VObject\\Reader'), 'Release ZIP contains Composer runtime dependencies.');
 wpcb_release_assert(is_file(WPCB_DIR . 'assets/vendor/uikit/uikit.min.css'), 'Release ZIP contains local UIkit CSS fallback.');
 wpcb_release_assert(is_file(WPCB_DIR . 'assets/vendor/uikit/uikit.min.js'), 'Release ZIP contains local UIkit JavaScript fallback.');
@@ -55,6 +55,6 @@ wpcb_release_assert($defaultResourceId > 0 && (new Wpcb\Resources\ResourceReposi
 $process = proc_open(['python3', __DIR__ . '/upgrade-from-stable.py', ABSPATH, WPCB_VERSION],
     [0 => STDIN, 1 => STDOUT, 2 => STDERR], $pipes);
 wpcb_release_assert(is_resource($process), 'Published-baseline upgrade test starts.');
-wpcb_release_assert(proc_close($process) === 0, 'Actual published 3.19.4 upgrades to the candidate without data loss.');
+wpcb_release_assert(proc_close($process) === 0, 'Actual published 3.19.5 upgrades to the candidate without data loss.');
 
 WP_CLI::success('Fresh release ZIP installation and published-baseline upgrade passed.');

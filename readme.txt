@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.19.5
+Stable tag: 3.19.6
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,14 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.19.6 =
+* Apply one effective before/after buffer policy to displayed slots, final confirmation/approval, rescheduling and capacity calculations.
+* Revalidate current weekly rules, exceptions and buffered internal/external conflicts before final booking transitions.
+* Verify required schema before recording migration completion, retry partial DDL safely and fail closed while required migrations are incomplete.
+* Make first-install default seeding resumable, serialized and verified without duplicating defaults or overwriting established administrator configuration.
+* Verify a real upgrade from the published 3.19.5 package before release.
+* This maintenance release is not full-feature production certification. Remaining audit work is tracked in docs/RELEASE-3.19.6.md and GitHub issue #178.
 
 = 3.19.5 =
 * Share resource locks across booking transitions and recheck expired reservation holds.
