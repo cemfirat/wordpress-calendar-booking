@@ -96,6 +96,7 @@ $cleanup = static function () use ($wpdb, $prefix, $testEmail, $testSlug, $waitl
     $wpdb->query("DELETE FROM {$prefix}customer_sessions");
     delete_option('wpcb_e2e_mailbox');
     delete_option('wpcb_e2e_waitlist_stripe');
+    delete_option('wpcb_stripe_settings');
 };
 
 if ($action === 'setup') {
