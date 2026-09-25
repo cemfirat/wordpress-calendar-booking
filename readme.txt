@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.19.8
+Stable tag: 3.19.9
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,15 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.19.9 =
+* Fail closed when blocking calendar availability cannot be read completely instead of treating provider failures as free time.
+* Reject embedded Google/Microsoft availability errors and malformed strict ICS/CalDAV reads.
+* Follow Microsoft Graph calendarView nextLink pages with trusted-origin/path checks and strict page/event/byte/time limits.
+* Reject pagination loops, untrusted links, limit exhaustion and later-page failures as incomplete availability.
+* Keep bookings without configured blocking provider calendars independent of provider outages.
+* Verify a real upgrade from the immutable published 3.19.8 package before release.
+* Live provider-account qualification and remaining audit work stay tracked in docs/RELEASE-3.19.9.md and GitHub issue #178.
 
 = 3.19.8 =
 * Persist privacy-minimal booking lifecycle follow-up intent in the leased queue in the same database transaction as reservation, transition and reschedule writes.
