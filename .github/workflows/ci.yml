@@ -248,6 +248,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/configuration-backup-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run resource scheduling smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/resource-scheduling-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run scheduling buffer policy smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/buffer-policy-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run capacity/group booking smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/capacity-booking-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run scheduler health smoke test

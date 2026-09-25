@@ -90,12 +90,18 @@ namespace {
     final class ContractSlots extends \Wpcb\Availability\SlotService {
         public bool $available = true;
         public bool $throw = false;
+        public int $canonicalCalls = 0;
         public function __construct() {}
         public function slotAvailable(int $type, string $start, string $end, ?int $ignore = null,
             ?int $resource = null, int $party = 1): bool {
             check(!empty($GLOBALS['wpdb']->held), 'capacity read must hold resource lock');
             if ($this->throw) throw new \RuntimeException('injected read failure');
             return $this->available;
+        }
+        public function isCanonicalSlot(int $type, string $start, string $end, ?int $ignore = null,
+            ?int $resource = null, int $party = 1): bool {
+            ++$this->canonicalCalls;
+            return $this->slotAvailable($type, $start, $end, $ignore, $resource, $party);
         }
     }
     function check(bool $ok, string $message): void { if (!$ok) throw new \RuntimeException($message); }
@@ -192,6 +198,7 @@ namespace {
         [$repo, $slots, $service] = resetContract(); $repo->rows[1]->status = 'pending_approval';
         $r = $service->reschedule(1, $repo->rows[1]->slot_start, $repo->rows[1]->slot_end, 'test', '', 2);
         check(is_array($r) && count($GLOBALS['wpdb']->acquisitions) === 2, 'both resources acquired');
+        check($slots->canonicalCalls === 1, 'reschedule uses canonical slot validation');
         check(!$GLOBALS['wpdb']->held, 'both resources released');
     };
     $tests['reentrant resource acquisition is balanced'] = function () {
