@@ -72,6 +72,7 @@ class Plugin {
         (new SiteHealth())->boot();
         (new ConfigurationBackupPage())->boot();
         (new Shortcodes())->boot();
+        (new \Wpcb\Frontend\BookingEntryGuard())->boot();
         (new Actions())->boot();
         (new QueueService())->boot();
         (new PrivacyService())->boot();

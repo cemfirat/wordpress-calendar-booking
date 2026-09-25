@@ -35,6 +35,7 @@ final class AssetManager {
             'ajaxUrl' => admin_url('admin-ajax.php'),
             'nonce' => wp_create_nonce('wpcb_frontend'),
             'i18n' => [
+                'retrySlots' => __('Erneut versuchen', 'wordpress-calendar-booking'),
                 'loadingSlots' => __('Lade freie Zeiten ...', 'wordpress-calendar-booking'),
                 'noSlots' => __('Keine freien Zeiten gefunden', 'wordpress-calendar-booking'),
                 'choose' => __('Bitte wählen', 'wordpress-calendar-booking'),
@@ -60,7 +61,7 @@ final class AssetManager {
     }
 
     public function usesYoothemeUikit(): bool {
-        $active = class_exists('YOOtheme\\Application', false);
+        $active = class_exists('YOOtheme\Application', false);
         return (bool)apply_filters('wpcb_uses_yootheme_uikit', $active);
     }
 

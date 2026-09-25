@@ -21,7 +21,7 @@ final class ConfigurationService {
             'capacity' => max(1, min(10000, absint($input['capacity'] ?? 1))),
             'show_remaining_capacity' => empty($input['show_remaining_capacity']) ? 0 : 1,
             'payment_mode' => in_array(($input['payment_mode'] ?? 'free'), ['free', 'required'], true)
-                ? sanitize_key((string)$input['payment_mode'])
+                ? sanitize_key((string)($input['payment_mode'] ?? 'free'))
                 : 'free',
             'price_minor' => max(0, absint($input['price_minor'] ?? 0)),
             'currency' => $currency,
