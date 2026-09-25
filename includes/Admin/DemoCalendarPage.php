@@ -25,7 +25,7 @@ final class DemoCalendarPage {
 
     public function handle(): void {
         if (!current_user_can('manage_options')) wp_die(esc_html__('Keine Berechtigung.', 'wordpress-calendar-booking'), '', ['response' => 403]);
-        if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') wp_die('Method not allowed.', '', ['response' => 405]);
+        if (strtoupper((string)($_SERVER['REQUEST_METHOD'] ?? '')) !== 'POST') wp_die(esc_html__('Method not allowed.', 'wordpress-calendar-booking'), '', ['response' => 405]);
         check_admin_referer('wpcb_demo_calendar');
         $operation = $_POST['demo_operation'] ?? '';
         if (!is_string($operation) || !in_array($operation, ['create', 'remove'], true) || ($_POST['confirm_demo'] ?? '') !== '1') {
@@ -116,6 +116,7 @@ final class DemoCalendarPage {
     }
 
     private function label(string $id): string {
+        // translators: %d is the sequential demo entry number, from 1 to 10.
         return sprintf(__('Beispiel %d', 'wordpress-calendar-booking'), (int)substr($id, 5));
     }
 }
