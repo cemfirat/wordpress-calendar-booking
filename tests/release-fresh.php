@@ -55,6 +55,6 @@ wpcb_release_assert($defaultResourceId > 0 && (new Wpcb\Resources\ResourceReposi
 $process = proc_open(['python3', __DIR__ . '/upgrade-from-stable.py', ABSPATH, WPCB_VERSION],
     [0 => STDIN, 1 => STDOUT, 2 => STDERR], $pipes);
 wpcb_release_assert(is_resource($process), 'Published-baseline upgrade test starts.');
-wpcb_release_assert(proc_close($process) === 0, 'Actual published 3.19.4 upgrades to the candidate without data loss.');
+wpcb_release_assert(proc_close($process) === 0, 'Actual published 3.19.5 upgrades to the candidate without data loss.');
 
 WP_CLI::success('Fresh release ZIP installation and published-baseline upgrade passed.');
