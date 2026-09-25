@@ -11,6 +11,7 @@ use Wpcb\Security\SecretBox;
 use Wpcb\Support\Time;
 use Wpcb\Tokens\SlotTokenService;
 use Wpcb\Mail\SpecialNotificationMailer;
+use Wpcb\Payments\CheckoutHandoffService;
 
 final class WaitingListService {
     private WaitingListRepository $repo;
@@ -121,6 +122,11 @@ final class WaitingListService {
         $candidate = $this->repo->acceptIfTokenMatches($entryId, $selector, $verifier);
         if (!$candidate) {
             return new \WP_Error('wpcb_waitlist_token_invalid', 'This waiting-list offer is invalid, expired or already being claimed.');
+        }
+
+        $paymentPreflight = (new CheckoutHandoffService())->preflightType((int)$candidate->booking_type_id);
+        if (is_wp_error($paymentPreflight)) {
+            return $paymentPreflight;
         }
 
         $resourceId = (int)$candidate->resource_id;
