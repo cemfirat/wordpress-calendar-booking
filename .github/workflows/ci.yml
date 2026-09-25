@@ -224,6 +224,8 @@ jobs:
           wp plugin activate wordpress-calendar-booking --path="$WP_ROOT"
       - name: Verify post-schema data migration retry safety
         run: wp eval-file "$GITHUB_WORKSPACE/tests/data-migration-recovery.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Verify default seed interruption and recovery
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/default-seed-recovery.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run WordPress smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Verify schema migration failure and recovery

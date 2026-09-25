@@ -53,3 +53,24 @@ fact that re-entry is required.
 CI injects both failure modes on a fresh WordPress/MySQL installation before
 ordinary smoke fixtures are created, proves that markers stay incomplete, and
 then proves a successful retry reaches the expected state exactly once.
+
+
+## Default seed recovery
+
+First-install defaults use a separate resumable migration. Before writing any
+settings, booking types, form fields, weekly rules or email templates, the
+migration persists an in-progress marker and acquires a bounded per-site MySQL
+lock. Each default has a stable lookup key, so a retry adds only missing rows
+instead of duplicating a successfully written prefix.
+
+A completed existing installation that predates the seed marker is adopted
+without recreating or overwriting administrator-customized defaults. This is
+deliberate: after an upgrade the plugin cannot safely distinguish an
+administrator-deleted default from an old default that never existed.
+
+CI starts from an otherwise fresh installation, removes the first-install
+defaults, injects failure on the second booking-type insert, and proves that a
+later retry reaches exactly three default types, twelve form fields and five
+weekday rules with no duplicates. It also proves resource mappings are restored,
+repeated execution is idempotent, and marker adoption preserves an existing
+customized row.

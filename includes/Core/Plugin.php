@@ -7,6 +7,7 @@ use Wpcb\Admin\ResourceAdminPage;
 use Wpcb\Admin\WebhookAdminPage;
 use Wpcb\Database\SchemaMigration;
 use Wpcb\Database\MigrationReadiness;
+use Wpcb\Database\DefaultSeedMigration;
 use Wpcb\Resources\ResourceMigration;
 use Wpcb\Frontend\Shortcodes;
 use Wpcb\Frontend\Actions;
@@ -53,6 +54,7 @@ class Plugin {
             && SecretMigration::maybeRun()
             && TimeMigration::maybeRun()
             && BookingStatusMigration::maybeRun()
+            && DefaultSeedMigration::maybeRun()
             && ResourceMigration::maybeRun();
 
         if (!$migrationsReady || !MigrationReadiness::isReady()) {
