@@ -103,6 +103,15 @@ $accepted=$service->accept($first,$token);
 wpcb_wait_assert(is_int($accepted) && $accepted>0,'Valid one-time promotion creates a reservation.');
 $acceptedRow=$waitRepo->find($first);
 wpcb_wait_assert($acceptedRow && $acceptedRow->status==='accepted' && (int)$acceptedRow->booking_id===$accepted,'Accepted offer links to the new booking and clears the hold token.');
+$doiDelivery=(new Wpcb\Reliability\DeliveryRepository())->findByKey('mail:user:' . $accepted . ':doi');
+$doiTokenCount=(int)$wpdb->get_var($wpdb->prepare(
+    "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_tokens WHERE booking_id=%d AND token_type='doi' AND used_at IS NULL",
+    $accepted
+));
+wpcb_wait_assert(
+    $doiDelivery && in_array((string)$doiDelivery->status,['sent','sending','uncertain','failed'],true) && $doiTokenCount===1,
+    'Waiting-list acceptance enters the same durable DOI lifecycle with one valid confirmation token.'
+);
 $replay=$service->accept($first,$token);
 wpcb_wait_assert(is_wp_error($replay),'Promotion token cannot be replayed.');
 
