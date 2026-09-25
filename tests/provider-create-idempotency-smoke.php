@@ -84,6 +84,8 @@ $teamsExternalIds = [];
 $msRemote = [];
 $msRemoteCreates = 0;
 $msTransactionIds = [];
+$meetScenario = 'success';
+$meetRequests = [];
 
 $httpFilter = static function ($pre, $args, $url) use (
     &$googleRemote,
@@ -95,7 +97,9 @@ $httpFilter = static function ($pre, $args, $url) use (
     &$teamsExternalIds,
     &$msRemote,
     &$msRemoteCreates,
-    &$msTransactionIds
+    &$msTransactionIds,
+    &$meetScenario,
+    &$meetRequests
 ) {
     $method = strtoupper((string)($args['method'] ?? 'GET'));
     $response = static function (int $code, string $message, $body = '', array $headers = []) {
@@ -152,6 +156,27 @@ $httpFilter = static function ($pre, $args, $url) use (
             }
             return $response(404, 'Not Found');
         }
+    }
+
+    if ($url === 'https://meet.googleapis.com/v2/spaces' && $method === 'POST') {
+        $meetRequests[] = [
+            'method' => $method,
+            'content_type' => (string)($args['headers']['Content-Type'] ?? ''),
+            'body' => (string)($args['body'] ?? ''),
+        ];
+        if ($meetScenario === 'reject') {
+            return $response(403, 'Forbidden', ['error' => ['message' => 'synthetic rejection']]);
+        }
+        if ($meetScenario === 'malformed') {
+            return $response(200, 'OK', '{not-json');
+        }
+        if ($meetScenario === 'missing_uri') {
+            return $response(200, 'OK', ['name' => 'spaces/ci-missing-uri']);
+        }
+        return $response(200, 'OK', [
+            'name' => 'spaces/ci-space',
+            'meetingUri' => 'https://meet.google.com/abc-defg-hij',
+        ]);
     }
 
     if (str_contains($url, '/onlineMeetings/createOrGet') && $method === 'POST') {
@@ -299,6 +324,50 @@ wpcb_idempotency_assert(
     && hash_equals($teamsExternalIds[0], $teamsExternalIds[1])
     && $teamsRemoteCreates === 1,
     'Teams retries use createOrGet with one stable externalId and one logical remote meeting.'
+);
+
+// Google Meet spaces.create requires a JSON object, not an empty JSON array.
+$meetConnection = (object)[
+    'id' => 434343,
+    'provider' => 'google_meet',
+    'config' => [],
+    'credentials' => ['access_token' => 'CI-GOOGLE-MEET'],
+];
+$meetProvider = new Wpcb\VideoMeetings\GoogleMeetProvider();
+$meetScenario = 'success';
+$meetOk = $meetProvider->create($bookingArray, $meetConnection);
+$lastMeetRequest = end($meetRequests);
+$decodedMeetBody = json_decode((string)($lastMeetRequest['body'] ?? ''));
+wpcb_idempotency_assert(
+    !empty($meetOk['ok'])
+    && ($meetOk['remote_id'] ?? '') === 'spaces/ci-space'
+    && ($meetOk['join_url'] ?? '') === 'https://meet.google.com/abc-defg-hij'
+    && ($lastMeetRequest['method'] ?? '') === 'POST'
+    && ($lastMeetRequest['content_type'] ?? '') === 'application/json'
+    && is_object($decodedMeetBody)
+    && get_object_vars($decodedMeetBody) === [],
+    'Google Meet create sends an empty Space JSON object and accepts a complete Space response.'
+);
+
+$meetScenario = 'reject';
+$meetRejected = $meetProvider->create($bookingArray, $meetConnection);
+wpcb_idempotency_assert(
+    empty($meetRejected['ok']) && ($meetRejected['message'] ?? '') === 'Provider HTTP 403',
+    'Google Meet provider rejection remains a controlled failure.'
+);
+
+$meetScenario = 'malformed';
+$meetMalformed = $meetProvider->create($bookingArray, $meetConnection);
+wpcb_idempotency_assert(
+    empty($meetMalformed['ok']) && str_contains((string)($meetMalformed['message'] ?? ''), 'incomplete Space'),
+    'Google Meet malformed success payload is rejected instead of producing an empty remote reference.'
+);
+
+$meetScenario = 'missing_uri';
+$meetMissingUri = $meetProvider->create($bookingArray, $meetConnection);
+wpcb_idempotency_assert(
+    empty($meetMissingUri['ok']) && str_contains((string)($meetMissingUri['message'] ?? ''), 'incomplete Space'),
+    'Google Meet success without a meeting URI is rejected.'
 );
 
 remove_filter('pre_http_request', $httpFilter, 10);
