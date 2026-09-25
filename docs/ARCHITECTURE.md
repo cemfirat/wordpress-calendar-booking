@@ -152,7 +152,9 @@ A paid recurring series uses one payment obligation owned by its first occurrenc
 
 ## Waiting lists
 
-Waiting-list entries are scoped to booking type/resource/slot and requested party size. When capacity is released, promotion uses a bounded hold rather than immediately creating an over-capacity booking. Only one active offer can own released capacity, and expired offers return it to the promotion process.
+Waiting-list entries are scoped to booking type/resource/slot and requested party size. A join is accepted only for an active public booking type, an active assigned resource, an ordered future interval matching the configured availability rule, and a party size that can fit the effective resource/type capacity.
+
+When capacity is released, promotion uses a bounded hold rather than immediately creating an over-capacity booking. Active `offered` and `claiming` holds consume shared resource capacity across booking types, durations and effective before/after buffers using the same half-open overlap policy as bookings. Expired holds do not count. During acceptance the resource lock is held from offer claim through booking commit; only the claimed entry's own hold is excluded from its canonical capacity checks, while every other caller continues to see it. The waiting-list row is finalized inside the same database transaction as the new reservation so a finalization failure rolls both back and restores the offer.
 
 Waiting-list identity is private and participates in export/erase/retention handling.
 

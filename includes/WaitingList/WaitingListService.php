@@ -1,9 +1,12 @@
 <?php
 namespace Wpcb\WaitingList;
 
+use Wpcb\Availability\BufferPolicy;
+use Wpcb\Booking\BookingTypeRepository;
 use Wpcb\Booking\CapacityService;
 use Wpcb\Booking\ReservationService;
 use Wpcb\Resources\ResourceLock;
+use Wpcb\Resources\ResourceRepository;
 use Wpcb\Security\SecretBox;
 use Wpcb\Support\Time;
 use Wpcb\Tokens\SlotTokenService;
@@ -13,15 +16,24 @@ final class WaitingListService {
     private WaitingListRepository $repo;
     private CapacityService $capacity;
     private ResourceLock $locks;
+    private BookingTypeRepository $types;
+    private ResourceRepository $resources;
+    private BufferPolicy $buffers;
 
     public function __construct(
         ?WaitingListRepository $repo = null,
         ?CapacityService $capacity = null,
-        ?ResourceLock $locks = null
+        ?ResourceLock $locks = null,
+        ?BookingTypeRepository $types = null,
+        ?ResourceRepository $resources = null,
+        ?BufferPolicy $buffers = null
     ) {
         $this->repo = $repo ?: new WaitingListRepository();
         $this->capacity = $capacity ?: new CapacityService();
         $this->locks = $locks ?: new ResourceLock();
+        $this->types = $types ?: new BookingTypeRepository();
+        $this->resources = $resources ?: new ResourceRepository();
+        $this->buffers = $buffers ?: new BufferPolicy(null, $this->types);
     }
 
     public function join(array $data) {
@@ -32,7 +44,18 @@ final class WaitingListService {
         $partySize = max(1, (int)($data['party_size'] ?? 1));
         $email = sanitize_email((string)($data['email'] ?? ''));
 
-        if ($typeId < 1 || $resourceId < 1 || !Time::parseUtc($start) || !Time::parseUtc($end) || !is_email($email)) {
+        $startUtc = Time::parseUtc($start);
+        $endUtc = Time::parseUtc($end);
+        $type = $this->types->find($typeId);
+        $resource = $this->resources->find($resourceId);
+        if ($typeId < 1 || $resourceId < 1 || !$startUtc || !$endUtc || !is_email($email)
+            || $endUtc <= $startUtc || $startUtc <= Time::nowUtc()
+            || !$type || empty($type->is_active) || empty($type->is_public)
+            || !$resource || empty($resource->is_active)
+            || !$this->resources->isAssignedToBookingType($resourceId, $typeId)
+            || !$this->buffers->matchingRuleForSlot($typeId, $resourceId, $start, $end)
+            || $partySize > $this->capacity->effectiveCapacity($typeId, $resourceId)
+        ) {
             return new \WP_Error('wpcb_waitlist_invalid', 'Waiting-list request is invalid.');
         }
         if ($this->capacity->canFit($typeId, $resourceId, $start, $end, $partySize)) {
@@ -95,35 +118,56 @@ final class WaitingListService {
 
     public function accept(int $entryId, string $token) {
         [$selector, $verifier] = array_pad(explode('.', $token, 2), 2, '');
-        $fresh = $this->repo->claimOffer($entryId, $selector, $verifier);
-        if (!$fresh) {
+        $candidate = $this->repo->acceptIfTokenMatches($entryId, $selector, $verifier);
+        if (!$candidate) {
             return new \WP_Error('wpcb_waitlist_token_invalid', 'This waiting-list offer is invalid, expired or already being claimed.');
         }
 
-        $resourceId = (int)$fresh->resource_id;
-        $slotToken = (new SlotTokenService())->issue(
-            (int)$fresh->booking_type_id,
-            (string)$fresh->slot_start,
-            (string)$fresh->slot_end,
-            $resourceId
-        );
-        $bookingId = (new ReservationService())->reserve($slotToken, (int)$fresh->booking_type_id, [
-            'full_name' => (string)$fresh->full_name,
-            'email' => (string)$fresh->email,
-            'phone' => (string)$fresh->phone,
-            'party_size' => (int)$fresh->party_size,
-            'source' => 'waiting_list',
-            'lang' => 'de',
-        ], ['waiting_list_entry_id' => (int)$fresh->id]);
+        $resourceId = (int)$candidate->resource_id;
+        if (!$this->locks->acquire($resourceId, 5)) {
+            return new \WP_Error('wpcb_waitlist_busy', 'The offered resource is busy. Please try again.');
+        }
 
-        if (is_wp_error($bookingId)) {
-            $this->repo->resetClaim($entryId);
-            return $bookingId;
+        try {
+            // Re-read and claim only after the resource serialization boundary.
+            // The claiming row remains a capacity hold for every other caller.
+            $fresh = $this->repo->claimOffer($entryId, $selector, $verifier);
+            if (!$fresh) {
+                return new \WP_Error('wpcb_waitlist_token_invalid', 'This waiting-list offer is invalid, expired or already being claimed.');
+            }
+
+            $slotToken = (new SlotTokenService())->issue(
+                (int)$fresh->booking_type_id,
+                (string)$fresh->slot_start,
+                (string)$fresh->slot_end,
+                $resourceId
+            );
+            $bookingId = (new ReservationService())->reserve(
+                $slotToken,
+                (int)$fresh->booking_type_id,
+                [
+                    'full_name' => (string)$fresh->full_name,
+                    'email' => (string)$fresh->email,
+                    'phone' => (string)$fresh->phone,
+                    'party_size' => (int)$fresh->party_size,
+                    'source' => 'waiting_list',
+                    'lang' => 'de',
+                ],
+                ['waiting_list_entry_id' => (int)$fresh->id],
+                fn(int $createdBookingId): bool => $this->repo->markAccepted(
+                    (int)$fresh->id,
+                    $createdBookingId
+                )
+            );
+
+            if (is_wp_error($bookingId)) {
+                $this->repo->resetClaim($entryId);
+                return $bookingId;
+            }
+            return (int)$bookingId;
+        } finally {
+            $this->locks->release($resourceId);
         }
-        if (!$this->repo->markAccepted($entryId, (int)$bookingId)) {
-            return new \WP_Error('wpcb_waitlist_accept_race', 'The waiting-list offer changed while it was being accepted.');
-        }
-        return (int)$bookingId;
     }
 
     public function expireAndRepromote(): int {
