@@ -1,7 +1,7 @@
 {
   "apiVersion": 3,
   "name": "wpcb/availability-calendar",
-  "version": "3.19.8",
+  "version": "3.19.9",
   "title": "Availability Calendar",
   "category": "widgets",
   "icon": "calendar",

@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.19.9
+
+- Fail closed when blocking calendar availability cannot be read completely instead of treating provider failures or malformed responses as free time.
+- Reject embedded Google FreeBusy and Microsoft schedule/calendarView errors, invalid intervals and malformed strict ICS/CalDAV availability reads.
+- Follow Microsoft Graph calendarView `@odata.nextLink` pages only on the trusted Graph host and exact calendarView path, with strict page, event, byte and time bounds.
+- Reject repeated, untrusted, oversized or later-page-failing Microsoft pagination as incomplete availability rather than accepting partial results.
+- Keep booking without configured blocking calendar providers independent of provider outages.
+- Verify a real upgrade from the immutable published 3.19.8 package before release.
+- This maintenance release does not claim live provider-account qualification; that remains tracked in #176/#178.
+
 ## 3.19.8
 
 - Persist privacy-minimal booking lifecycle follow-up intent in the leased queue in the same database transaction as reservation, transition and reschedule writes.

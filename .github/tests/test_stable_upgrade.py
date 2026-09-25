@@ -24,7 +24,7 @@ class StableUpgradeTests(unittest.TestCase):
         self.archive = self.root / 'candidate.zip'
         self.installed = self.root / 'installed'
         self.installed.mkdir()
-        self.header = b'<?php\n/**\n * Version: 3.19.8\n */\n'
+        self.header = b'<?php\n/**\n * Version: 3.19.9\n */\n'
 
     def package(self, extras=()):
         with warnings.catch_warnings():
@@ -89,12 +89,12 @@ class StableUpgradeTests(unittest.TestCase):
     def test_non_ci_environment_is_rejected_before_side_effects(self):
         with patch.dict(os.environ, {}, clear=True), patch.object(upgrade, 'wp') as command, patch.object(upgrade.urllib.request, 'urlopen') as network:
             with self.assertRaises(RuntimeError):
-                upgrade.main(self.root, '3.19.8')
+                upgrade.main(self.root, '3.19.9')
             command.assert_not_called()
             network.assert_not_called()
 
     def test_same_or_invalid_version_is_rejected(self):
-        for version in ('3.19.7', '3.19.6', '3.19.8\n', 'v3.19.8', '../../x'):
+        for version in ('3.19.8', '3.19.7', '3.19.9\n', 'v3.19.9', '../../x'):
             with self.subTest(version=version), patch.object(upgrade, 'wp') as command:
                 with self.assertRaises(ValueError):
                     upgrade.main(self.root, version)
@@ -110,7 +110,7 @@ class StableUpgradeTests(unittest.TestCase):
         env = {'GITHUB_ACTIONS': 'true', 'RUNNER_TEMP': str(self.root), 'GITHUB_WORKSPACE': str(workspace)}
         with patch.dict(os.environ, env), patch.object(upgrade, 'wp', return_value='production.example') as command, patch.object(upgrade.urllib.request, 'urlopen') as network:
             with self.assertRaises(RuntimeError):
-                upgrade.main(source, '3.19.8')
+                upgrade.main(source, '3.19.9')
             self.assertEqual(command.call_count, 1)
             network.assert_not_called()
 
