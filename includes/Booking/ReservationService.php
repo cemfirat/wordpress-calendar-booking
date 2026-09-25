@@ -34,10 +34,11 @@ class ReservationService {
     /**
      * @return int|\WP_Error Booking ID on success.
      */
-    public function reserve(string $slotToken, int $expectedTypeId, array $customer, array $meta = []) {
+    public function reserve(string $slotToken, int $expectedTypeId, array $customer, array $meta = [], ?callable $beforeCommit = null) {
         $partySize = max(1, (int)($customer['party_size'] ?? 1));
+        $ignoreWaitingListEntryId = max(0, (int)($meta['waiting_list_entry_id'] ?? 0));
         $initial = $expectedTypeId > 0
-            ? $this->selection->resolve($slotToken, $expectedTypeId, null, $partySize)
+            ? $this->selection->resolve($slotToken, $expectedTypeId, null, $partySize, $ignoreWaitingListEntryId)
             : null;
         if (!$initial || empty($initial['resource_id'])) {
             return new \WP_Error('wpcb_slot_unavailable', 'The selected slot is invalid, expired or no longer available.');
@@ -54,7 +55,7 @@ class ReservationService {
         try {
             // The second check is the important one: it runs after all other
             // reservation writers using this service have been serialized.
-            $slot = $this->selection->resolve($slotToken, $expectedTypeId, null, $partySize);
+            $slot = $this->selection->resolve($slotToken, $expectedTypeId, null, $partySize, $ignoreWaitingListEntryId);
             if (!$slot) {
                 return new \WP_Error('wpcb_slot_unavailable', 'The selected slot is no longer available.');
             }
@@ -63,7 +64,10 @@ class ReservationService {
                 $resourceId,
                 (string)$slot['start'],
                 (string)$slot['end'],
-                $partySize
+                $partySize,
+                null,
+                null,
+                $ignoreWaitingListEntryId
             )) {
                 return new \WP_Error('wpcb_capacity_unavailable', 'The selected slot does not have enough remaining capacity.');
             }
@@ -106,6 +110,12 @@ class ReservationService {
             $payment = (new PaymentService())->ensureForBooking($bookingId);
             if (is_wp_error($payment)) {
                 return $payment;
+            }
+            if ($beforeCommit !== null && $beforeCommit($bookingId) === false) {
+                return new \WP_Error(
+                    'wpcb_reservation_finalize',
+                    'The booking reservation could not be finalized.'
+                );
             }
             if ($wpdb->query('COMMIT') === false) {
                 return new \WP_Error('wpcb_reservation_storage', 'The booking reservation could not be stored.');
