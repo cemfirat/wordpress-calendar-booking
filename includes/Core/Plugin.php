@@ -15,6 +15,7 @@ use Wpcb\Sync\QueueService;
 use Wpcb\Support\TimeMigration;
 use Wpcb\Booking\BookingStatusMigration;
 use Wpcb\Booking\BookingTransitionEffects;
+use Wpcb\Booking\ReservationFollowUpService;
 use Wpcb\Tokens\TokenMigration;
 use Wpcb\Security\SecretMigration;
 use Wpcb\Privacy\PrivacyService;
@@ -63,6 +64,7 @@ class Plugin {
         }
 
         (new BookingTransitionEffects())->boot();
+        (new ReservationFollowUpService())->boot();
         (new Admin())->boot();
         (new \Wpcb\Admin\DemoCalendarPage())->boot();
         (new BookingAuditPage())->boot();
