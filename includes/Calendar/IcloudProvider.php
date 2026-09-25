@@ -23,6 +23,7 @@ class IcloudProvider {
         foreach ($urls as $url) {
             $cacheKey = 'wpcb_ical_' . md5($url);
             $body = get_transient($cacheKey);
+            $fetched = false;
             if ($body === false) {
                 $response = OutboundUrlPolicy::get($url, [
                     'timeout' => 20,
@@ -49,7 +50,7 @@ class IcloudProvider {
                         __('Die Kalender-Verfügbarkeit kann derzeit nicht vollständig geprüft werden. Bitte später erneut versuchen.', 'wordpress-calendar-booking')
                     );
                 }
-                set_transient($cacheKey, $body, max(1, (int) $settings['calendar_cache_minutes']) * MINUTE_IN_SECONDS);
+                $fetched = true;
             }
             $parsed = $parser->parseResult((string) $body, $from, $to);
             if (is_wp_error($parsed)) {
@@ -57,6 +58,9 @@ class IcloudProvider {
                     'wpcb_ical_unavailable',
                     __('Die Kalender-Verfügbarkeit kann derzeit nicht vollständig geprüft werden. Bitte später erneut versuchen.', 'wordpress-calendar-booking')
                 );
+            }
+            if ($fetched) {
+                set_transient($cacheKey, $body, max(1, (int) $settings['calendar_cache_minutes']) * MINUTE_IN_SECONDS);
             }
             $events = array_merge($events, $parsed);
         }
