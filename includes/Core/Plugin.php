@@ -48,6 +48,7 @@ class Plugin {
         load_plugin_textdomain('wordpress-calendar-booking', false, dirname(WPCB_BASENAME) . '/languages');
         (new BookingTransitionEffects())->boot();
         (new Admin())->boot();
+        (new \Wpcb\Admin\DemoCalendarPage())->boot();
         (new BookingAuditPage())->boot();
         (new ResourceAdminPage())->boot();
         (new WebhookAdminPage())->boot();
