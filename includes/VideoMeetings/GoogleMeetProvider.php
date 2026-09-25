@@ -8,10 +8,15 @@ final class GoogleMeetProvider extends AbstractBearerProvider {
     public function create(array $booking, object $connection): array {
         $token=$this->token($connection);
         if($token==='') return ['ok'=>false,'message'=>'Google Meet access token missing.'];
-        $r=$this->request('POST','https://meet.googleapis.com/v2/spaces',$token,[]);
+        $r=$this->request('POST','https://meet.googleapis.com/v2/spaces',$token,(object)[]);
         if(empty($r['ok'])) return $r;
         $d=$r['data'];
-        return ['ok'=>true,'remote_id'=>(string)($d['name']??''),'join_url'=>(string)($d['meetingUri']??'')];
+        $remoteId=trim((string)($d['name']??''));
+        $joinUrl=trim((string)($d['meetingUri']??''));
+        if($remoteId==='' || $joinUrl==='') {
+            return ['ok'=>false,'message'=>'Google Meet returned an incomplete Space response.'];
+        }
+        return ['ok'=>true,'remote_id'=>$remoteId,'join_url'=>$joinUrl];
     }
     public function update(array $meeting, array $booking, object $connection): array {
         return ['ok'=>true,'remote_id'=>(string)($meeting['remote_id']??''),'join_url'=>(string)($meeting['join_url']??''),'message'=>'Google Meet space remains valid after reschedule.'];
