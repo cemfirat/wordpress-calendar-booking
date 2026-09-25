@@ -47,7 +47,8 @@ final class CapacityService {
         string $start,
         string $end,
         ?int $ignoreBookingId = null,
-        ?array $candidateBuffers = null
+        ?array $candidateBuffers = null,
+        ?int $ignoreWaitingListEntryId = null
     ): int {
         $capacity = $this->effectiveCapacity($typeId, $resourceId);
         $startUtc = Time::parseUtc($start);
@@ -103,27 +104,73 @@ final class CapacityService {
             }
         }
 
-        // Waiting-list promotion overlap across different types/buffers is
-        // tracked separately in #164. Preserve its current exact-slot hold
-        // semantics here instead of silently changing that workflow.
-        $held = $this->waitingListHeldSeats($typeId, $resourceId, $start, $end);
+        $held = $this->waitingListHeldSeats(
+            $resourceId,
+            $candidateStartUtc,
+            $candidateEndUtc,
+            $searchFrom,
+            $searchTo,
+            $ignoreWaitingListEntryId
+        );
         return max(0, $capacity - $used - $held);
     }
 
-    private function waitingListHeldSeats(int $typeId, int $resourceId, string $start, string $end): int {
+    private function waitingListHeldSeats(
+        int $resourceId,
+        \DateTimeImmutable $candidateStartUtc,
+        \DateTimeImmutable $candidateEndUtc,
+        string $searchFrom,
+        string $searchTo,
+        ?int $ignoreWaitingListEntryId = null
+    ): int {
         global $wpdb;
         $table = $wpdb->prefix . 'wpcb_waiting_list';
         if ($wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table)) !== $table) {
             return 0;
         }
-        return max(0, (int)$wpdb->get_var($wpdb->prepare(
-            "SELECT COALESCE(SUM(party_size), 0) FROM {$table}
-             WHERE booking_type_id = %d AND resource_id = %d
-               AND slot_start = %s AND slot_end = %s
-               AND status = 'offered'
-               AND offer_expires_at >= %s",
-            $typeId, $resourceId, $start, $end, Time::formatUtc(Time::nowUtc())
-        )));
+
+        $sql = "SELECT id, booking_type_id, resource_id, slot_start, slot_end, party_size
+                FROM {$table}
+                WHERE resource_id = %d
+                  AND status IN ('offered','claiming')
+                  AND offer_expires_at >= %s
+                  AND slot_start < %s
+                  AND slot_end > %s";
+        $params = [
+            $resourceId,
+            Time::formatUtc(Time::nowUtc()),
+            $searchTo,
+            $searchFrom,
+        ];
+        if ($ignoreWaitingListEntryId && $ignoreWaitingListEntryId > 0) {
+            $sql .= ' AND id != %d';
+            $params[] = $ignoreWaitingListEntryId;
+        }
+
+        $held = 0;
+        foreach ($wpdb->get_results($wpdb->prepare($sql, ...$params)) as $offer) {
+            $offerBuffers = $this->buffers->forSlot(
+                (int)$offer->booking_type_id,
+                $resourceId,
+                (string)$offer->slot_start,
+                (string)$offer->slot_end
+            );
+            $offerStart = Time::parseUtc((string)Time::addMinutes(
+                (string)$offer->slot_start,
+                -max(0, (int)($offerBuffers['before'] ?? 0))
+            ));
+            $offerEnd = Time::parseUtc((string)Time::addMinutes(
+                (string)$offer->slot_end,
+                max(0, (int)($offerBuffers['after'] ?? 0))
+            ));
+            if ($offerStart && $offerEnd
+                && $offerStart < $candidateEndUtc
+                && $offerEnd > $candidateStartUtc
+            ) {
+                $held += max(1, (int)($offer->party_size ?? 1));
+            }
+        }
+        return $held;
     }
 
     /**
@@ -136,7 +183,8 @@ final class CapacityService {
         string $end,
         int $partySize,
         ?int $ignoreBookingId = null,
-        ?array $candidateBuffers = null
+        ?array $candidateBuffers = null,
+        ?int $ignoreWaitingListEntryId = null
     ): bool {
         return $partySize > 0
             && $partySize <= $this->remaining(
@@ -145,7 +193,8 @@ final class CapacityService {
                 $start,
                 $end,
                 $ignoreBookingId,
-                $candidateBuffers
+                $candidateBuffers,
+                $ignoreWaitingListEntryId
             );
     }
 }
