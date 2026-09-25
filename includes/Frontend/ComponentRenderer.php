@@ -207,6 +207,9 @@ class ComponentRenderer {
                 </div>
                 <a href="#wpcb-booking-modal" class="uk-button uk-button-primary" data-wpcb-open-toolbar-modal aria-haspopup="dialog" aria-label="<?php echo esc_attr__('Book an appointment', 'wordpress-calendar-booking'); ?>">+</a>
             </div>
+            <?php if (empty($display['availability_complete'])): ?>
+                <p class="wpcb-calendar-status uk-text-warning"><?php echo esc_html__('Kalenderdaten konnten nicht vollständig geladen werden.', 'wordpress-calendar-booking'); ?></p>
+            <?php endif; ?>
             <div class="wpcb-apple-calendar">
                 <div class="wpcb-week-header uk-text-muted">KW</div>
                 <?php foreach (['Mo','Di','Mi','Do','Fr','Sa','So'] as $weekday): ?><div class="wpcb-week-header"><?php echo esc_html($weekday); ?></div><?php endforeach; ?>
@@ -217,18 +220,17 @@ class ComponentRenderer {
                         if (!$day['in_month']) $classes[] = 'is-outside';
                         if ($day['is_past']) $classes[] = 'is-past';
                         if ($day['is_weekend']) $classes[] = 'is-weekend';
+                        $classes[] = !empty($day['is_working_day']) ? 'is-working' : 'is-nonworking';
                         if ($day['date'] === Time::nowLocal()->format('Y-m-d')) $classes[] = 'is-today';
                     ?>
                         <div class="<?php echo esc_attr(implode(' ', $classes)); ?>">
                             <div class="wpcb-day-head"><span class="wpcb-day-number"><?php echo esc_html(wp_date('j', strtotime($day['date']))); ?></span></div>
                             <div class="wpcb-day-body">
-                                <?php if (!$day['is_weekend']): ?>
-                                    <?php foreach ($day['items'] as $item): ?>
-                                        <div class="wpcb-event-pill <?php echo esc_attr($item['class']); ?>" title="<?php echo esc_attr($item['title']); ?>">
-                                            <?php echo esc_html($item['label']); ?>
-                                        </div>
-                                    <?php endforeach; ?>
-                                <?php endif; ?>
+                                <?php foreach ($day['items'] as $item): ?>
+                                    <div class="wpcb-event-pill <?php echo esc_attr($item['class']); ?>" title="<?php echo esc_attr($item['title']); ?>">
+                                        <?php echo esc_html($item['label']); ?>
+                                    </div>
+                                <?php endforeach; ?>
                             </div>
                         </div>
                     <?php endforeach; ?>
