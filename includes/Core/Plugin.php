@@ -6,6 +6,7 @@ use Wpcb\Admin\BookingAuditPage;
 use Wpcb\Admin\ResourceAdminPage;
 use Wpcb\Admin\WebhookAdminPage;
 use Wpcb\Database\SchemaMigration;
+use Wpcb\Database\MigrationReadiness;
 use Wpcb\Resources\ResourceMigration;
 use Wpcb\Frontend\Shortcodes;
 use Wpcb\Frontend\Actions;
@@ -39,13 +40,26 @@ use Wpcb\Admin\ConfigurationBackupPage;
 
 class Plugin {
     public function boot(): void {
-        SchemaMigration::maybeRun();
-        ResourceMigration::maybeRun();
-        TokenMigration::maybeRun();
-        SecretMigration::maybeRun();
-        TimeMigration::maybeRun();
-        BookingStatusMigration::maybeRun();
+        $schemaReady = SchemaMigration::maybeRun();
         load_plugin_textdomain('wordpress-calendar-booking', false, dirname(WPCB_BASENAME) . '/languages');
+        (new SiteHealth())->boot();
+
+        if (!$schemaReady || !SchemaMigration::isReady()) {
+            add_action('admin_notices', [SchemaMigration::class, 'renderAdminNotice']);
+            return;
+        }
+
+        $migrationsReady = TokenMigration::maybeRun()
+            && SecretMigration::maybeRun()
+            && TimeMigration::maybeRun()
+            && BookingStatusMigration::maybeRun()
+            && ResourceMigration::maybeRun();
+
+        if (!$migrationsReady || !MigrationReadiness::isReady()) {
+            add_action('admin_notices', [MigrationReadiness::class, 'renderAdminNotice']);
+            return;
+        }
+
         (new BookingTransitionEffects())->boot();
         (new Admin())->boot();
         (new \Wpcb\Admin\DemoCalendarPage())->boot();
@@ -70,7 +84,6 @@ class Plugin {
         (new WaitingListPrivacy())->boot();
         (new VideoMeetingService())->boot();
         (new VideoMeetingAdminPage())->boot();
-        (new SiteHealth())->boot();
         (new ConfigurationBackupPage())->boot();
         (new Shortcodes())->boot();
         (new \Wpcb\Frontend\BookingEntryGuard())->boot();

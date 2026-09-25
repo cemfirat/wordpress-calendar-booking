@@ -222,8 +222,37 @@ jobs:
           mkdir -p "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking"
           rsync -a --delete             --exclude='.git'             --exclude='.github'             --exclude='_bootstrap'             "$GITHUB_WORKSPACE/" "$WP_ROOT/wp-content/plugins/wordpress-calendar-booking/"
           wp plugin activate wordpress-calendar-booking --path="$WP_ROOT"
+      - name: Verify post-schema data migration retry safety
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/data-migration-recovery.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run WordPress smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/wordpress-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Verify schema migration failure and recovery
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/schema-migration-recovery.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Verify concurrent schema migration lock
+        if: matrix.wordpress == 'latest'
+        run: |
+          set -euo pipefail
+          wp eval-file "$GITHUB_WORKSPACE/tests/schema-lock-holder.php" --path="$RUNNER_TEMP/wordpress" > "$RUNNER_TEMP/schema-lock-holder.txt" 2>&1 &
+          holder_pid=$!
+
+          for attempt in 1 2 3 4 5 6 7 8 9 10; do
+            if grep -q '^LOCKED$' "$RUNNER_TEMP/schema-lock-holder.txt"; then
+              break
+            fi
+            sleep 0.5
+          done
+          cat "$RUNNER_TEMP/schema-lock-holder.txt"
+          grep -q '^LOCKED$' "$RUNNER_TEMP/schema-lock-holder.txt"
+
+          started="$(date +%s)"
+          wp eval-file "$GITHUB_WORKSPACE/tests/schema-lock-contender.php" --path="$RUNNER_TEMP/wordpress"
+          elapsed="$(( $(date +%s) - started ))"
+          test "$elapsed" -ge 4
+          test "$elapsed" -le 8
+
+          wait "$holder_pid"
+          cat "$RUNNER_TEMP/schema-lock-holder.txt"
+          wp eval 'if (!Wpcb\Database\SchemaMigration::isReady()) { throw new RuntimeException("Schema readiness was not restored."); }' --path="$RUNNER_TEMP/wordpress"
       - name: Run booking abuse-protection smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/security-guard-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run availability abuse/cost smoke test

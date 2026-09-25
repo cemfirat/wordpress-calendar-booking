@@ -14,16 +14,16 @@ final class TokenMigration {
     private const OPTION = 'wpcb_token_storage_version';
     private const VERSION = 2;
 
-    public static function maybeRun(): void {
+    public static function maybeRun(): bool {
         if ((int)get_option(self::OPTION, 0) >= self::VERSION) {
-            return;
+            return true;
         }
 
         global $wpdb;
         $table = $wpdb->prefix . 'wpcb_tokens';
         $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
         if ($exists !== $table) {
-            return;
+            return false;
         }
 
         $selectorColumn = $wpdb->get_var(
@@ -33,7 +33,7 @@ final class TokenMigration {
             )
         );
         if (!$selectorColumn) {
-            return;
+            return false;
         }
 
         $now = Time::formatUtc(Time::nowUtc());
@@ -46,8 +46,13 @@ final class TokenMigration {
             )
         );
 
-        update_option(self::OPTION, self::VERSION, false);
+        if ($revoked === false) {
+            return false;
+        }
+
         update_option('wpcb_legacy_tokens_revoked', max(0, (int)$revoked), false);
+        update_option(self::OPTION, self::VERSION, false);
+        return (int)get_option(self::OPTION, 0) >= self::VERSION;
     }
 
     public static function currentVersion(): int {
