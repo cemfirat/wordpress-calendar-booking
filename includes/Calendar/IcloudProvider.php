@@ -54,6 +54,7 @@ class IcloudProvider {
             }
             $parsed = $parser->parseResult((string) $body, $from, $to);
             if (is_wp_error($parsed)) {
+                delete_transient($cacheKey);
                 return new \WP_Error(
                     'wpcb_ical_unavailable',
                     __('Die Kalender-Verfügbarkeit kann derzeit nicht vollständig geprüft werden. Bitte später erneut versuchen.', 'wordpress-calendar-booking')

@@ -119,7 +119,6 @@ delete_transient('wpcb_ical_'.md5('https://8.8.8.8/fail-closed.ics'));
 $icsMalformed=$icsProvider->eventsResult('2026-10-01 09:00:00','2026-10-01 10:00:00');
 wpcb_availability_failure_assert(is_wp_error($icsMalformed),'Malformed public ICS data fails closed.');
 $icsMode='empty-calendar';
-delete_transient('wpcb_ical_'.md5('https://8.8.8.8/fail-closed.ics'));
 $icsEmpty=$icsProvider->eventsResult('2026-10-01 09:00:00','2026-10-01 10:00:00');
 remove_filter('pre_http_request',$icsFilter,10);
 delete_transient('wpcb_ical_'.md5('https://8.8.8.8/fail-closed.ics'));
