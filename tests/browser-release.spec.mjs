@@ -2,3 +2,4 @@
 import './browser-core.mjs';
 import './booking-entry-browser.mjs';
 import './booking-entry-party-browser.mjs';
+import './demo-browser.mjs';
