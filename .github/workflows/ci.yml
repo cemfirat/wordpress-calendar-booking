@@ -926,6 +926,33 @@ jobs:
             sleep 5
           done
           test "$found" -eq 1
+      - name: Verify WordPress renders the plugin update notice
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          wp eval '
+            require_once ABSPATH . "wp-admin/includes/plugin.php";
+            require_once ABSPATH . "wp-admin/includes/update.php";
+            wp_set_current_user(1);
+            $basename = plugin_basename(WPCB_FILE);
+            $plugins = get_plugins();
+            if (!isset($plugins[$basename])) {
+                throw new RuntimeException("Installed plugin metadata is unavailable.");
+            }
+            $updates = get_site_transient("update_plugins");
+            if (!is_object($updates) || empty($updates->response[$basename])) {
+                throw new RuntimeException("WordPress has no update response for the plugin.");
+            }
+            ob_start();
+            wp_plugin_update_row($basename, $plugins[$basename]);
+            $html = ob_get_clean();
+            if (strpos($html, "update-message") === false
+                || strpos($html, (string)$updates->response[$basename]->new_version) === false) {
+                throw new RuntimeException("WordPress did not render the plugin update row.");
+            }
+            echo "PASS: WordPress renders the plugin update notice for "
+                . $updates->response[$basename]->new_version . ".\n";
+          ' --path="$WP_ROOT"
       - name: Update through WordPress from public GitHub
         run: |
           set -euo pipefail
