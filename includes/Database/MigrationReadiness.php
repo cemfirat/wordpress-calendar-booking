@@ -21,6 +21,7 @@ final class MigrationReadiness {
             'secrets' => [(int)get_option('wpcb_secret_storage_version', 0), SecretMigration::currentVersion()],
             'time' => [(int)get_option('wpcb_time_storage_version', 0), TimeMigration::currentVersion()],
             'booking_status' => [(int)get_option('wpcb_booking_status_version', 0), BookingStatusMigration::currentVersion()],
+            'default_seed' => [(int)get_option('wpcb_default_seed_version', 0), DefaultSeedMigration::currentVersion()],
             'resources' => [(int)get_option('wpcb_resource_model_version', 0), ResourceMigration::currentVersion()],
         ];
 
