@@ -61,6 +61,28 @@ $duplicate=$service->join([
 ]);
 wpcb_wait_assert($duplicate===$first,'Duplicate waiting-list join is idempotent.');
 
+$tooLarge=$service->join([
+    'booking_type_id'=>$typeId,'resource_id'=>$resourceId,'slot_start'=>$start,'slot_end'=>$end,
+    'party_size'=>2,'full_name'=>'Too Large','email'=>'too-large@example.com',
+]);
+wpcb_wait_assert(is_wp_error($tooLarge) && $tooLarge->get_error_code()==='wpcb_waitlist_invalid','Waiting-list join rejects a party larger than effective capacity.');
+
+$pastStart=Wpcb\Support\Time::formatUtc(Wpcb\Support\Time::nowUtc()->modify('-2 hours'));
+$pastEnd=Wpcb\Support\Time::formatUtc(Wpcb\Support\Time::nowUtc()->modify('-90 minutes'));
+$pastJoin=$service->join([
+    'booking_type_id'=>$typeId,'resource_id'=>$resourceId,'slot_start'=>$pastStart,'slot_end'=>$pastEnd,
+    'party_size'=>1,'full_name'=>'Past Waiter','email'=>'past-waiter@example.com',
+]);
+wpcb_wait_assert(is_wp_error($pastJoin) && $pastJoin->get_error_code()==='wpcb_waitlist_invalid','Waiting-list join rejects past intervals.');
+
+$wpdb->update($types,['is_public'=>0],['id'=>$typeId]);
+$privateJoin=$service->join([
+    'booking_type_id'=>$typeId,'resource_id'=>$resourceId,'slot_start'=>$start,'slot_end'=>$end,
+    'party_size'=>1,'full_name'=>'Private Waiter','email'=>'private-waiter@example.com',
+]);
+wpcb_wait_assert(is_wp_error($privateJoin) && $privateJoin->get_error_code()==='wpcb_waitlist_invalid','Waiting-list join rejects inactive/non-public booking-type policy.');
+$wpdb->update($types,['is_public'=>1],['id'=>$typeId]);
+
 $cancel=(new Wpcb\Booking\BookingTransitionService())->apply(
     $blockingId,Wpcb\Booking\BookingStateMachine::USER_CANCELLED,'test','Release capacity for waiting list'
 );
