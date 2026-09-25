@@ -196,26 +196,91 @@ class SlotService {
         $gridStart = $base->modify('monday this week')->setTime(0, 0, 0);
         $monthEnd = $base->modify('last day of this month')->setTime(23, 59, 59);
         $gridEnd = $monthEnd->modify('sunday this week')->setTime(23, 59, 59);
+        $gridEndExclusive = $gridEnd->modify('+1 second');
 
-        $from = Time::formatUtc($gridStart->modify('-1 day'));
-        $to = Time::formatUtc($gridEnd->modify('+1 day'));
+        $from = Time::formatUtc($gridStart);
+        $to = Time::formatUtc($gridEndExclusive);
 
-        $externalEvents = $this->calendar->events($from, $to);
-        $internalBookings = $this->bookings->displayableBetween($from, $to);
-        $itemsByDay = [];
+        // Public calendar scope is intentionally privacy-minimal:
+        // - explicitly configured public ICS feeds;
+        // - blocking routed calendars only for active/public booking types and
+        //   their assigned active resources;
+        // - internal displayable bookings only for those public booking types.
+        // Resource/provider identities never enter the public view model.
+        $externalEvents = $this->calendar->eventsResult($from, $to);
+        $availabilityComplete = !is_wp_error($externalEvents);
+        if (is_wp_error($externalEvents)) {
+            $externalEvents = [];
+        }
 
+        $publicTypeIds = [];
+        $workingWeekdays = [];
+        $seenTypeResources = [];
+        foreach ($this->types->all(true) as $type) {
+            $typeId = (int)$type->id;
+            $publicTypeIds[$typeId] = true;
+            foreach ($this->resources->forBookingType($typeId, true) as $resource) {
+                $resourceId = (int)$resource->id;
+                $pair = $typeId . '|' . $resourceId;
+                if (isset($seenTypeResources[$pair])) {
+                    continue;
+                }
+                $seenTypeResources[$pair] = true;
+
+                foreach ($this->repo->rulesForTypeAndResource($typeId, $resourceId) as $rule) {
+                    $weekday = (int)($rule->weekday ?? 0);
+                    if ($weekday >= 1 && $weekday <= 7) {
+                        $workingWeekdays[$weekday] = true;
+                    }
+                }
+
+                $routed = $this->connectionBusy->busyForResource($typeId, $resourceId, $from, $to);
+                if (is_wp_error($routed)) {
+                    $availabilityComplete = false;
+                    continue;
+                }
+                foreach ($routed as $interval) {
+                    $externalEvents[] = $interval;
+                }
+            }
+        }
+
+        $dedupedExternal = [];
         foreach ($externalEvents as $event) {
-            $day = Time::localDate((string)$event['start']);
-            if ($day !== '') {
-                $itemsByDay[$day][] = $this->publicBusy->externalEvent($event);
+            if (!is_array($event) || empty($event['start']) || empty($event['end'])) {
+                continue;
             }
+            $key = (string)$event['start'] . '|' . (string)$event['end'];
+            $dedupedExternal[$key] = [
+                'start' => (string)$event['start'],
+                'end' => (string)$event['end'],
+            ];
         }
-        foreach ($internalBookings as $booking) {
-            $day = Time::localDate((string)$booking->slot_start);
-            if ($day !== '') {
-                $itemsByDay[$day][] = $this->publicBusy->booking($booking);
+
+        $itemsByDay = [];
+        foreach ($dedupedExternal as $event) {
+            $this->appendMonthBusyInterval(
+                $itemsByDay,
+                (string)$event['start'],
+                (string)$event['end'],
+                $gridStart,
+                $gridEndExclusive
+            );
+        }
+
+        foreach ($this->bookings->displayableBetween($from, $to) as $booking) {
+            if (!isset($publicTypeIds[(int)($booking->booking_type_id ?? 0)])) {
+                continue;
             }
+            $this->appendMonthBusyInterval(
+                $itemsByDay,
+                (string)$booking->slot_start,
+                (string)$booking->slot_end,
+                $gridStart,
+                $gridEndExclusive
+            );
         }
+
         foreach ($itemsByDay as &$items) {
             usort($items, static fn(array $a, array $b): int => strcmp((string)$a['start'], (string)$b['start']));
         }
@@ -223,15 +288,16 @@ class SlotService {
 
         $days = [];
         $today = Time::nowLocal()->format('Y-m-d');
-        for ($day = $gridStart; $day <= $gridEnd; $day = $day->modify('+1 day')) {
+        for ($day = $gridStart; $day < $gridEndExclusive; $day = $day->modify('+1 day')) {
             $date = $day->format('Y-m-d');
-            $isWeekend = in_array((int)$day->format('N'), [6, 7], true);
+            $weekday = (int)$day->format('N');
             $days[] = [
                 'date' => $date,
                 'in_month' => $day->format('Y-m') === $base->format('Y-m'),
-                'is_weekend' => $isWeekend,
+                'is_weekend' => in_array($weekday, [6, 7], true),
+                'is_working_day' => isset($workingWeekdays[$weekday]),
                 'is_past' => $date < $today,
-                'items' => $isWeekend ? [] : ($itemsByDay[$date] ?? []),
+                'items' => $itemsByDay[$date] ?? [],
             ];
         }
 
@@ -242,7 +308,58 @@ class SlotService {
             'next' => $base->modify('+1 month')->format('Y-m'),
             'title' => $base->format('F Y'),
             'timezone' => Time::bookingTimezoneName(),
+            'availability_complete' => $availabilityComplete,
         ];
+    }
+
+    /**
+     * Split one half-open UTC busy interval across every affected local calendar
+     * day. Local midnight boundaries keep DST and all-day exclusive ends intact.
+     *
+     * @param array<string,array<int,array<string,mixed>>> $itemsByDay
+     */
+    private function appendMonthBusyInterval(
+        array &$itemsByDay,
+        string $start,
+        string $end,
+        \DateTimeImmutable $gridStart,
+        \DateTimeImmutable $gridEndExclusive
+    ): void {
+        $startUtc = Time::parseUtc($start);
+        $endUtc = Time::parseUtc($end);
+        if (!$startUtc || !$endUtc || $endUtc <= $startUtc) {
+            return;
+        }
+
+        $gridStartUtc = $gridStart->setTimezone(new \DateTimeZone('UTC'));
+        $gridEndUtc = $gridEndExclusive->setTimezone(new \DateTimeZone('UTC'));
+        if ($endUtc <= $gridStartUtc || $startUtc >= $gridEndUtc) {
+            return;
+        }
+        if ($startUtc < $gridStartUtc) {
+            $startUtc = $gridStartUtc;
+        }
+        if ($endUtc > $gridEndUtc) {
+            $endUtc = $gridEndUtc;
+        }
+
+        $timezone = Time::bookingTimezone();
+        $cursor = $startUtc->setTimezone($timezone)->setTime(0, 0, 0);
+        $endLocal = $endUtc->setTimezone($timezone);
+        while ($cursor < $endLocal) {
+            $next = $cursor->modify('+1 day');
+            $dayStartUtc = $cursor->setTimezone(new \DateTimeZone('UTC'));
+            $dayEndUtc = $next->setTimezone(new \DateTimeZone('UTC'));
+            $fragmentStart = $startUtc > $dayStartUtc ? $startUtc : $dayStartUtc;
+            $fragmentEnd = $endUtc < $dayEndUtc ? $endUtc : $dayEndUtc;
+            if ($fragmentStart < $fragmentEnd) {
+                $itemsByDay[$cursor->format('Y-m-d')][] = $this->publicBusy->externalEvent([
+                    'start' => Time::formatUtc($fragmentStart),
+                    'end' => Time::formatUtc($fragmentEnd),
+                ]);
+            }
+            $cursor = $next;
+        }
     }
 
     public function isCanonicalSlot(
