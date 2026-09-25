@@ -306,7 +306,7 @@ final class BookingTransitionService {
                 return new \WP_Error('wpcb_event_race', 'The booking changed while it was being rescheduled.');
             }
 
-            if (!$this->slots->slotAvailable(
+            if (!$this->slots->isCanonicalSlot(
                 (int)$booking->booking_type_id,
                 $newStart,
                 $newEnd,
