@@ -51,6 +51,10 @@ The reservation path is:
 
 The second availability/capacity check is authoritative. Expired unconfirmed reservations stop blocking once their reservation TTL is exceeded. Legacy/unscoped bookings are treated conservatively by conflict queries until assigned.
 
+Every committed reservation also records a privacy-minimal durable `booking_effect:created` intent in the same database transaction. `ReservationFollowUpService` consumes that created effect for the primary booking (single booking or occurrence zero of a series) and establishes the DOI customer notification plus optional internal reservation notification through deterministic delivery keys. Replaying the effect cannot create a second logical mail delivery; DOI tokens are rotated only while no delivery could have been accepted yet, and definite mail failures rely on the durable email-retry job. This is the shared post-reservation path for the public form, waiting-list conversion and other reservation writers.
+
+Hosted payment redirection is deliberately separate from durable mail intent. `CheckoutHandoffService` performs the common payment-readiness check and secure Stripe Checkout/resume hand-off used by the public booking form, waiting-list acceptance and authenticated portal. A waiting-list offer for a paid type is not converted while the required provider configuration is unavailable; after conversion, a transient Checkout failure leaves the already-created reservation/payment pending and resumable instead of pretending payment succeeded.
+
 ## Availability pipeline
 
 1. Resolve booking type, eligible resources and requested presentation time zone.
