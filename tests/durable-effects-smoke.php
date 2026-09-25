@@ -68,6 +68,77 @@ $createdTrigger = $wpdb->query(
 );
 wpcb_effect_assert($createdTrigger !== false, 'Fault injector for the durable outbox is installed.');
 try {
+    // Creation must not outlive a failed durable intent insert. Use the same
+    // canonical slot machinery as the public booking path, then prove that the
+    // transaction removes every authoritative row again.
+    $slotService = new Wpcb\Availability\SlotService();
+    $slots = $slotService->getSlots((int)$freeType->id, 21);
+    wpcb_effect_assert(count($slots) > 0, 'A canonical free slot exists for creation atomicity fixtures.');
+    $anchor = $slots[0];
+    $slotToken = (new Wpcb\Tokens\SlotTokenService())->issue(
+        (int)$freeType->id,
+        (string)$anchor['start'],
+        (string)$anchor['end'],
+        (int)$anchor['resource_id'],
+        3600
+    );
+
+    $reservationEmail = 'effect-reservation@example.invalid';
+    $reservationFailed = (new Wpcb\Booking\ReservationService())->reserve(
+        $slotToken,
+        (int)$freeType->id,
+        [
+            'full_name' => 'Synthetic Reservation Rollback',
+            'email' => $reservationEmail,
+            'party_size' => 1,
+            'source' => 'ci',
+            'lang' => 'de',
+        ]
+    );
+    wpcb_effect_assert(
+        is_wp_error($reservationFailed) && $reservationFailed->get_error_code() === 'wpcb_effect_storage',
+        'Single reservation rejects a failed durable intent insert.'
+    );
+    wpcb_effect_assert(
+        (int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_bookings WHERE email = %s",
+            $reservationEmail
+        )) === 0,
+        'Failed reservation intent rolls the new booking back.'
+    );
+
+    $seriesEmail = 'effect-series@example.invalid';
+    $seriesCountBefore = (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_series");
+    $seriesFailed = (new Wpcb\Booking\RecurringBookingService())->reserveWeekly(
+        $slotToken,
+        (int)$freeType->id,
+        [
+            'full_name' => 'Synthetic Series Rollback',
+            'email' => $seriesEmail,
+            'party_size' => 1,
+            'source' => 'ci',
+            'lang' => 'de',
+        ],
+        [],
+        3,
+        1
+    );
+    wpcb_effect_assert(
+        is_wp_error($seriesFailed) && $seriesFailed->get_error_code() === 'wpcb_effect_storage',
+        'Recurring reservation rejects a failed durable intent insert.'
+    );
+    wpcb_effect_assert(
+        (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_series") === $seriesCountBefore,
+        'Failed recurring intent rolls the series row back.'
+    );
+    wpcb_effect_assert(
+        (int)$wpdb->get_var($wpdb->prepare(
+            "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_bookings WHERE email = %s",
+            $seriesEmail
+        )) === 0,
+        'Failed recurring intent rolls every occurrence back.'
+    );
+
     $failed = (new Wpcb\Booking\BookingTransitionService())->apply(
         $atomicId,
         Wpcb\Booking\BookingStateMachine::USER_CANCELLED,

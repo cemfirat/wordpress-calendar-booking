@@ -77,6 +77,7 @@ final class RecurringBookingService {
         global $wpdb;
         $created = [];
         $outbox = new BookingEffectOutbox();
+        $transaction = false;
         try {
             foreach ($occurrences as $occurrence) {
                 if (!$this->slots->isCanonicalSlot(
@@ -94,7 +95,10 @@ final class RecurringBookingService {
                 }
             }
 
-            $wpdb->query('START TRANSACTION');
+            if ($wpdb->query('START TRANSACTION') === false) {
+                return new \WP_Error('wpcb_series_storage', 'The recurring series transaction could not be started.');
+            }
+            $transaction = true;
             $seriesId = $this->series->create([
                 'booking_type_id' => $typeId,
                 'resource_id' => $resourceId,
@@ -104,7 +108,6 @@ final class RecurringBookingService {
                 'timezone' => Time::bookingTimezoneName(),
             ]);
             if ($seriesId < 1) {
-                $wpdb->query('ROLLBACK');
                 return new \WP_Error('wpcb_series_storage', 'The recurring series could not be stored.');
             }
 
@@ -134,13 +137,11 @@ final class RecurringBookingService {
                     'updated_at' => $now,
                 ], $meta, false);
                 if ($bookingId < 1) {
-                    $wpdb->query('ROLLBACK');
                     return new \WP_Error('wpcb_series_storage', 'One occurrence could not be stored.');
                 }
                 $created[] = $bookingId;
                 $createdBooking = $this->bookings->find($bookingId);
                 if (!$createdBooking || $outbox->recordCreated($createdBooking) < 1) {
-                    $wpdb->query('ROLLBACK');
                     return new \WP_Error('wpcb_effect_storage', 'Recurring booking follow-up work could not be stored.');
                 }
             }
@@ -148,18 +149,22 @@ final class RecurringBookingService {
             if ((string)($type->payment_mode ?? 'free') === 'required') {
                 $payment = (new PaymentService())->ensureForBooking((int)$created[0]);
                 if (is_wp_error($payment) || !$payment) {
-                    $wpdb->query('ROLLBACK');
                     return is_wp_error($payment)
                         ? $payment
                         : new \WP_Error('wpcb_series_payment_storage', 'The recurring series payment could not be stored.');
                 }
             }
 
-            $wpdb->query('COMMIT');
+            if ($wpdb->query('COMMIT') === false) {
+                return new \WP_Error('wpcb_series_storage', 'The recurring series could not be committed.');
+            }
+            $transaction = false;
         } catch (\Throwable $error) {
-            $wpdb->query('ROLLBACK');
-            return new \WP_Error('wpcb_series_storage', $error->getMessage());
+            return new \WP_Error('wpcb_series_storage', 'The recurring series could not be stored.');
         } finally {
+            if ($transaction) {
+                $wpdb->query('ROLLBACK');
+            }
             $this->locks->release($resourceId);
         }
 
