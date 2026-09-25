@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.19.8
+
+- Persist privacy-minimal booking lifecycle follow-up intent in the leased queue in the same database transaction as reservation, transition and reschedule writes.
+- Replay committed lifecycle effects through the existing side-effect hooks so process interruption after an authoritative booking write cannot silently discard required follow-up intent.
+- Make paid-cancellation refund allocation idempotent when the same committed lifecycle effect is replayed.
+- Fail closed on recurring-series transaction start/commit errors and roll back series/occurrence rows when durable effect storage fails.
+- Add real WordPress/MySQL fault injection for transition, single-reservation and recurring-series outbox failures, plus replay coverage.
+- Verify a real upgrade from the immutable published 3.19.7 package before release.
+- This maintenance release does not claim to solve stale provider work (#158), ambiguous remote creates (#160), refund-provider status semantics (#156) or late Checkout reconciliation (#157).
+
 ## 3.19.7
 
 - Complete privacy retention processing across bounded batches instead of repeatedly selecting already-anonymized rows.

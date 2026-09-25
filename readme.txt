@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.19.7
+Stable tag: 3.19.8
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,15 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.19.8 =
+* Persist privacy-minimal booking lifecycle follow-up intent in the leased queue in the same database transaction as reservation, transition and reschedule writes.
+* Replay committed lifecycle effects through existing mail/calendar/video/webhook/payment hooks so a process interruption after the booking write does not silently lose required work.
+* Make paid-cancellation refund allocation idempotent when the same durable lifecycle effect is replayed.
+* Fail closed when recurring-series transactions cannot start or commit, and roll back booking/series rows if durable effect storage fails.
+* Add real WordPress/MySQL fault-injection coverage for transition, single-reservation and recurring-series outbox failures plus replay.
+* Verify a real upgrade from the immutable published 3.19.7 package before release.
+* This maintenance release does not close stale provider-job or ambiguous remote-create findings; remaining audit work is tracked in docs/RELEASE-3.19.8.md and GitHub issue #178.
 
 = 3.19.7 =
 * Complete privacy retention processing across bounded batches instead of repeatedly selecting already-anonymized rows.

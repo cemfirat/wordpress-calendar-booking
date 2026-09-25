@@ -1,4 +1,4 @@
-"""Real 3.19.6-to-candidate acceptance, confined to disposable GitHub CI storage.
+"""Real 3.19.7-to-candidate acceptance, confined to disposable GitHub CI storage.
 
 The published baseline is downloaded, not synthesized by changing a version header.
 The original fresh-install fixture is never downgraded or reused as the upgrade DB.
@@ -17,10 +17,10 @@ import tempfile
 import urllib.request
 import zipfile
 
-BASELINE_VERSION = '3.19.6'
-BASELINE_SHA256 = 'e6ab1b651091b22652cc96245539cb160a5527d606abf58be42c05b2197bc716'
+BASELINE_VERSION = '3.19.7'
+BASELINE_SHA256 = '17e4a249214aab00e399a2746220571a49665f2c11762bedaa09923538e2116a'
 BASELINE_URL = ('https://github.com/cemfirat/wordpress-calendar-booking/releases/'
-                'download/v3.19.6/wordpress-calendar-booking.zip')
+                'download/v3.19.7/wordpress-calendar-booking.zip')
 PLUGIN = 'wordpress-calendar-booking'
 MAX_ARCHIVE = 10 * 1024 * 1024
 
@@ -88,7 +88,7 @@ def wp(root: Path, *args: str, extra: dict[str, str] | None = None) -> str:
 def main(source: Path, expected_version: str) -> None:
     if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', expected_version):
         raise ValueError('Invalid expected candidate version')
-    if tuple(map(int, expected_version.split('.'))) <= (3, 19, 6):
+    if tuple(map(int, expected_version.split('.'))) <= (3, 19, 7):
         raise ValueError('The candidate must be newer than the published baseline')
     workspace = Path(os.environ.get('GITHUB_WORKSPACE', '')).resolve()
     temporary = Path(os.environ.get('RUNNER_TEMP', '')).resolve()

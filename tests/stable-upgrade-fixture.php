@@ -36,7 +36,7 @@ if (!defined('ABSPATH') || getenv('GITHUB_ACTIONS') !== 'true'
     $tokens = new Wpcb\Tokens\TokenService();
     $phase = getenv('WPCB_UPGRADE_PHASE');
     if ($phase === 'seed') {
-        $assert(WPCB_VERSION === '3.19.6', 'Synthetic customer records are created with the actual old release loaded.');
+        $assert(WPCB_VERSION === '3.19.7', 'Synthetic customer records are created with the actual old release loaded.');
         $settings = (array)get_option('wpcb_settings');
         $settings['timezone'] = 'Europe/Vienna';
         $settings['sender_name'] = 'Upgrade fixture sender';
