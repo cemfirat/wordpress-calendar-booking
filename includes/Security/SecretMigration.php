@@ -21,6 +21,16 @@ final class SecretMigration {
         $stored = (string)($settings['icloud_sync_password_enc'] ?? '');
 
         if ($stored !== '' && strpos($stored, 'v2:') !== 0) {
+            // Record the required administrator action before destroying the
+            // only evidence that a legacy credential existed. If clearing the
+            // old secret fails, a retry will still see the legacy value and
+            // repeat safely. If the marker write itself fails, no secret is
+            // changed.
+            update_option('wpcb_secret_reentry_required', 1, false);
+            if ((int)get_option('wpcb_secret_reentry_required', 0) !== 1) {
+                return false;
+            }
+
             $settings['icloud_sync_password_enc'] = '';
             $settings['icloud_sync_enabled'] = 0;
             update_option('wpcb_settings', $settings);
@@ -28,10 +38,6 @@ final class SecretMigration {
             if (!empty($storedSettings['icloud_sync_password_enc'])
                 || !empty($storedSettings['icloud_sync_enabled'])
             ) {
-                return false;
-            }
-            update_option('wpcb_secret_reentry_required', 1, false);
-            if ((int)get_option('wpcb_secret_reentry_required', 0) !== 1) {
                 return false;
             }
         }

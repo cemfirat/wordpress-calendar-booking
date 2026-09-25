@@ -34,3 +34,22 @@ not falsely completed, that setup readiness fails closed, and that a later retry
 the schema without changing a pre-existing synthetic booking, metadata or settings. A
 separate two-process test verifies that concurrent migration attempts time out instead of
 running DDL simultaneously.
+
+
+## Data-migration retry safety
+
+Post-schema migration markers follow the same rule: they advance only after the
+required writes and resulting state are verified. The legacy local-time
+conversion is additionally transactional, because retrying a partially
+converted row set could otherwise interpret already-converted UTC values as
+local wall-clock values a second time. A failed row write therefore rolls back
+the whole time conversion before a retry.
+
+Legacy unauthenticated calendar credentials record the administrator re-entry
+requirement before the old credential is cleared. If the destructive settings
+write fails, the completion marker remains old and a retry cannot lose the
+fact that re-entry is required.
+
+CI injects both failure modes on a fresh WordPress/MySQL installation before
+ordinary smoke fixtures are created, proves that markers stay incomplete, and
+then proves a successful retry reaches the expected state exactly once.

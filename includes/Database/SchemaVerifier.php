@@ -16,7 +16,17 @@ final class SchemaVerifier {
         global $wpdb;
 
         $issues = [];
-        foreach (self::contract() as $table => $expected) {
+        $statements = Schema::statements();
+        $contract = self::contract($statements);
+        if (count($contract) !== count($statements)) {
+            // Schema::statements() is intentionally a list of CREATE TABLE
+            // statements. Never silently ignore a future statement that the
+            // verifier cannot understand, otherwise migration completion could
+            // be recorded without checking part of the required schema.
+            $issues[] = 'schema_contract_unparsed';
+        }
+
+        foreach ($contract as $table => $expected) {
             $exists = $wpdb->get_var($wpdb->prepare('SHOW TABLES LIKE %s', $table));
             if ($exists !== $table) {
                 $issues[] = 'missing_table:' . self::shortName($table);
@@ -66,12 +76,13 @@ final class SchemaVerifier {
     }
 
     /**
+     * @param string[] $statements
      * @return array<string,array{columns:string[],indexes:string[]}>
      */
-    private static function contract(): array {
+    private static function contract(array $statements): array {
         $contract = [];
 
-        foreach (Schema::statements() as $statement) {
+        foreach ($statements as $statement) {
             if (!preg_match('/^\s*CREATE\s+TABLE\s+([^\s(]+)\s*\((.*)\)\s*[^;]*;\s*$/is', $statement, $match)) {
                 continue;
             }
