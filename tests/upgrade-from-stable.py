@@ -1,4 +1,4 @@
-"""Real 3.19.4-to-candidate acceptance, confined to disposable GitHub CI storage.
+"""Real 3.19.5-to-candidate acceptance, confined to disposable GitHub CI storage.
 
 The published baseline is downloaded, not synthesized by changing a version header.
 The original fresh-install fixture is never downgraded or reused as the upgrade DB.
@@ -17,10 +17,10 @@ import tempfile
 import urllib.request
 import zipfile
 
-BASELINE_VERSION = '3.19.4'
-BASELINE_SHA256 = 'bbbe51c7a7e5ef8c481b253910adbb70bcb85ee41d7b9e23fe244450f0ff3bf2'
+BASELINE_VERSION = '3.19.5'
+BASELINE_SHA256 = '4dafa516f11aa03eca7a30b3c21d4a928a6a217b1c1a7ec72ae996a318f4f254'
 BASELINE_URL = ('https://github.com/cemfirat/wordpress-calendar-booking/releases/'
-                'download/v3.19.4/wordpress-calendar-booking.zip')
+                'download/v3.19.5/wordpress-calendar-booking.zip')
 PLUGIN = 'wordpress-calendar-booking'
 MAX_ARCHIVE = 10 * 1024 * 1024
 
@@ -88,7 +88,7 @@ def wp(root: Path, *args: str, extra: dict[str, str] | None = None) -> str:
 def main(source: Path, expected_version: str) -> None:
     if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', expected_version):
         raise ValueError('Invalid expected candidate version')
-    if tuple(map(int, expected_version.split('.'))) <= (3, 19, 4):
+    if tuple(map(int, expected_version.split('.'))) <= (3, 19, 5):
         raise ValueError('The candidate must be newer than the published baseline')
     workspace = Path(os.environ.get('GITHUB_WORKSPACE', '')).resolve()
     temporary = Path(os.environ.get('RUNNER_TEMP', '')).resolve()
@@ -119,7 +119,7 @@ def main(source: Path, expected_version: str) -> None:
             raise ValueError('Published 3.19.4 baseline digest mismatch')
         baseline.write_bytes(data)
         archive_files(baseline)
-        print('PASS: actual published 3.19.4 matches its pinned release digest', flush=True)
+        print('PASS: actual published 3.19.5 matches its pinned release digest', flush=True)
         root = work / 'wordpress'
         shutil.copytree(source, root, ignore=shutil.ignore_patterns('wp-content', '.git'))
         (root / 'wp-content' / 'plugins').mkdir(parents=True)
