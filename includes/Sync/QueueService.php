@@ -103,32 +103,56 @@ class QueueService {
 
         $jobIds = [];
         $resourceId = !empty($booking->resource_id) ? (int)$booking->resource_id : 0;
-        $destinations = $resourceId > 0
+        $current = $resourceId > 0
             ? $this->connections->writeDestinationsForResource($resourceId, (int)$booking->booking_type_id)
             : $this->connections->writeDestinationsForBookingType((int)$booking->booking_type_id);
-        foreach ($destinations as $connection) {
-            $desiredVersion = hash('sha256', wp_json_encode([
-                'booking_id' => $bookingId,
-                'status' => (string)$booking->status,
-                'slot_start' => (string)$booking->slot_start,
-                'slot_end' => (string)$booking->slot_end,
-                'updated_at' => (string)$booking->updated_at,
-                'connection_id' => $connection->id,
-                'provider' => $connection->provider,
-                'remote_calendar_id' => $connection->remoteCalendarId,
-                'resource_id' => $resourceId,
-            ]));
 
-            $operation = $jobType === 'cancel' ? 'cancel' : 'upsert';
-            $idempotencyKey = 'calendar:provider:' . $operation . ':' . $bookingId . ':' . $connection->id . ':' . substr($desiredVersion, 0, 40);
+        $currentIds = [];
+        foreach ($current as $connection) {
+            $currentIds[(int)$connection->id] = $connection;
+        }
+
+        // Successful historical writes are discoverable from booking meta.
+        // Pending/failed writes are discoverable from their bounded queue
+        // history, so a later cancellation/routing change can supersede them
+        // even when no remote ID was persisted yet.
+        $knownIds = array_keys($currentIds);
+        $meta = $this->bookings->getMeta($bookingId);
+        foreach (array_keys($meta) as $key) {
+            if (preg_match('/^provider_event_.+_(\d+)$/', (string)$key, $match)) {
+                $knownIds[] = (int)$match[1];
+            }
+        }
+        $knownIds = array_merge(
+            $knownIds,
+            $this->jobs->connectionIdsForBooking(
+                $bookingId,
+                ['provider_create', 'provider_update', 'provider_cancel']
+            )
+        );
+        $knownIds = array_values(array_unique(array_filter(array_map('intval', $knownIds))));
+
+        foreach ($knownIds as $connectionId) {
+            $connection = $currentIds[$connectionId] ?? $this->connections->find($connectionId);
+            if (!$connection) {
+                continue;
+            }
+
+            $shouldExist = (string)$booking->status === \Wpcb\Booking\BookingStatus::CONFIRMED
+                && isset($currentIds[$connectionId]);
+            $operation = $shouldExist ? 'upsert' : 'cancel';
+            $effectiveJobType = $shouldExist
+                ? ($jobType === 'create' ? 'create' : 'update')
+                : 'cancel';
+            $desiredVersion = ProviderSyncService::desiredVersion($booking, $connection);
             $jobIds[] = $this->jobs->enqueue(
-                'provider_' . $jobType,
+                'provider_' . $effectiveJobType,
                 $bookingId,
                 [
-                    'connection_id' => $connection->id,
+                    'connection_id' => $connectionId,
                     'desired_version' => $desiredVersion,
                 ],
-                $idempotencyKey
+                'calendar:provider:' . $operation . ':' . $bookingId . ':' . $connectionId . ':' . substr($desiredVersion, 0, 40)
             );
         }
 
@@ -191,11 +215,11 @@ class QueueService {
 
         switch ((string)$job->job_type) {
             case 'provider_create':
-                return $this->providerSync->run('create', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
+                return $this->providerSync->run('create', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0), (string)($payload['desired_version'] ?? ''));
             case 'provider_update':
-                return $this->providerSync->run('update', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
+                return $this->providerSync->run('update', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0), (string)($payload['desired_version'] ?? ''));
             case 'provider_cancel':
-                return $this->providerSync->run('cancel', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
+                return $this->providerSync->run('cancel', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0), (string)($payload['desired_version'] ?? ''));
             case 'webhook_delivery':
                 return $this->webhooks->dispatch($payload, (int)$job->booking_id);
             case EmailRetryJobRunner::JOB_TYPE:
@@ -203,11 +227,11 @@ class QueueService {
             case \Wpcb\Booking\BookingEffectOutbox::JOB_TYPE:
                 return $this->bookingEffects->run($payload, (int)$job->booking_id);
             case 'video_create':
-                return $this->videoMeetings->run('create', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
+                return $this->videoMeetings->run('create', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0), (string)($payload['desired_version'] ?? ''));
             case 'video_update':
-                return $this->videoMeetings->run('update', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
+                return $this->videoMeetings->run('update', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0), (string)($payload['desired_version'] ?? ''));
             case 'video_delete':
-                return $this->videoMeetings->run('delete', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
+                return $this->videoMeetings->run('delete', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0), (string)($payload['desired_version'] ?? ''));
             case 'create':
             case 'update':
                 return $this->sync->syncBooking((int)$job->booking_id);
