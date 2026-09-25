@@ -39,6 +39,12 @@ class SlotService {
      * resource has an explicitly enabled public label.
      */
     public function getSlots(int $typeId, int $days = 14, ?int $ignoreBookingId = null, int $partySize = 1): array {
+        $result = $this->getSlotsResult($typeId, $days, $ignoreBookingId, $partySize);
+        return is_wp_error($result) ? [] : $result;
+    }
+
+    /** @return array<int,array<string,mixed>>|\WP_Error */
+    public function getSlotsResult(int $typeId, int $days = 14, ?int $ignoreBookingId = null, int $partySize = 1) {
         if (!$this->types->find($typeId)) {
             return [];
         }
@@ -56,9 +62,15 @@ class SlotService {
             && !in_array('', array_values($labels), true);
 
         $out = [];
+        $firstAvailabilityError = null;
         foreach ($resources as $resource) {
             $resourceId = (int)$resource->id;
-            foreach ($this->getSlotsForResource($typeId, $resourceId, $days, $ignoreBookingId, $partySize) as $slot) {
+            $resourceSlots = $this->getSlotsForResourceResult($typeId, $resourceId, $days, $ignoreBookingId, $partySize);
+            if (is_wp_error($resourceSlots)) {
+                $firstAvailabilityError = $firstAvailabilityError ?: $resourceSlots;
+                continue;
+            }
+            foreach ($resourceSlots as $slot) {
                 if ($exposeResourceLabels) {
                     $slot['resource_label'] = $labels[$resourceId];
                     $slot['label'] .= ' — ' . $labels[$resourceId];
@@ -71,6 +83,10 @@ class SlotService {
                     $out[$slot['start']] = $slot;
                 }
             }
+        }
+
+        if (!$out && $firstAvailabilityError) {
+            return $firstAvailabilityError;
         }
 
         $out = array_values($out);
@@ -90,6 +106,18 @@ class SlotService {
         ?int $ignoreBookingId = null,
         int $partySize = 1
     ): array {
+        $result = $this->getSlotsForResourceResult($typeId, $resourceId, $days, $ignoreBookingId, $partySize);
+        return is_wp_error($result) ? [] : $result;
+    }
+
+    /** @return array<int,array<string,mixed>>|\WP_Error */
+    public function getSlotsForResourceResult(
+        int $typeId,
+        int $resourceId,
+        int $days = 14,
+        ?int $ignoreBookingId = null,
+        int $partySize = 1
+    ) {
         $type = $this->types->find($typeId);
         if (!$type || !$this->resources->isAssignedToBookingType($resourceId, $typeId)) {
             return [];
@@ -110,10 +138,12 @@ class SlotService {
         $calendarFrom = Time::addMinutes($from, -max(0, (int)($maxBuffers['before'] ?? 0))) ?: $from;
         $calendarTo = Time::addMinutes($to, max(0, (int)($maxBuffers['after'] ?? 0))) ?: $to;
 
-        $calendarEvents = array_merge(
-            $this->calendar->events($calendarFrom, $calendarTo),
-            $this->connectionBusy->busyForResource($typeId, $resourceId, $calendarFrom, $calendarTo)
-        );
+        $publicCalendarEvents = $this->calendar->eventsResult($calendarFrom, $calendarTo);
+        $connectionEvents = $this->connectionBusy->busyForResource($typeId, $resourceId, $calendarFrom, $calendarTo);
+        if (is_wp_error($publicCalendarEvents) || is_wp_error($connectionEvents)) {
+            return $this->availabilityUnknown();
+        }
+        $calendarEvents = array_merge($publicCalendarEvents, $connectionEvents);
         $exceptions = $this->repo->exceptions($from, $to, $typeId, $resourceId);
         $out = [];
 
@@ -237,8 +267,11 @@ class SlotService {
         }
 
         $slots = $resourceId
-            ? $this->getSlotsForResource($typeId, $resourceId, $daysFromToday + 1, $ignoreBookingId, $partySize)
-            : $this->getSlots($typeId, $daysFromToday + 1, $ignoreBookingId, $partySize);
+            ? $this->getSlotsForResourceResult($typeId, $resourceId, $daysFromToday + 1, $ignoreBookingId, $partySize)
+            : $this->getSlotsResult($typeId, $daysFromToday + 1, $ignoreBookingId, $partySize);
+        if (is_wp_error($slots)) {
+            return false;
+        }
 
         foreach ($slots as $slot) {
             if (($slot['start'] ?? null) === $start
@@ -305,12 +338,22 @@ class SlotService {
         $calendarTo = Time::addMinutes($end, $bufferAfter);
         $events = [];
         if ($calendarFrom && $calendarTo) {
-            $events = array_merge(
-                $this->calendar->events($calendarFrom, $calendarTo),
-                $this->connectionBusy->busyForResource($typeId, $resourceId, $calendarFrom, $calendarTo)
-            );
+            $publicCalendarEvents = $this->calendar->eventsResult($calendarFrom, $calendarTo);
+            $connectionEvents = $this->connectionBusy->busyForResource($typeId, $resourceId, $calendarFrom, $calendarTo);
+            if (is_wp_error($publicCalendarEvents) || is_wp_error($connectionEvents)) {
+                return false;
+            }
+            $events = array_merge($publicCalendarEvents, $connectionEvents);
         }
         return !$this->isBlockedByCalendar($start, $end, $bufferBefore, $bufferAfter, $events);
+    }
+
+    private function availabilityUnknown(): \WP_Error {
+        return new \WP_Error(
+            'wpcb_availability_unknown',
+            __('Die Kalender-Verfügbarkeit kann derzeit nicht vollständig geprüft werden. Bitte später erneut versuchen.', 'wordpress-calendar-booking'),
+            ['status' => 503]
+        );
     }
 
     private function buildDaySlots(

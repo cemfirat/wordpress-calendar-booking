@@ -62,10 +62,15 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
         }
 
         $calendarId = $connection->remoteCalendarId !== '' ? $connection->remoteCalendarId : 'primary';
-        $busy = $response['calendars'][$calendarId]['busy'] ?? [];
-        if (!is_array($busy)) {
-            return [];
+        $calendar = $response['calendars'][$calendarId] ?? null;
+        if (!is_array($calendar) || !empty($calendar['errors']) || !array_key_exists('busy', $calendar) || !is_array($calendar['busy'])) {
+            $this->connections->setHealthError($connection->id, 'Google Calendar availability response was incomplete.');
+            return new \WP_Error(
+                'wpcb_google_freebusy_incomplete',
+                'Google Calendar availability could not be read completely.'
+            );
         }
+        $busy = $calendar['busy'];
 
         $out = [];
         foreach ($busy as $interval) {

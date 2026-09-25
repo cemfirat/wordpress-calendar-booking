@@ -157,10 +157,17 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
             return $response;
         }
 
-        $items = $response['value'][0]['scheduleItems'] ?? [];
-        if (!is_array($items)) {
-            return [];
+        $value = $response['value'] ?? null;
+        $schedule = is_array($value) && isset($value[0]) && is_array($value[0]) ? $value[0] : null;
+        if (!is_array($schedule) || !empty($schedule['error'])
+            || !array_key_exists('scheduleItems', $schedule) || !is_array($schedule['scheduleItems'])) {
+            $this->connections->setHealthError($connection->id, 'Microsoft schedule availability response was incomplete.');
+            return new \WP_Error(
+                'wpcb_microsoft_schedule_incomplete',
+                'Microsoft calendar availability could not be read completely.'
+            );
         }
+        $items = $schedule['scheduleItems'];
         $out = [];
         foreach ($items as $item) {
             if (!is_array($item) || ($item['status'] ?? 'free') === 'free') {

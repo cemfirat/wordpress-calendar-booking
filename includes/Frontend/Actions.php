@@ -80,12 +80,16 @@ class Actions {
             wp_send_json_error(['message' => $query->get_error_message()], $status);
         }
 
-        $slots = (new SlotService())->getSlots(
+        $slotService = new SlotService();
+        $slots = $slotService->getSlotsResult(
             $typeId,
             (int)$query['days'],
             null,
             (int)$query['party_size']
         );
+        if (is_wp_error($slots)) {
+            wp_send_json_error(['message' => $slots->get_error_message()], 503);
+        }
         $slots = array_slice($slots, 0, (int)$query['max_slots']);
 
         $tokens = new SlotTokenService();

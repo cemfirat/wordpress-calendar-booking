@@ -158,12 +158,15 @@ final class RestController {
             return $query;
         }
 
-        $slots = (new SlotService())->getSlots(
+        $slots = (new SlotService())->getSlotsResult(
             $typeId,
             (int)$query['days'],
             null,
             (int)$query['party_size']
         );
+        if (is_wp_error($slots)) {
+            return $slots;
+        }
 
         $maxSlots = (int)$query['max_slots'];
         $truncated = count($slots) > $maxSlots;

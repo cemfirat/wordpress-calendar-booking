@@ -14,14 +14,14 @@ final class ConnectionBusyService {
     }
 
     /**
-     * @return array<int,array{start:string,end:string,source?:string,connection_id?:int}>
+     * @return array<int,array{start:string,end:string,source?:string,connection_id?:int}>|\WP_Error
      */
     public function busyForResource(
         int $bookingTypeId,
         int $resourceId,
         string $fromUtc,
         string $toUtc
-    ): array {
+    ) {
         return $this->busyFromConnections(
             $this->connections->blockingForResource($resourceId, $bookingTypeId),
             $fromUtc,
@@ -30,9 +30,9 @@ final class ConnectionBusyService {
     }
 
     /**
-     * @return array<int,array{start:string,end:string,source?:string,connection_id?:int}>
+     * @return array<int,array{start:string,end:string,source?:string,connection_id?:int}>|\WP_Error
      */
-    public function busyForBookingType(int $bookingTypeId, string $fromUtc, string $toUtc): array {
+    public function busyForBookingType(int $bookingTypeId, string $fromUtc, string $toUtc) {
         return $this->busyFromConnections(
             $this->connections->blockingForBookingType($bookingTypeId),
             $fromUtc,
@@ -42,9 +42,9 @@ final class ConnectionBusyService {
 
     /**
      * @param CalendarConnection[] $connections
-     * @return array<int,array{start:string,end:string,source?:string,connection_id?:int}>
+     * @return array<int,array{start:string,end:string,source?:string,connection_id?:int}>|\WP_Error
      */
-    private function busyFromConnections(array $connections, string $fromUtc, string $toUtc): array {
+    private function busyFromConnections(array $connections, string $fromUtc, string $toUtc) {
         $busy = [];
 
         foreach ($connections as $connection) {
@@ -52,17 +52,26 @@ final class ConnectionBusyService {
             if (!$provider instanceof CalendarSyncProviderInterface
                 || !$this->providers->supports($connection->provider, ProviderCapabilities::BUSY_READ)
             ) {
-                continue;
+                return new \WP_Error(
+                    'wpcb_calendar_availability_unknown',
+                    __('Die Kalender-Verfügbarkeit kann derzeit nicht vollständig geprüft werden. Bitte später erneut versuchen.', 'wordpress-calendar-booking')
+                );
             }
 
             $result = $provider->busyBetween($fromUtc, $toUtc, $connection);
-            if (is_wp_error($result)) {
-                continue;
+            if (is_wp_error($result) || !is_array($result)) {
+                return new \WP_Error(
+                    'wpcb_calendar_availability_unknown',
+                    __('Die Kalender-Verfügbarkeit kann derzeit nicht vollständig geprüft werden. Bitte später erneut versuchen.', 'wordpress-calendar-booking')
+                );
             }
 
             foreach ($result as $interval) {
                 if (!is_array($interval) || empty($interval['start']) || empty($interval['end'])) {
-                    continue;
+                    return new \WP_Error(
+                        'wpcb_calendar_availability_unknown',
+                        __('Die Kalender-Verfügbarkeit kann derzeit nicht vollständig geprüft werden. Bitte später erneut versuchen.', 'wordpress-calendar-booking')
+                    );
                 }
                 $busy[] = $interval;
             }

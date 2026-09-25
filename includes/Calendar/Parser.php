@@ -7,23 +7,32 @@ use Sabre\VObject\Reader;
 
 class Parser {
     public function parse(string $ics, string $from, string $to): array {
+        $result = $this->parseResult($ics, $from, $to);
+        return is_wp_error($result) ? [] : $result;
+    }
+
+    /** @return array<int,array<string,mixed>>|\WP_Error */
+    public function parseResult(string $ics, string $from, string $to) {
         $fromUtc = Time::parseUtc($from);
         $toUtc = Time::parseUtc($to);
-        if (!$fromUtc || !$toUtc || $toUtc <= $fromUtc || !class_exists(Reader::class)) {
-            return [];
+        if (!$fromUtc || !$toUtc || $toUtc <= $fromUtc) {
+            return new \WP_Error('wpcb_ics_range', 'Calendar feed range is invalid.');
+        }
+        if (!class_exists(Reader::class)) {
+            return new \WP_Error('wpcb_ics_runtime', 'Calendar feed parser is unavailable.');
         }
 
         try {
             $calendar = Reader::read($ics, Reader::OPTION_FORGIVING);
             if (!method_exists($calendar, 'expand')) {
-                return [];
+                return new \WP_Error('wpcb_ics_parse', 'Calendar feed could not be parsed.');
             }
 
             // Expansion is always bounded to the requested availability window.
             // This is both a correctness rule and a resource-use safety boundary.
             $expanded = $calendar->expand($fromUtc, $toUtc, Time::bookingTimezone());
         } catch (\Throwable $error) {
-            return [];
+            return new \WP_Error('wpcb_ics_parse', 'Calendar feed could not be parsed.');
         }
 
         $events = [];
