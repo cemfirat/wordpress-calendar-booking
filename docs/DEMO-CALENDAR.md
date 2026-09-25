@@ -1,10 +1,10 @@
 # Optionaler Beispielkalender
 
-Im WordPress-Backend **Calendar Booking > Beispielkalender** oeffnen. Auch das Plugin-Dashboard verlinkt diese Seite. Die Option ist freiwillig: Installation, Aktivierung, Updates und Migrationen erzeugen niemals automatisch Beispiele.
+Im WordPress-Backend **Kalender & Buchungen > Beispielkalender** oeffnen. Auch das Plugin-Dashboard verlinkt diese Seite. Die Option ist freiwillig: Installation, Aktivierung, Updates und Migrationen erzeugen niemals automatisch Beispiele.
 
-Nach ausdruecklicher Bestaetigung legt **10 Beispieleintraege erzeugen** genau zehn Eintraege an. Ihre Daten liegen relativ zum Erzeugungsdatum, in der bei Erzeugung eingestellten Plugin-Zeitzone. Die private Vorschau zeigt alle betroffenen Monate mit sieben Wochentagen sowie eine vollstaendige Liste. Unterschiedliche Dauern, Wochenenden und ein mehrtaegiger Eintrag sind enthalten. Bestehende Beispiele behalten ihren Zeitraum; zum Aktualisieren erst entfernen, dann neu erzeugen.
+Nach ausdruecklicher Bestaetigung legt **10 Beispieleinträge erzeugen** genau zehn Eintraege an. Ihre Daten liegen relativ zum Erzeugungsdatum, in der bei Erzeugung eingestellten Plugin-Zeitzone. Die private Vorschau zeigt alle betroffenen Monate mit sieben Wochentagen sowie eine vollstaendige Liste. Unterschiedliche Dauern, Wochenenden und ein mehrtaegiger Eintrag sind enthalten. Bestehende Beispiele behalten ihren Zeitraum; zum Aktualisieren erst entfernen, dann neu erzeugen.
 
-**Beispieleintraege entfernen** entfernt nur den markierten Demo-Datensatz. Erneute Erstellung ist danach moeglich. Mehrfachklicks und parallele Anfragen werden durch eine eigene, begrenzt wartende MySQL-Sperre serialisiert. Es wird ein vollstaendiger Datensatz in einer einzelnen, nicht automatisch geladenen WordPress-Option gespeichert. Fehler werden nicht als Erfolg angezeigt; ein unvollstaendiger Datensatz wird nicht stillschweigend ueberschrieben.
+**Beispieleinträge entfernen** entfernt nur den markierten Demo-Datensatz. Erneute Erstellung ist danach moeglich. Mehrfachklicks und parallele Anfragen werden durch eine eigene, begrenzt wartende MySQL-Sperre serialisiert. Es wird ein vollstaendiger Datensatz in einer einzelnen, nicht automatisch geladenen WordPress-Option gespeichert. Fehler werden nicht als Erfolg angezeigt; ein unvollstaendiger Datensatz wird nicht stillschweigend ueberschrieben.
 
 ## Abgrenzung zu echten Buchungen
 
