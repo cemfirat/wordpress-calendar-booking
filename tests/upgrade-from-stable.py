@@ -116,7 +116,7 @@ def main(source: Path, expected_version: str) -> None:
         with urllib.request.urlopen(request, timeout=60) as response:
             data = response.read(MAX_ARCHIVE + 1)
         if len(data) > MAX_ARCHIVE or hashlib.sha256(data).hexdigest() != BASELINE_SHA256:
-            raise ValueError('Published 3.19.7 baseline digest mismatch')
+            raise ValueError('Published 3.19.8 baseline digest mismatch')
         baseline.write_bytes(data)
         archive_files(baseline)
         print('PASS: actual published 3.19.8 matches its pinned release digest', flush=True)
