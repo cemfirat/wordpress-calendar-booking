@@ -1,6 +1,9 @@
 <?php
 namespace Wpcb\WaitingList;
 
+use Wpcb\Payments\CheckoutHandoffService;
+use Wpcb\Payments\PaymentService;
+
 final class WaitingListController {
     public function boot(): void {
         add_action('admin_post_nopriv_wpcb_waitlist_join', [$this, 'join']);
@@ -68,6 +71,27 @@ final class WaitingListController {
         if (is_wp_error($result)) {
             wp_die(esc_html($result->get_error_message()), esc_html__('Waiting list', 'wordpress-calendar-booking'), ['response' => 400]);
         }
+        $handoff = (new CheckoutHandoffService())->beginForBooking((int)$result);
+        if (is_wp_error($handoff)) {
+            $payment = (new PaymentService())->paymentForBooking((int)$result);
+            if ($payment) {
+                wp_die(
+                    esc_html__('The slot is reserved and the confirmation email has been scheduled. Payment could not be opened automatically; after confirming your email you can resume the pending payment from the customer portal.', 'wordpress-calendar-booking'),
+                    esc_html__('Waiting-list offer accepted', 'wordpress-calendar-booking'),
+                    ['response' => 200]
+                );
+            }
+            wp_die(
+                esc_html($handoff->get_error_message()),
+                esc_html__('Waiting list', 'wordpress-calendar-booking'),
+                ['response' => 500]
+            );
+        }
+        if (!empty($handoff['required']) && !empty($handoff['checkout_url'])) {
+            wp_redirect((string)$handoff['checkout_url'], 303);
+            exit;
+        }
+
         wp_die(
             esc_html__('The slot has been reserved for you. Please check your email to confirm the booking.', 'wordpress-calendar-booking'),
             esc_html__('Waiting-list offer accepted', 'wordpress-calendar-booking'),
