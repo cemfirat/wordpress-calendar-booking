@@ -156,6 +156,67 @@ wpcb_wait_assert(is_string($advancedStart)&&is_string($advancedEnd)&&is_string($
 $waitingTable=$wpdb->prefix.'wpcb_waiting_list';
 $futureExpiry=Wpcb\Support\Time::formatUtc(Wpcb\Support\Time::nowUtc()->modify('+30 minutes'));
 $expiredAt=Wpcb\Support\Time::formatUtc(Wpcb\Support\Time::nowUtc()->modify('-1 minute'));
+
+// Two isolated WordPress/MySQL workers contend for the same resource after the
+// parent releases its lock. Only one capacity-two offer (party size two) may win.
+$concurrentIds=[];
+foreach(['race-one','race-two'] as $label){
+    $wpdb->insert($waitingTable,[
+        'entry_uuid'=>wp_generate_uuid4(),'booking_type_id'=>$typeA,'resource_id'=>$advancedResourceId,
+        'slot_start'=>$advancedStart,'slot_end'=>$advancedEnd,'party_size'=>2,
+        'full_name'=>'Race ' . $label,'email'=>$label . '@example.com','phone'=>'',
+        'status'=>'waiting','created_at'=>$now,'updated_at'=>$now,
+    ]);
+    $concurrentIds[]=(int)$wpdb->insert_id;
+}
+$parentLock=new Wpcb\Resources\ResourceLock();
+wpcb_wait_assert($parentLock->acquire($advancedResourceId,1),'Parent acquires the promotion resource lock before concurrent workers start.');
+$spawnPromotion=static function() use($typeA,$advancedResourceId,$advancedStart,$advancedEnd): array {
+    $pipes=[];
+    $work=wp_json_encode([
+        'operation'=>'promote','booking_type_id'=>$typeA,'resource_id'=>$advancedResourceId,
+        'slot_start'=>$advancedStart,'slot_end'=>$advancedEnd,
+    ]);
+    $proc=proc_open(
+        ['wp','eval-file',__DIR__ . '/waiting-list-worker.php','--path=' . ABSPATH],
+        [0=>['pipe','r'],1=>['pipe','w'],2=>['pipe','w']],
+        $pipes,null,array_merge(getenv(),['WPCB_WAITLIST_WORK'=>$work])
+    );
+    if(!is_resource($proc)) throw new RuntimeException('Cannot start waiting-list promotion worker.');
+    fclose($pipes[0]);
+    return ['proc'=>$proc,'pipes'=>$pipes];
+};
+$workerOne=$spawnPromotion();
+$workerTwo=$spawnPromotion();
+usleep(200000);
+$parentLock->release($advancedResourceId);
+$finishPromotion=static function(array $worker): int {
+    $stdout=stream_get_contents($worker['pipes'][1]);
+    $stderr=stream_get_contents($worker['pipes'][2]);
+    fclose($worker['pipes'][1]);
+    fclose($worker['pipes'][2]);
+    $exit=proc_close($worker['proc']);
+    if($exit!==0 || !preg_match('/WPCB164_RESULT:(\{[^\r\n]+\})/',$stdout,$match)){
+        throw new RuntimeException('Waiting-list worker failed: ' . $stdout . $stderr);
+    }
+    $decoded=json_decode($match[1],true);
+    return (int)($decoded['result']??0);
+};
+$promotionResults=[$finishPromotion($workerOne),$finishPromotion($workerTwo)];
+sort($promotionResults);
+$offeredRace=(int)$wpdb->get_var($wpdb->prepare(
+    "SELECT COUNT(*) FROM {$waitingTable} WHERE id IN (%d,%d) AND status = 'offered'",
+    $concurrentIds[0],$concurrentIds[1]
+));
+wpcb_wait_assert(
+    $promotionResults===[0,max($promotionResults)] && max($promotionResults)>0 && $offeredRace===1,
+    'Concurrent promotion workers serialize on the resource and create exactly one capacity-protecting offer.'
+);
+foreach($concurrentIds as $raceId){
+    wp_clear_scheduled_hook('wpcb_waitlist_send_offer',[$raceId]);
+    $wpdb->delete($waitingTable,['id'=>$raceId]);
+}
+
 $insertHold=static function(int $type,int $resource,string $s,string $e,int $party,string $status,string $expiry,string $email) use($wpdb,$waitingTable,$now,&$advancedWaitIds): int {
     $wpdb->insert($waitingTable,[
         'entry_uuid'=>wp_generate_uuid4(),'booking_type_id'=>$type,'resource_id'=>$resource,
