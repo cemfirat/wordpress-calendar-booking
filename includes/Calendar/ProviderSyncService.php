@@ -87,7 +87,12 @@ final class ProviderSyncService {
             }
 
             if (($operation === 'create' || $operation === 'update') && !empty($result['event_id'])) {
-                $this->bookings->updateMeta($bookingId, $metaKey, (string)$result['event_id']);
+                if (!$this->bookings->updateMeta($bookingId, $metaKey, (string)$result['event_id'])) {
+                    return [
+                        'ok' => false,
+                        'message' => 'Remote calendar event exists but its local reference could not be stored; retrying safely.',
+                    ];
+                }
             }
             if ($operation === 'cancel' && !empty($result['ok'])) {
                 $this->bookings->updateMeta($bookingId, $metaKey, '');
