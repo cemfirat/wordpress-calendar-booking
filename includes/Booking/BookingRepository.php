@@ -319,6 +319,43 @@ class BookingRepository {
         return $wpdb->get_results($wpdb->prepare($sql, ...$params));
     }
 
+    /**
+     * Return active blocking bookings whose raw intervals intersect a caller-
+     * supplied search window. Callers that apply scheduling buffers should
+     * widen the window first and then perform the exact buffered comparison.
+     *
+     * @return object[]
+     */
+    public function blockingBookings(
+        string $from,
+        string $to,
+        int $resourceId,
+        ?int $ignoreId = null
+    ): array {
+        global $wpdb;
+        if ($resourceId < 1 || !Time::parseUtc($from) || !Time::parseUtc($to)) {
+            return [];
+        }
+        $statuses = BookingStatus::activeBlockingStatuses();
+        $placeholders = implode(',', array_fill(0, count($statuses), '%s'));
+        $sql = "SELECT * FROM {$this->table}
+            WHERE status IN ($placeholders)
+            AND (status != %s OR reserved_until IS NULL OR reserved_until >= %s)
+            AND slot_start < %s
+            AND slot_end > %s
+            AND (resource_id = %d OR resource_id IS NULL OR resource_id = 0)";
+        $params = array_merge(
+            $statuses,
+            [BookingStatus::RESERVED_UNCONFIRMED, Time::formatUtc(Time::nowUtc()), $to, $from, $resourceId]
+        );
+        if ($ignoreId) {
+            $sql .= ' AND id != %d';
+            $params[] = $ignoreId;
+        }
+        $sql .= ' ORDER BY slot_start ASC, id ASC';
+        return $wpdb->get_results($wpdb->prepare($sql, ...$params));
+    }
+
     public function occupiedSeats(
         string $start,
         string $end,
