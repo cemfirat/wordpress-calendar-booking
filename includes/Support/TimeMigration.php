@@ -38,7 +38,7 @@ final class TimeMigration {
                 || !self::migrateTable($prefix . 'tokens', 'id', ['expires_at', 'used_at', 'created_at'])
                 || !self::migrateTable($prefix . 'booking_status_log', 'id', ['created_at'])
                 || !self::migrateTable($prefix . 'sync_jobs', 'id', ['available_at', 'created_at', 'updated_at'])
-                || !self::migrateTable($prefix . 'sync_log', 'id', ['created_at', 'updated_at'])
+                || !self::migrateTable($prefix . 'sync_log', 'id', ['created_at'])
             ) {
                 self::rollback();
                 return false;
