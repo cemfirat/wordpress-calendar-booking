@@ -111,6 +111,8 @@ Implemented adapters include public ICS, generic CalDAV/iCloud, Google Calendar 
 
 Booking/resource routing is separate from provider implementation so domain services do not contain Google/Microsoft/Apple-specific branching.
 
+The **public month calendar** is a busy-only projection, not a provider/resource directory. Its scope is the union of (a) explicitly configured public ICS feeds, (b) blocking routed calendar connections for active public booking types and their assigned active resources, and (c) displayable internal bookings belonging to public booking types. It deduplicates identical busy intervals and never exposes connection names, resource names, event summaries, attendees or customer identity. Multi-day intervals are clipped across every affected local calendar day using the configured IANA booking timezone; all-day `DTEND` remains exclusive. Provider-read failures mark the month projection incomplete rather than silently claiming a complete calendar.
+
 ## Queue and delivery model
 
 Background work uses leased jobs:
