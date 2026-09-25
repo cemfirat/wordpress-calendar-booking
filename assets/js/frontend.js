@@ -96,42 +96,145 @@
     }
   }
 
+  function slotContext(form){
+    var type = q('[data-wpcb-type-select]', form);
+    var party = q('[name="party_size"]', form);
+    return (type ? type.value : '') + '|' + (party ? party.value : '1');
+  }
+
+  function slotStatus(form, text, retry){
+    var status = q('[data-wpcb-slot-status]', form);
+    if(!status){
+      status = document.createElement('p');
+      status.setAttribute('data-wpcb-slot-status', '');
+      status.setAttribute('role', 'status');
+      status.setAttribute('aria-live', 'polite');
+      form.appendChild(status);
+    }
+    status.textContent = text;
+    var button = q('[data-wpcb-slot-retry]', form);
+    if(!button){
+      button = document.createElement('button');
+      button.type = 'button';
+      button.setAttribute('data-wpcb-slot-retry', '');
+      button.className = 'uk-button uk-button-default';
+      button.textContent = msg('retrySlots', 'Try again');
+      form.appendChild(button);
+    }
+    button.hidden = !retry;
+  }
+
+  function placeholder(select, text){
+    select.innerHTML = '';
+    select.value = '';
+    var option = document.createElement('option');
+    option.value = '';
+    option.textContent = text;
+    select.appendChild(option);
+  }
+
+  function updateSubmit(form){
+    var state = form.__wpcbSlots;
+    var select = q('[data-wpcb-slot-select]', form);
+    var valid = state && !state.pending && state.context === slotContext(form)
+      && select && !select.disabled && select.value !== '';
+    qa('button[type="submit"], input[type="submit"]', form).forEach(function(button){
+      button.disabled = !valid || button.hasAttribute('data-wpcb-payment-blocked');
+    });
+    return !!valid;
+  }
+
   function fillSlots(form, typeId, preselect){
     var select = q('[data-wpcb-slot-select]', form);
     if(!select) return;
-    select.innerHTML = '<option value="">'+msg('loadingSlots','Loading available times ...')+'</option>';
+    var previous = form.__wpcbSlots;
+    if(previous && previous.controller) previous.controller.abort();
+    var state = {
+      context: slotContext(form), pending: true,
+      controller: typeof AbortController === 'function' ? new AbortController() : null
+    };
+    form.__wpcbSlots = state;
+    select.disabled = true;
+    placeholder(select, msg('loadingSlots','Loading available times ...'));
+    updateSubmit(form);
+    var type = q('[data-wpcb-type-select]', form);
+    var choice = type && type.options[type.selectedIndex];
+    if(!typeId || !choice || choice.disabled){
+      state.pending = false;
+      placeholder(select, msg('choose','Please choose'));
+      slotStatus(form, '', false);
+      updateSubmit(form);
+      return;
+    }
+    slotStatus(form, msg('loadingSlots','Loading available times ...'), false);
     var body = new URLSearchParams();
     body.set('action','wpcb_get_slots');
     body.set('nonce', (window.wpcbFrontend && wpcbFrontend.nonce) || '');
-    body.set('type_id', typeId || '');
-    var partySize = q('[data-wpcb-party-size]', form);
+    body.set('type_id', typeId);
+    var partySize = q('[name="party_size"]', form);
     body.set('party_size', partySize ? partySize.value || '1' : '1');
+    var current = function(){
+      return form.__wpcbSlots === state && state.context === slotContext(form);
+    };
     fetch((window.wpcbFrontend && wpcbFrontend.ajaxUrl) || '/wp-admin/admin-ajax.php', {
       method:'POST',
       headers:{'Content-Type':'application/x-www-form-urlencoded; charset=UTF-8'},
-      body: body.toString()
-    }).then(function(r){ return r.json(); }).then(function(json){
-      if(!json || !json.success){
-        select.innerHTML = '<option value="">'+msg('noSlots','No available times found')+'</option>';
+      body: body.toString(),
+      signal: state.controller ? state.controller.signal : undefined
+    }).then(function(response){
+      return response.json().then(function(json){ return {ok: response.ok, json: json}; });
+    }).then(function(result){
+      if(!current()) return;
+      state.pending = false;
+      var json = result.json;
+      if(result.ok === false || !json || !json.success){
+        var error = json && json.data && typeof json.data.message === 'string'
+          ? json.data.message.slice(0, 500) : msg('loadError','Error loading times');
+        placeholder(select, msg('loadError','Error loading times'));
+        slotStatus(form, error, true);
+        updateSubmit(form);
         return;
       }
-      var items = json.data && json.data.slots ? json.data.slots : [];
-      if(!items.length){
-        select.innerHTML = '<option value="">'+msg('noSlots','No available times found')+'</option>';
-        return;
-      }
-      select.innerHTML = '<option value="">'+msg('choose','Please choose')+'</option>';
+      var items = json.data && json.data.slots;
+      if(!Array.isArray(items)) throw new Error('Invalid slot response');
+      placeholder(select, items.length ? msg('choose','Please choose') : msg('noSlots','No available times found'));
       items.forEach(function(slot){
+        if(!slot || typeof slot.value !== 'string' || typeof slot.label !== 'string') throw new Error('Invalid slot');
         var opt = document.createElement('option');
         opt.value = slot.value;
         opt.textContent = slot.label;
         if(preselect && preselect === slot.value) opt.selected = true;
         select.appendChild(opt);
       });
+      select.disabled = !items.length;
+      slotStatus(form, items.length ? '' : msg('noSlots','No available times found'), false);
+      updateSubmit(form);
     }).catch(function(){
-      select.innerHTML = '<option value="">'+msg('loadError','Error loading times')+'</option>';
+      if(!current()) return;
+      state.pending = false;
+      select.disabled = true;
+      placeholder(select, msg('loadError','Error loading times'));
+      slotStatus(form, msg('loadError','Error loading times'), true);
+      updateSubmit(form);
     });
   }
+
+  document.addEventListener('submit', function(e){
+    var form = closest(e.target, '[data-wpcb-booking-form]');
+    if(form && !updateSubmit(form)){
+      e.preventDefault();
+      var select = q('[data-wpcb-slot-select]', form);
+      if(select) select.focus();
+    }
+  });
+
+  document.addEventListener('input', function(e){
+    var form = closest(e.target, '[data-wpcb-booking-form]');
+    if(form && e.target.matches('[data-wpcb-party-size]')){
+      var type = q('[data-wpcb-type-select]', form);
+      fillSlots(form, type ? type.value : '', '');
+    }
+  });
 
   document.addEventListener('change', function(e){
     var form = closest(e.target, '[data-wpcb-booking-form]');
@@ -151,9 +254,17 @@
       if(typeSelect && typeSelect.value) fillSlots(form, typeSelect.value, '');
     }
     updateConditional(form);
+    updateSubmit(form);
   });
 
   document.addEventListener('click', function(e){
+    var retry = closest(e.target, '[data-wpcb-slot-retry]');
+    if(retry){
+      var retryForm = closest(retry, '[data-wpcb-booking-form]');
+      var retryType = retryForm && q('[data-wpcb-type-select]', retryForm);
+      if(retryType) fillSlots(retryForm, retryType.value, '');
+      return;
+    }
     var open = closest(e.target, '[data-wpcb-open-toolbar-modal]');
     if(open){
       e.preventDefault();
@@ -183,6 +294,9 @@
   document.addEventListener('DOMContentLoaded', function(){
     qa('[data-wpcb-booking-form]').forEach(function(form){
       updateConditional(form);
+      var type = q('[data-wpcb-type-select]', form);
+      if(type && type.value) fillSlots(form, type.value, '');
+      else updateSubmit(form);
     });
   });
 })();
