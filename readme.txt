@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.19.6
+Stable tag: 3.19.7
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,14 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.19.7 =
+* Complete privacy retention processing across bounded batches instead of repeatedly selecting already-anonymized rows.
+* Let personal-data erasure advance past records under an active retention hold and converge across multiple pages.
+* Paginate waiting-list privacy export and erasure correctly beyond 50 records without duplicates or premature completion.
+* Add real WordPress/MySQL regression fixtures for 49/50/51 and 199/200/201 boundaries and eventual completion.
+* Verify a real upgrade from the immutable published 3.19.6 package before release.
+* This maintenance release is not full-feature production certification. Remaining audit work is tracked in docs/RELEASE-3.19.7.md and GitHub issue #178.
 
 = 3.19.6 =
 * Apply one effective before/after buffer policy to displayed slots, final confirmation/approval, rescheduling and capacity calculations.
