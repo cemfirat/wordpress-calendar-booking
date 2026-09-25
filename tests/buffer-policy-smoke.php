@@ -277,9 +277,10 @@ try {
         'Confirmation succeeds once current schedule and exception policy permit the slot.'
     );
 
+    $otherWeekday = (int)(($weekday % 7) + 1);
     $wpdb->update(
         $prefix . 'availability_rules',
-        ['is_active' => 0, 'updated_at' => $now],
+        ['weekday' => $otherWeekday, 'updated_at' => $now],
         ['id' => $candidateRuleId]
     );
     wpcb_buffer_assert(
@@ -291,11 +292,11 @@ try {
             $resourceId,
             1
         ),
-        'Final availability rejects a slot after its effective weekly rule is disabled.'
+        'Final availability rejects a slot no longer covered by its effective scoped weekly rules.'
     );
     $wpdb->update(
         $prefix . 'availability_rules',
-        ['is_active' => 1, 'updated_at' => $now],
+        ['weekday' => $weekday, 'updated_at' => $now],
         ['id' => $candidateRuleId]
     );
 
