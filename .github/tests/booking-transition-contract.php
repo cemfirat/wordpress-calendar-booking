@@ -143,7 +143,7 @@ namespace {
         public int $canonicalCalls = 0;
         public function __construct() {}
         public function slotAvailable(int $type, string $start, string $end, ?int $ignore = null,
-            ?int $resource = null, int $party = 1): bool {
+            ?int $resource = null, int $party = 1, ?int $ignoreWaitingListEntryId = null): bool {
             check(!empty($GLOBALS['wpdb']->held), 'capacity read must hold resource lock');
             if ($this->throw) throw new \RuntimeException('injected read failure');
             return $this->available;
