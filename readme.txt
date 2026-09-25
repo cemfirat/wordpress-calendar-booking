@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.19.4
+Stable tag: 3.19.5
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,14 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.19.5 =
+* Share resource locks across booking transitions and recheck expired reservation holds.
+* Explain unconfigured required payments before booking and retain free booking paths.
+* Provide read-only recovery for expired reservation links and ignore obsolete slot responses.
+* Add an optional private ten-entry example calendar with safe creation and removal.
+* Verify a real upgrade from published 3.19.4, preserving existing records and credentials.
+* This maintenance release is not full-feature production certification. Remaining audit work and integration limits are documented in docs/RELEASE-3.19.5.md and GitHub issue #178.
 
 = 3.19.4 =
 * Bound public ICS and CalDAV response sizes before parsing untrusted remote data.

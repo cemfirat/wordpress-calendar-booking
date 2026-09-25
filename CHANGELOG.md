@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.19.5
+
+- Serialize booking confirmation, approval, expiry and resource moves with shared resource locks; recheck state and reservation deadlines after waiting and roll back failed grouped confirmations.
+- Show unavailable required-payment choices before submission while preserving free booking paths. Explain missing local Stripe configuration without claiming a live provider outage or bypassing required payment.
+- Give expired single/series reservation links a read-only recovery screen and an explicit fresh-booking route. Never silently revive an expired reservation.
+- Ignore obsolete slot responses after booking-type or party-size changes, with independent form state, distinct retry/empty states and coverage with and without AbortController.
+- Add an optional private example calendar with exactly ten synthetic entries, safe repeat/removal handling, weekends and multi-day display; no real bookings, payments, mail or external calendars are created.
+- Gate installation acceptance on a real upgrade from the checksum-pinned published 3.19.4 archive, preserving historical records, configuration, encrypted credentials and indexed tokens, and comparing installed files to the exact candidate ZIP.
+- Scope: this maintenance release delivers the reviewed changes above, not full-feature production certification. Existing buffer/availability, migration recovery, durable side-effect, payment/refund and provider findings remain tracked in issue #178. See docs/RELEASE-3.19.5.md before enabling affected integrations.
+
 ## 3.19.4
 
 - Bound public ICS responses to 2 MiB, CalDAV discovery/query responses to 4 MiB and CalDAV mutation responses to 256 KiB.
