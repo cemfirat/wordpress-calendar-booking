@@ -38,7 +38,8 @@ class Parser {
         $events = [];
         foreach ($expanded->select('VEVENT') as $event) {
             $status = strtoupper(trim((string)($event->STATUS ?? '')));
-            if ($status === 'CANCELLED' || !isset($event->DTSTART)) {
+            $transparency = strtoupper(trim((string)($event->TRANSP ?? '')));
+            if ($status === 'CANCELLED' || $transparency === 'TRANSPARENT' || !isset($event->DTSTART)) {
                 continue;
             }
 

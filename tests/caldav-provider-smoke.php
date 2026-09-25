@@ -59,10 +59,12 @@ $filter = static function ($pre, $args, $url) use (&$requests) {
     if ($method === 'REPORT' && $url === 'https://8.8.8.8/calendars/user/work/') {
         $icsTimed = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:timed-ci\r\nDTSTART:20261102T090000Z\r\nDTEND:20261102T100000Z\r\nSUMMARY:Private Timed\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
         $icsAllDay = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:allday-ci\r\nDTSTART;VALUE=DATE:20261103\r\nDTEND;VALUE=DATE:20261104\r\nSUMMARY:Private All Day\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
+        $icsTransparent = "BEGIN:VCALENDAR\r\nVERSION:2.0\r\nBEGIN:VEVENT\r\nUID:transparent-ci\r\nDTSTART:20261102T110000Z\r\nDTEND:20261102T120000Z\r\nTRANSP:TRANSPARENT\r\nSUMMARY:Informational\r\nEND:VEVENT\r\nEND:VCALENDAR\r\n";
         return $response(207, 'Multi-Status',
             '<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" xmlns:c="urn:ietf:params:xml:ns:caldav">'
             . '<d:response><d:href>/calendars/user/work/timed.ics</d:href><d:propstat><d:prop><d:getetag>"t1"</d:getetag><c:calendar-data><![CDATA[' . $icsTimed . ']]></c:calendar-data></d:prop></d:propstat></d:response>'
             . '<d:response><d:href>/calendars/user/work/allday.ics</d:href><d:propstat><d:prop><d:getetag>"a1"</d:getetag><c:calendar-data><![CDATA[' . $icsAllDay . ']]></c:calendar-data></d:prop></d:propstat></d:response>'
+            . '<d:response><d:href>/calendars/user/work/transparent.ics</d:href><d:propstat><d:prop><d:getetag>"x1"</d:getetag><c:calendar-data><![CDATA[' . $icsTransparent . ']]></c:calendar-data></d:prop></d:propstat></d:response>'
             . '</d:multistatus>'
         );
     }
@@ -111,7 +113,7 @@ $objects = $client->calendarQuery(
     '2026-11-01 00:00:00',
     '2026-11-05 00:00:00'
 );
-wpcb_caldav_assert(is_array($objects) && count($objects) === 2, 'Bounded CalDAV calendar-query returns matching objects.');
+wpcb_caldav_assert(is_array($objects) && count($objects) === 3, 'Bounded CalDAV calendar-query returns matching objects including transparent VEVENT data.');
 
 $reportBody = '';
 foreach ($requests as $request) {
@@ -150,7 +152,7 @@ wpcb_caldav_assert(!is_wp_error($connectionId) && $connectionId > 0, 'Generic Ca
 $connection = $repo->find((int)$connectionId);
 $provider = new Wpcb\Calendar\CalDavProvider($repo);
 $busy = $provider->busyBetween('2026-11-01 00:00:00', '2026-11-05 00:00:00', $connection);
-wpcb_caldav_assert(is_array($busy) && count($busy) === 2, 'CalDAV provider converts timed and all-day VEVENTs into busy intervals.');
+wpcb_caldav_assert(is_array($busy) && count($busy) === 2, 'CalDAV provider keeps timed and all-day opaque VEVENTs busy while excluding TRANSPARENT data.');
 wpcb_caldav_assert(
     $busy[0]['start'] === '2026-11-02 09:00:00',
     'Timed CalDAV event remains canonical UTC.'
