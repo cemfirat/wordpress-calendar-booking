@@ -38,13 +38,13 @@ class SlotService {
      * not learn staff/resource names or capacity unless every assigned
      * resource has an explicitly enabled public label.
      */
-    public function getSlots(int $typeId, int $days = 14, ?int $ignoreBookingId = null, int $partySize = 1): array {
-        $result = $this->getSlotsResult($typeId, $days, $ignoreBookingId, $partySize);
+    public function getSlots(int $typeId, int $days = 14, ?int $ignoreBookingId = null, int $partySize = 1, ?int $ignoreWaitingListEntryId = null): array {
+        $result = $this->getSlotsResult($typeId, $days, $ignoreBookingId, $partySize, $ignoreWaitingListEntryId);
         return is_wp_error($result) ? [] : $result;
     }
 
     /** @return array<int,array<string,mixed>>|\WP_Error */
-    public function getSlotsResult(int $typeId, int $days = 14, ?int $ignoreBookingId = null, int $partySize = 1) {
+    public function getSlotsResult(int $typeId, int $days = 14, ?int $ignoreBookingId = null, int $partySize = 1, ?int $ignoreWaitingListEntryId = null) {
         if (!$this->types->find($typeId)) {
             return [];
         }
@@ -65,7 +65,7 @@ class SlotService {
         $firstAvailabilityError = null;
         foreach ($resources as $resource) {
             $resourceId = (int)$resource->id;
-            $resourceSlots = $this->getSlotsForResourceResult($typeId, $resourceId, $days, $ignoreBookingId, $partySize);
+            $resourceSlots = $this->getSlotsForResourceResult($typeId, $resourceId, $days, $ignoreBookingId, $partySize, $ignoreWaitingListEntryId);
             if (is_wp_error($resourceSlots)) {
                 $firstAvailabilityError = $firstAvailabilityError ?: $resourceSlots;
                 continue;
@@ -104,9 +104,10 @@ class SlotService {
         int $resourceId,
         int $days = 14,
         ?int $ignoreBookingId = null,
-        int $partySize = 1
+        int $partySize = 1,
+        ?int $ignoreWaitingListEntryId = null
     ): array {
-        $result = $this->getSlotsForResourceResult($typeId, $resourceId, $days, $ignoreBookingId, $partySize);
+        $result = $this->getSlotsForResourceResult($typeId, $resourceId, $days, $ignoreBookingId, $partySize, $ignoreWaitingListEntryId);
         return is_wp_error($result) ? [] : $result;
     }
 
@@ -116,7 +117,8 @@ class SlotService {
         int $resourceId,
         int $days = 14,
         ?int $ignoreBookingId = null,
-        int $partySize = 1
+        int $partySize = 1,
+        ?int $ignoreWaitingListEntryId = null
     ) {
         $type = $this->types->find($typeId);
         if (!$type || !$this->resources->isAssignedToBookingType($resourceId, $typeId)) {
@@ -164,7 +166,8 @@ class SlotService {
                         $calendarEvents,
                         $exceptions,
                         $ignoreBookingId,
-                        $partySize
+                        $partySize,
+                        $ignoreWaitingListEntryId
                     )
                 );
             }
@@ -368,7 +371,8 @@ class SlotService {
         string $end,
         ?int $ignoreBookingId = null,
         ?int $resourceId = null,
-        int $partySize = 1
+        int $partySize = 1,
+        ?int $ignoreWaitingListEntryId = null
     ): bool {
         $startUtc = Time::parseUtc($start);
         $endUtc = Time::parseUtc($end);
@@ -384,8 +388,8 @@ class SlotService {
         }
 
         $slots = $resourceId
-            ? $this->getSlotsForResourceResult($typeId, $resourceId, $daysFromToday + 1, $ignoreBookingId, $partySize)
-            : $this->getSlotsResult($typeId, $daysFromToday + 1, $ignoreBookingId, $partySize);
+            ? $this->getSlotsForResourceResult($typeId, $resourceId, $daysFromToday + 1, $ignoreBookingId, $partySize, $ignoreWaitingListEntryId)
+            : $this->getSlotsResult($typeId, $daysFromToday + 1, $ignoreBookingId, $partySize, $ignoreWaitingListEntryId);
         if (is_wp_error($slots)) {
             return false;
         }
@@ -407,7 +411,8 @@ class SlotService {
         string $end,
         ?int $ignoreId = null,
         ?int $resourceId = null,
-        int $partySize = 1
+        int $partySize = 1,
+        ?int $ignoreWaitingListEntryId = null
     ): bool {
         $type = $this->types->find($typeId);
         if (!$type || !Time::parseUtc($start) || !Time::parseUtc($end)) {
@@ -416,7 +421,7 @@ class SlotService {
 
         if (!$resourceId) {
             foreach ($this->resources->forBookingType($typeId, true) as $resource) {
-                if ($this->slotAvailable($typeId, $start, $end, $ignoreId, (int)$resource->id, $partySize)) {
+                if ($this->slotAvailable($typeId, $start, $end, $ignoreId, (int)$resource->id, $partySize, $ignoreWaitingListEntryId)) {
                     return true;
                 }
             }
@@ -446,7 +451,8 @@ class SlotService {
             $end,
             max(1, $partySize),
             $ignoreId,
-            $candidateBuffers
+            $candidateBuffers,
+            $ignoreWaitingListEntryId
         )) {
             return false;
         }
@@ -481,7 +487,8 @@ class SlotService {
         array $calendarEvents,
         array $exceptions,
         ?int $ignoreBookingId = null,
-        int $partySize = 1
+        int $partySize = 1,
+        ?int $ignoreWaitingListEntryId = null
     ): array {
         $duration = (int)($type->duration_minutes ?: $rule->slot_duration_minutes);
         $candidateBuffers = $this->buffers->fromTypeAndRule($type, $rule);
@@ -524,7 +531,8 @@ class SlotService {
                 $bufferAfter,
                 $ignoreBookingId,
                 $resourceId,
-                $partySize
+                $partySize,
+                $ignoreWaitingListEntryId
             )) {
                 continue;
             }
@@ -546,7 +554,8 @@ class SlotService {
                     $slotStart,
                     $slotEnd,
                     $ignoreBookingId,
-                    $candidateBuffers
+                    $candidateBuffers,
+                    $ignoreWaitingListEntryId
                 );
                 $slot['label'] .= ' — ' . (int)$slot['remaining_capacity'] . ' frei';
             }
@@ -564,7 +573,8 @@ class SlotService {
         int $bufferAfter,
         ?int $ignoreBookingId = null,
         ?int $resourceId = null,
-        int $partySize = 1
+        int $partySize = 1,
+        ?int $ignoreWaitingListEntryId = null
     ): bool {
         return !$resourceId
             ? true
@@ -575,7 +585,8 @@ class SlotService {
                 $end,
                 max(1, $partySize),
                 $ignoreBookingId,
-                ['before' => max(0, $bufferBefore), 'after' => max(0, $bufferAfter)]
+                ['before' => max(0, $bufferBefore), 'after' => max(0, $bufferAfter)],
+                $ignoreWaitingListEntryId
             );
     }
 
