@@ -666,10 +666,21 @@ $google_http_filter = static function ( $preempt, $args, $url ) use ( &$google_r
 				'body' => '',
 			];
 		}
+		$payload = is_string( $args['body'] ?? null )
+			? json_decode( (string) $args['body'], true )
+			: [];
+		$event_id = ! empty( $match[1] )
+			? rawurldecode( $match[1] )
+			: (string) ( $payload['id'] ?? '' );
 		return [
 			'headers' => [],
 			'response' => [ 'code' => 200, 'message' => 'OK' ],
-			'body' => wp_json_encode( [ 'id' => ! empty( $match[1] ) ? rawurldecode( $match[1] ) : 'google-event-ci' ] ),
+			'body' => wp_json_encode( [
+				'id' => $event_id,
+				'extendedProperties' => $payload['extendedProperties'] ?? [
+					'private' => [ 'wpcb_booking_uuid' => '' ],
+				],
+			] ),
 		];
 	}
 
@@ -732,7 +743,12 @@ $google_booking_id = $google_booking_repo->create(
 $google_booking = (array) $google_booking_repo->find( $google_booking_id );
 $google_meta = $google_booking_repo->getMeta( $google_booking_id );
 $google_create = $google_provider->createEvent( $google_booking, $google_meta, $google_connection );
-wpcb_smoke_assert( is_array( $google_create ) && 'google-event-ci' === ( $google_create['event_id'] ?? '' ), 'Confirmed booking creates a Google Calendar event.' );
+$google_event_id = (string) ( $google_create['event_id'] ?? '' );
+wpcb_smoke_assert(
+	is_array( $google_create )
+	&& preg_match( '/\Ab[0-9a-f]{51}\z/', $google_event_id ),
+	'Confirmed booking creates a Google Calendar event with a deterministic retry-safe ID.'
+);
 
 $google_queue = new Wpcb\Sync\QueueService();
 $google_queue_job_id = $google_queue->enqueueCreate( $google_booking_id );
@@ -740,7 +756,7 @@ wpcb_smoke_assert( $google_queue_job_id > 0, 'Confirmed booking enqueues provide
 $google_queue->runNow();
 $google_queue_meta = $google_booking_repo->getMeta( $google_booking_id );
 wpcb_smoke_assert(
-	'google-event-ci' === ( $google_queue_meta[ 'provider_event_google_' . $google_connection_id ] ?? '' ),
+	$google_event_id === ( $google_queue_meta[ 'provider_event_google_' . $google_connection_id ] ?? '' ),
 	'Provider queue persists a remote Google event identifier per booking and connection.'
 );
 $google_queue_row = $wpdb->get_row(
@@ -759,9 +775,9 @@ wpcb_smoke_assert(
 	&& false === strpos( $google_sync_log, 'CI-GOOGLE-REFRESH' ),
 	'Provider sync log does not copy customer content or OAuth secrets.'
 );
-$google_update = $google_provider->updateEvent( $google_booking, $google_meta, $google_connection, 'google-event-ci' );
+$google_update = $google_provider->updateEvent( $google_booking, $google_meta, $google_connection, $google_event_id );
 wpcb_smoke_assert( is_array( $google_update ) && ! empty( $google_update['ok'] ), 'Booking update uses the Google Calendar Events API.' );
-$google_cancel = $google_provider->cancelEvent( $google_connection, 'google-event-ci' );
+$google_cancel = $google_provider->cancelEvent( $google_connection, $google_event_id );
 wpcb_smoke_assert( is_array( $google_cancel ) && ! empty( $google_cancel['ok'] ), 'Booking cancellation deletes the Google Calendar event.' );
 $google_health_after_write = $google_connection_repo->find( $google_connection_id );
 wpcb_smoke_assert( null !== $google_health_after_write->lastWriteAt, 'Successful Google event write updates last-write diagnostics.' );
