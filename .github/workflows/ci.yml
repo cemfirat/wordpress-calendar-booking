@@ -307,6 +307,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/caldav-provider-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run iCalendar transparency smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/ics-transparency-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run month display source and multi-day smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/month-display-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run provider diagnostics smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/provider-diagnostics-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run stale provider side-effect reconciliation smoke test
