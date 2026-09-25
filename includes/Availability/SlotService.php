@@ -18,6 +18,7 @@ class SlotService {
     private PublicBusyPresenter $publicBusy;
     private ConnectionBusyService $connectionBusy;
     private ResourceRepository $resources;
+    private BufferPolicy $buffers;
     private CapacityService $capacity;
 
     public function __construct() {
@@ -28,7 +29,8 @@ class SlotService {
         $this->publicBusy = new PublicBusyPresenter();
         $this->connectionBusy = new ConnectionBusyService();
         $this->resources = new ResourceRepository();
-        $this->capacity = new CapacityService($this->bookings, $this->types, $this->resources);
+        $this->buffers = new BufferPolicy($this->repo, $this->types);
+        $this->capacity = new CapacityService($this->bookings, $this->types, $this->resources, $this->buffers);
     }
 
     /**
@@ -104,10 +106,13 @@ class SlotService {
         $windowEndLocal = $nowLocal->setTime(23, 59, 59)->modify('+' . $days . ' days');
         $from = Time::formatUtc($nowUtc);
         $to = Time::formatUtc($windowEndLocal);
+        $maxBuffers = $this->buffers->maxConfigured();
+        $calendarFrom = Time::addMinutes($from, -max(0, (int)($maxBuffers['before'] ?? 0))) ?: $from;
+        $calendarTo = Time::addMinutes($to, max(0, (int)($maxBuffers['after'] ?? 0))) ?: $to;
 
         $calendarEvents = array_merge(
-            $this->calendar->events($from, $to),
-            $this->connectionBusy->busyForResource($typeId, $resourceId, $from, $to)
+            $this->calendar->events($calendarFrom, $calendarTo),
+            $this->connectionBusy->busyForResource($typeId, $resourceId, $calendarFrom, $calendarTo)
         );
         $exceptions = $this->repo->exceptions($from, $to, $typeId, $resourceId);
         $out = [];
@@ -271,20 +276,33 @@ class SlotService {
             return false;
         }
 
-        $bufferBefore = (int)$type->buffer_before_minutes;
-        $bufferAfter = (int)$type->buffer_after_minutes;
-        $bufferedStart = Time::addMinutes($start, -$bufferBefore);
-        $bufferedEnd = Time::addMinutes($end, $bufferAfter);
-        if (!$bufferedStart || !$bufferedEnd) {
+        $rule = $this->buffers->matchingRuleForSlot($typeId, $resourceId, $start, $end);
+        if (!$rule) {
+            return false;
+        }
+        $candidateBuffers = $this->buffers->fromTypeAndRule($type, $rule);
+        $bufferBefore = (int)$candidateBuffers['before'];
+        $bufferAfter = (int)$candidateBuffers['after'];
+
+        $exceptions = $this->repo->exceptions($start, $end, $typeId, $resourceId);
+        if ($this->isBlockedByExceptions($start, $end, $exceptions)) {
             return false;
         }
 
-        if (!$this->capacity->canFit($typeId, $resourceId, $bufferedStart, $bufferedEnd, max(1, $partySize), $ignoreId)) {
+        if (!$this->capacity->canFit(
+            $typeId,
+            $resourceId,
+            $start,
+            $end,
+            max(1, $partySize),
+            $ignoreId,
+            $candidateBuffers
+        )) {
             return false;
         }
 
-        $calendarFrom = Time::addMinutes($start, -1440);
-        $calendarTo = Time::addMinutes($end, 1440);
+        $calendarFrom = Time::addMinutes($start, -$bufferBefore);
+        $calendarTo = Time::addMinutes($end, $bufferAfter);
         $events = [];
         if ($calendarFrom && $calendarTo) {
             $events = array_merge(
@@ -306,8 +324,9 @@ class SlotService {
         int $partySize = 1
     ): array {
         $duration = (int)($type->duration_minutes ?: $rule->slot_duration_minutes);
-        $bufferBefore = (int)($type->buffer_before_minutes ?: $rule->buffer_before_minutes);
-        $bufferAfter = (int)($type->buffer_after_minutes ?: $rule->buffer_after_minutes);
+        $candidateBuffers = $this->buffers->fromTypeAndRule($type, $rule);
+        $bufferBefore = (int)$candidateBuffers['before'];
+        $bufferAfter = (int)$candidateBuffers['after'];
         $minNotice = (int)$rule->min_notice_minutes;
         $free = [];
 
@@ -361,18 +380,15 @@ class SlotService {
                 'timezone' => Time::bookingTimezoneName(),
             ];
             if (!empty($type->show_remaining_capacity)) {
-                $bufferedStart = Time::addMinutes($slotStart, -$bufferBefore);
-                $bufferedEnd = Time::addMinutes($slotEnd, $bufferAfter);
-                if ($bufferedStart && $bufferedEnd) {
-                    $slot['remaining_capacity'] = $this->capacity->remaining(
-                        (int)$type->id,
-                        $resourceId,
-                        $bufferedStart,
-                        $bufferedEnd,
-                        $ignoreBookingId
-                    );
-                    $slot['label'] .= ' — ' . (int)$slot['remaining_capacity'] . ' frei';
-                }
+                $slot['remaining_capacity'] = $this->capacity->remaining(
+                    (int)$type->id,
+                    $resourceId,
+                    $slotStart,
+                    $slotEnd,
+                    $ignoreBookingId,
+                    $candidateBuffers
+                );
+                $slot['label'] .= ' — ' . (int)$slot['remaining_capacity'] . ' frei';
             }
             $free[] = $slot;
         }
@@ -390,11 +406,17 @@ class SlotService {
         ?int $resourceId = null,
         int $partySize = 1
     ): bool {
-        $bufferedStart = Time::addMinutes($start, -$bufferBefore);
-        $bufferedEnd = Time::addMinutes($end, $bufferAfter);
-        return !$bufferedStart || !$bufferedEnd || !$resourceId
+        return !$resourceId
             ? true
-            : !$this->capacity->canFit($typeId, $resourceId, $bufferedStart, $bufferedEnd, max(1, $partySize), $ignoreBookingId);
+            : !$this->capacity->canFit(
+                $typeId,
+                $resourceId,
+                $start,
+                $end,
+                max(1, $partySize),
+                $ignoreBookingId,
+                ['before' => max(0, $bufferBefore), 'after' => max(0, $bufferAfter)]
+            );
     }
 
     private function isBlockedByCalendar(
