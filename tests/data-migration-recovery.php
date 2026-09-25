@@ -15,6 +15,19 @@ final class WpcbDataMigrationFaultWpdb extends wpdb {
     public int $exceptionUpdates = 0;
     public int $blockedSettingsWrites = 0;
 
+    public function update($table, $data, $where, $format = null, $where_format = null) {
+        if ($this->faultMode === 'secret_settings_write'
+            && $table === $this->options
+            && (string)($where['option_name'] ?? '') === 'wpcb_settings'
+        ) {
+            ++$this->blockedSettingsWrites;
+            $this->last_error = 'CI injected settings write failure';
+            return false;
+        }
+
+        return parent::update($table, $data, $where, $format, $where_format);
+    }
+
     public function query($query) {
         $sql = ltrim((string)$query);
 
