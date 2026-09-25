@@ -2,7 +2,7 @@
 namespace Wpcb\VideoMeetings;
 
 abstract class AbstractBearerProvider implements VideoMeetingProviderInterface {
-    protected function request(string $method, string $url, string $token, ?array $body = null): array {
+    protected function request(string $method, string $url, string $token, array|object|null $body = null): array {
         $args = [
             'method' => $method,
             'timeout' => 15,
