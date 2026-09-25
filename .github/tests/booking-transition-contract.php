@@ -149,9 +149,9 @@ namespace {
             return $this->available;
         }
         public function isCanonicalSlot(int $type, string $start, string $end, ?int $ignore = null,
-            ?int $resource = null, int $party = 1): bool {
+            ?int $resource = null, int $party = 1, ?int $ignoreWaitingListEntryId = null): bool {
             ++$this->canonicalCalls;
-            return $this->slotAvailable($type, $start, $end, $ignore, $resource, $party);
+            return $this->slotAvailable($type, $start, $end, $ignore, $resource, $party, $ignoreWaitingListEntryId);
         }
     }
     function check(bool $ok, string $message): void { if (!$ok) throw new \RuntimeException($message); }
