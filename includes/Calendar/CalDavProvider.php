@@ -50,9 +50,21 @@ final class CalDavProvider implements CalendarSyncProviderInterface {
         $parser = new Parser();
         $busy = [];
         foreach ($objects as $object) {
-            foreach ($parser->parse((string)$object['ics'], $fromUtc, $toUtc) as $event) {
+            $parsed = $parser->parseResult((string)($object['ics'] ?? ''), $fromUtc, $toUtc);
+            if (is_wp_error($parsed)) {
+                $this->connections->setHealthError($connection->id, 'CalDAV calendar data could not be parsed completely.');
+                return new \WP_Error(
+                    'wpcb_caldav_availability_incomplete',
+                    'CalDAV availability could not be read completely.'
+                );
+            }
+            foreach ($parsed as $event) {
                 if (empty($event['start']) || empty($event['end'])) {
-                    continue;
+                    $this->connections->setHealthError($connection->id, 'CalDAV calendar data contained an invalid busy interval.');
+                    return new \WP_Error(
+                        'wpcb_caldav_availability_incomplete',
+                        'CalDAV availability could not be read completely.'
+                    );
                 }
                 $busy[] = [
                     'start' => (string)$event['start'],

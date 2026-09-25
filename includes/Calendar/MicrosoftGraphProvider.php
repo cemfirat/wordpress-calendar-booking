@@ -157,10 +157,17 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
             return $response;
         }
 
-        $items = $response['value'][0]['scheduleItems'] ?? [];
-        if (!is_array($items)) {
-            return [];
+        $value = $response['value'] ?? null;
+        $schedule = is_array($value) && isset($value[0]) && is_array($value[0]) ? $value[0] : null;
+        if (!is_array($schedule) || !empty($schedule['error'])
+            || !array_key_exists('scheduleItems', $schedule) || !is_array($schedule['scheduleItems'])) {
+            $this->connections->setHealthError($connection->id, 'Microsoft schedule availability response was incomplete.');
+            return new \WP_Error(
+                'wpcb_microsoft_schedule_incomplete',
+                'Microsoft calendar availability could not be read completely.'
+            );
         }
+        $items = $schedule['scheduleItems'];
         $out = [];
         foreach ($items as $item) {
             if (!is_array($item) || ($item['status'] ?? 'free') === 'free') {
@@ -194,21 +201,30 @@ final class MicrosoftGraphProvider implements CalendarSyncProviderInterface {
             return $response;
         }
 
-        $events = $response['value'] ?? [];
-        if (!is_array($events)) {
-            return [];
+        if (!empty($response['error']) || !array_key_exists('value', $response) || !is_array($response['value'])) {
+            $this->connections->setHealthError($connection->id, 'Microsoft calendarView response was incomplete.');
+            return new \WP_Error(
+                'wpcb_microsoft_calendar_view_incomplete',
+                'Microsoft calendar availability could not be read completely.'
+            );
         }
+        $events = $response['value'];
         $out = [];
         foreach ($events as $event) {
             if (!is_array($event) || !empty($event['isCancelled']) || ($event['showAs'] ?? '') === 'free') {
                 continue;
             }
             $interval = $this->graphInterval($event['start'] ?? null, $event['end'] ?? null);
-            if ($interval) {
-                $interval['source'] = 'microsoft_calendar_view';
-                $interval['connection_id'] = $connection->id;
-                $out[] = $interval;
+            if (!$interval) {
+                $this->connections->setHealthError($connection->id, 'Microsoft calendarView response contained an invalid event interval.');
+                return new \WP_Error(
+                    'wpcb_microsoft_calendar_view_incomplete',
+                    'Microsoft calendar availability could not be read completely.'
+                );
             }
+            $interval['source'] = 'microsoft_calendar_view';
+            $interval['connection_id'] = $connection->id;
+            $out[] = $interval;
         }
         return $out;
     }
