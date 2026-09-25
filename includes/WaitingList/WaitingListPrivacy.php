@@ -24,8 +24,9 @@ final class WaitingListPrivacy {
     }
 
     public function exporter(string $email, int $page = 1): array {
-        if ($page > 1 || !is_email($email)) return ['data' => [], 'done' => true];
-        $rows = (new WaitingListRepository())->forEmail(sanitize_email($email), 50);
+        if (!is_email($email)) return ['data' => [], 'done' => true];
+        $page = max(1, $page);
+        $rows = (new WaitingListRepository())->forEmail(sanitize_email($email), 50, ($page - 1) * 50);
         $data = [];
         foreach ($rows as $row) {
             $data[] = [
@@ -42,12 +43,19 @@ final class WaitingListPrivacy {
                 ],
             ];
         }
-        return ['data' => $data, 'done' => true];
+        return ['data' => $data, 'done' => count($rows) < 50];
     }
 
     public function eraser(string $email, int $page = 1): array {
-        if ($page > 1 || !is_email($email)) return ['items_removed'=>false,'items_retained'=>false,'messages'=>[],'done'=>true];
-        $removed = (new WaitingListRepository())->eraseForEmail(sanitize_email($email)) > 0;
-        return ['items_removed'=>$removed,'items_retained'=>false,'messages'=>[],'done'=>true];
+        if (!is_email($email)) return ['items_removed'=>false,'items_retained'=>false,'messages'=>[],'done'=>true];
+        $repo = new WaitingListRepository();
+        $email = sanitize_email($email);
+        $removed = $repo->eraseForEmailBatch($email, 50) > 0;
+        return [
+            'items_removed'=>$removed,
+            'items_retained'=>false,
+            'messages'=>[],
+            'done'=>$repo->countForEmail($email) === 0,
+        ];
     }
 }
