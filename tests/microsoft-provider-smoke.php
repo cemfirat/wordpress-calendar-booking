@@ -53,19 +53,32 @@ $personalId = $repo->create(
 wpcb_ms_assert(!is_wp_error($personalId) && $personalId > 0, 'Create personal Microsoft connection fixture.');
 
 $calls = [];
-$filter = static function ($pre, $args, $url) use (&$calls) {
+$calendarViewScenario = 'single';
+$scheduleFails = false;
+$filter = static function ($pre, $args, $url) use (&$calls, &$calendarViewScenario, &$scheduleFails) {
     if (strpos($url, 'https://graph.microsoft.com/v1.0') !== 0) {
         return $pre;
     }
 
-    $calls[] = ['url' => $url, 'method' => $args['method'] ?? 'GET', 'body' => $args['body'] ?? null];
+    $calls[] = [
+        'url' => $url,
+        'method' => $args['method'] ?? 'GET',
+        'body' => $args['body'] ?? null,
+        'timeout' => $args['timeout'] ?? null,
+        'limit' => $args['limit_response_size'] ?? null,
+    ];
     $headers = ['content-type' => 'application/json'];
 
     if (str_contains($url, '/me/calendar/getSchedule')) {
         return [
             'headers' => $headers,
             'response' => ['code' => 200, 'message' => 'OK'],
-            'body' => wp_json_encode([
+            'body' => wp_json_encode($scheduleFails ? [
+                'value' => [[
+                    'error' => ['code' => 'ErrorInternalServerError', 'message' => 'CI synthetic schedule error'],
+                    'scheduleItems' => [],
+                ]],
+            ] : [
                 'value' => [[
                     'scheduleItems' => [[
                         'status' => 'busy',
@@ -80,18 +93,60 @@ $filter = static function ($pre, $args, $url) use (&$calls) {
     }
 
     if (str_contains($url, '/calendarView?')) {
+        $query = [];
+        parse_str((string)parse_url($url, PHP_URL_QUERY), $query);
+        $page = max(1, (int)($query['page'] ?? 1));
+        $path = (string)parse_url($url, PHP_URL_PATH);
+        $base = 'https://graph.microsoft.com' . $path;
+
+        if ($calendarViewScenario === 'later_error' && $page === 2) {
+            return [
+                'headers' => $headers,
+                'response' => ['code' => 500, 'message' => 'Synthetic later-page failure'],
+                'body' => '{}',
+                'cookies' => [],
+                'filename' => null,
+            ];
+        }
+
+        $eventA = [
+            'id' => 'personal-busy-a',
+            'showAs' => 'busy',
+            'isCancelled' => false,
+            'start' => ['dateTime' => '2026-11-03T11:00:00', 'timeZone' => 'UTC'],
+            'end' => ['dateTime' => '2026-11-03T12:00:00', 'timeZone' => 'UTC'],
+        ];
+        $eventB = [
+            'id' => 'personal-busy-b',
+            'showAs' => 'busy',
+            'isCancelled' => false,
+            'start' => ['dateTime' => '2026-11-04T15:00:00', 'timeZone' => 'UTC'],
+            'end' => ['dateTime' => '2026-11-04T16:00:00', 'timeZone' => 'UTC'],
+        ];
+
+        $body = ['value' => [$eventA]];
+        if ($calendarViewScenario === 'multi') {
+            $body = $page === 1
+                ? ['value' => [$eventA], '@odata.nextLink' => $base . '?page=2']
+                : ['value' => [$eventA, $eventB]];
+        } elseif ($calendarViewScenario === 'empty_first') {
+            $body = $page === 1
+                ? ['value' => [], '@odata.nextLink' => $base . '?page=2']
+                : ['value' => [$eventB]];
+        } elseif ($calendarViewScenario === 'untrusted') {
+            $body = ['value' => [], '@odata.nextLink' => 'https://example.invalid/v1.0/me/calendar/calendarView?page=2'];
+        } elseif ($calendarViewScenario === 'repeated') {
+            $body = ['value' => [], '@odata.nextLink' => $base . '?page=2'];
+        } elseif ($calendarViewScenario === 'limit') {
+            $body = ['value' => [], '@odata.nextLink' => $base . '?page=' . ($page + 1)];
+        } elseif ($calendarViewScenario === 'later_error') {
+            $body = ['value' => [$eventA], '@odata.nextLink' => $base . '?page=2'];
+        }
+
         return [
             'headers' => $headers,
             'response' => ['code' => 200, 'message' => 'OK'],
-            'body' => wp_json_encode([
-                'value' => [[
-                    'id' => 'personal-busy',
-                    'showAs' => 'busy',
-                    'isCancelled' => false,
-                    'start' => ['dateTime' => '2026-11-03T11:00:00', 'timeZone' => 'UTC'],
-                    'end' => ['dateTime' => '2026-11-03T12:00:00', 'timeZone' => 'UTC'],
-                ]],
-            ]),
+            'body' => wp_json_encode($body),
             'cookies' => [],
             'filename' => null,
         ];
@@ -149,6 +204,46 @@ wpcb_ms_assert($workBusy[0]['start'] === '2026-11-02 09:00:00', 'getSchedule int
 $personalBusy = $provider->busyBetween('2026-11-01 00:00:00', '2026-11-05 00:00:00', $personal);
 wpcb_ms_assert(is_array($personalBusy) && count($personalBusy) === 1, 'Personal Microsoft account returns one busy interval.');
 wpcb_ms_assert($personalBusy[0]['source'] === 'microsoft_calendar_view', 'Personal Microsoft account uses calendarView fallback.');
+
+$calendarViewScenario = 'multi';
+$multiBusy = $provider->busyBetween('2026-11-01 00:00:00', '2026-11-05 00:00:00', $personal);
+wpcb_ms_assert(is_array($multiBusy) && count($multiBusy) === 2, 'Microsoft calendarView follows multiple pages and deduplicates intervals.');
+
+$calendarViewScenario = 'empty_first';
+$emptyFirstBusy = $provider->busyBetween('2026-11-01 00:00:00', '2026-11-05 00:00:00', $personal);
+wpcb_ms_assert(is_array($emptyFirstBusy) && count($emptyFirstBusy) === 1 && $emptyFirstBusy[0]['start'] === '2026-11-04 15:00:00', 'Microsoft calendarView follows nextLink after an empty first page.');
+
+$calendarViewScenario = 'untrusted';
+$untrusted = $provider->busyBetween('2026-11-01 00:00:00', '2026-11-05 00:00:00', $personal);
+wpcb_ms_assert(is_wp_error($untrusted) && $untrusted->get_error_code() === 'wpcb_microsoft_calendar_view_incomplete', 'Microsoft calendarView rejects untrusted nextLink origins.');
+
+$calendarViewScenario = 'repeated';
+$repeated = $provider->busyBetween('2026-11-01 00:00:00', '2026-11-05 00:00:00', $personal);
+wpcb_ms_assert(is_wp_error($repeated), 'Microsoft calendarView rejects repeated nextLink loops.');
+
+$calendarViewScenario = 'limit';
+$limited = $provider->busyBetween('2026-11-01 00:00:00', '2026-11-05 00:00:00', $personal);
+wpcb_ms_assert(is_wp_error($limited), 'Microsoft calendarView fails closed when its page limit is exhausted.');
+
+$calendarViewScenario = 'later_error';
+$laterError = $provider->busyBetween('2026-11-01 00:00:00', '2026-11-05 00:00:00', $personal);
+wpcb_ms_assert(is_wp_error($laterError), 'Microsoft calendarView fails closed when a later page fails.');
+
+$calendarViewScenario = 'multi';
+$scheduleFails = true;
+$workFallback = $provider->busyBetween('2026-11-01 00:00:00', '2026-11-05 00:00:00', $work);
+wpcb_ms_assert(is_array($workFallback) && count($workFallback) === 2, 'Work/school embedded getSchedule error uses complete paginated calendarView fallback.');
+$scheduleFails = false;
+
+$boundedPagingRequest = false;
+foreach ($calls as $call) {
+    if (str_contains($call['url'], '/calendarView?') && (int)($call['limit'] ?? 0) === 2097153
+        && (int)($call['timeout'] ?? 0) >= 1 && (int)($call['timeout'] ?? 0) <= 20) {
+        $boundedPagingRequest = true;
+        break;
+    }
+}
+wpcb_ms_assert($boundedPagingRequest, 'Microsoft calendarView pages use bounded response size and request timeout.');
 
 $booking = [
     'booking_uuid' => 'microsoft-ci-booking',
