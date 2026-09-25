@@ -22,6 +22,44 @@ function wpcb_paid_series_assert($condition, string $message): void {
     WP_CLI::log('PASS: ' . $message);
 }
 
+/**
+ * Pick an anchor only after every weekly occurrence is independently
+ * canonical. A generic free slot is not automatically a valid series anchor.
+ */
+function wpcb_paid_series_anchor(SlotService $slots, int $typeId, int $count): ?array {
+    foreach ($slots->getSlots($typeId, 21) as $candidate) {
+        $resourceId = (int)($candidate['resource_id'] ?? 0);
+        $startUtc = Time::parseUtc((string)($candidate['start'] ?? ''));
+        $endUtc = Time::parseUtc((string)($candidate['end'] ?? ''));
+        if ($resourceId < 1 || !$startUtc || !$endUtc) {
+            continue;
+        }
+
+        $startLocal = $startUtc->setTimezone(Time::bookingTimezone());
+        $endLocal = $endUtc->setTimezone(Time::bookingTimezone());
+        $valid = true;
+        for ($index = 1; $index < $count; ++$index) {
+            $occurrenceStart = Time::formatUtc($startLocal->modify('+' . $index . ' weeks'));
+            $occurrenceEnd = Time::formatUtc($endLocal->modify('+' . $index . ' weeks'));
+            if (!$slots->isCanonicalSlot(
+                $typeId,
+                $occurrenceStart,
+                $occurrenceEnd,
+                null,
+                $resourceId,
+                1
+            )) {
+                $valid = false;
+                break;
+            }
+        }
+        if ($valid) {
+            return $candidate;
+        }
+    }
+    return null;
+}
+
 final class WpcbPaidSeriesAdapter implements PaymentAdapterInterface {
     public array $contexts = [];
     public array $refundContexts = [];
@@ -69,9 +107,12 @@ $wpdb->update($wpdb->prefix . 'wpcb_booking_types', [
     'updated_at' => Time::formatUtc(Time::nowUtc()),
 ], ['id' => $typeId]);
 
-$slots = (new SlotService())->getSlots($typeId, 21);
-wpcb_paid_series_assert(count($slots) >= 1, 'Canonical slots remain available for a paid recurring series.');
-$anchor = $slots[0];
+$slotService = new SlotService();
+$anchor = wpcb_paid_series_anchor($slotService, $typeId, 3);
+wpcb_paid_series_assert(
+    is_array($anchor),
+    'A canonical anchor with all three weekly occurrences is available for the paid-series fixture.'
+);
 $token = (new SlotTokenService())->issue(
     $typeId,
     (string)$anchor['start'],
@@ -265,8 +306,12 @@ function wpcb_paid_series_cleanup(int $seriesId): void {
 wpcb_paid_series_cleanup($seriesId);
 
 // Expiry must release every reserved occurrence, not only the payment-owner booking.
-$slots = (new SlotService())->getSlots($typeId, 21);
-$anchor = $slots[0];
+$slotService = new SlotService();
+$anchor = wpcb_paid_series_anchor($slotService, $typeId, 2);
+wpcb_paid_series_assert(
+    is_array($anchor),
+    'A canonical anchor with both weekly occurrences is available for expiry coverage.'
+);
 $token = (new SlotTokenService())->issue(
     $typeId,
     (string)$anchor['start'],
