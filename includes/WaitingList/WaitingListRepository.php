@@ -195,11 +195,37 @@ final class WaitingListRepository {
         ));
     }
 
-    public function forEmail(string $email, int $limit = 50): array {
+    public function forEmail(string $email, int $limit = 50, int $offset = 0): array {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
-            "SELECT * FROM {$this->table} WHERE email = %s ORDER BY id ASC LIMIT %d",
-            $email, max(1, min(100, $limit))
+            "SELECT * FROM {$this->table} WHERE email = %s ORDER BY id ASC LIMIT %d OFFSET %d",
+            $email,
+            max(1, min(100, $limit)),
+            max(0, $offset)
+        ));
+    }
+
+    public function countForEmail(string $email): int {
+        global $wpdb;
+        return max(0, (int)$wpdb->get_var(
+            $wpdb->prepare("SELECT COUNT(*) FROM {$this->table} WHERE email = %s", $email)
+        ));
+    }
+
+    public function eraseForEmailBatch(string $email, int $limit = 50): int {
+        global $wpdb;
+        $ids = $wpdb->get_col($wpdb->prepare(
+            "SELECT id FROM {$this->table} WHERE email = %s ORDER BY id ASC LIMIT %d",
+            $email,
+            max(1, min(100, $limit))
+        ));
+        $ids = array_values(array_filter(array_map('intval', $ids), static fn(int $id): bool => $id > 0));
+        if (!$ids) {
+            return 0;
+        }
+        $placeholders = implode(',', array_fill(0, count($ids), '%d'));
+        return max(0, (int)$wpdb->query(
+            $wpdb->prepare("DELETE FROM {$this->table} WHERE id IN ({$placeholders})", ...$ids)
         ));
     }
 
