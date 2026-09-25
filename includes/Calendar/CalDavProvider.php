@@ -90,7 +90,11 @@ final class CalDavProvider implements CalendarSyncProviderInterface {
             return new \WP_Error('wpcb_caldav_calendar', 'CalDAV calendar URL is missing.');
         }
 
-        $uid = 'wpcb-' . sanitize_key((string)($booking['booking_uuid'] ?? wp_generate_uuid4()))
+        $bookingUuid = sanitize_key((string)($booking['booking_uuid'] ?? ''));
+        if ($bookingUuid === '') {
+            return new \WP_Error('wpcb_caldav_booking_identity', 'CalDAV requires a stable booking identity.');
+        }
+        $uid = 'wpcb-' . $bookingUuid
             . '@' . sanitize_text_field((string)(wp_parse_url(home_url('/'), PHP_URL_HOST) ?: 'wordpress'));
         $eventUrl = rtrim($calendarUrl, '/') . '/' . rawurlencode($uid) . '.ics';
         $ics = $this->ics($booking, $meta, $uid);
@@ -100,6 +104,18 @@ final class CalDavProvider implements CalendarSyncProviderInterface {
 
         $result = $client->putEvent($eventUrl, $ics, null, true);
         if (is_wp_error($result)) {
+            // If the server committed the deterministic resource but the
+            // response was lost, or a retry receives If-None-Match conflict,
+            // recover only when the existing object carries our exact UID.
+            $recovered = $this->recoverOwnedCreate($client, $eventUrl, $uid);
+            if (!is_wp_error($recovered)) {
+                $this->connections->setHealthSuccess($connection->id, 'write');
+                return $recovered;
+            }
+            if ($recovered->get_error_code() === 'wpcb_caldav_owner_mismatch') {
+                $this->connections->setHealthError($connection->id, $recovered->get_error_message());
+                return $recovered;
+            }
             $this->connections->setHealthError($connection->id, $result->get_error_message());
             return $result;
         }
@@ -108,6 +124,30 @@ final class CalDavProvider implements CalendarSyncProviderInterface {
         return [
             'ok' => true,
             'event_id' => $this->encodeHandle((string)$result['url'], (string)$result['etag']),
+        ];
+    }
+
+    private function recoverOwnedCreate(CalDavClient $client, string $eventUrl, string $uid) {
+        $existing = $client->getEvent($eventUrl);
+        if (is_wp_error($existing)) {
+            return $existing;
+        }
+
+        $ics = str_replace("\r\n", "\n", (string)($existing['ics'] ?? ''));
+        if (!preg_match('/(?:^|\n)UID:' . preg_quote($uid, '/') . '(?:\n|$)/', $ics)) {
+            return new \WP_Error(
+                'wpcb_caldav_owner_mismatch',
+                'The deterministic CalDAV event URL is already owned by another event.'
+            );
+        }
+
+        return [
+            'ok' => true,
+            'event_id' => $this->encodeHandle(
+                (string)$existing['url'],
+                (string)($existing['etag'] ?? '')
+            ),
+            'recovered' => true,
         ];
     }
 

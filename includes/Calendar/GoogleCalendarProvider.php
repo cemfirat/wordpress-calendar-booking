@@ -106,23 +106,83 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
             return $payload;
         }
 
+        $bookingUuid = trim((string)($booking['booking_uuid'] ?? ''));
+        if ($bookingUuid === '') {
+            return new \WP_Error('wpcb_google_booking_identity', 'Google Calendar requires a stable booking identity.');
+        }
+
+        $eventId = $this->deterministicEventId($bookingUuid, $connection);
+        $payload['id'] = $eventId;
         $calendarId = rawurlencode($connection->remoteCalendarId !== '' ? $connection->remoteCalendarId : 'primary');
-        $response = $this->apiRequest(
-            $connection,
-            'POST',
-            self::API_BASE . '/calendars/' . $calendarId . '/events',
-            $payload
-        );
+        $eventsUrl = self::API_BASE . '/calendars/' . $calendarId . '/events';
+
+        $response = $this->apiRequest($connection, 'POST', $eventsUrl, $payload);
         if (is_wp_error($response)) {
+            // A request can fail locally after Google has already committed the
+            // event. Reconcile the deterministic ID before allowing a retry to
+            // create anything else.
+            $recovered = $this->recoverOwnedEvent(
+                $connection,
+                $eventsUrl,
+                $eventId,
+                $bookingUuid
+            );
+            if (!is_wp_error($recovered)) {
+                return $recovered;
+            }
+            if ($recovered->get_error_code() === 'wpcb_google_event_owner_mismatch') {
+                return $recovered;
+            }
             return $response;
         }
 
-        $eventId = sanitize_text_field((string)($response['id'] ?? ''));
-        if ($eventId === '') {
-            return new \WP_Error('wpcb_google_event_id', 'Google Calendar did not return an event identifier.');
+        $returnedId = sanitize_text_field((string)($response['id'] ?? ''));
+        if ($returnedId === '' || !hash_equals($eventId, $returnedId)) {
+            return new \WP_Error(
+                'wpcb_google_event_id',
+                'Google Calendar did not confirm the expected event identifier.'
+            );
         }
         $this->connections->setHealthSuccess($connection->id, 'write');
         return ['ok' => true, 'event_id' => $eventId];
+    }
+
+    private function deterministicEventId(string $bookingUuid, CalendarConnection $connection): string {
+        // Google event IDs accept base32hex-compatible characters. A fixed
+        // lowercase hex digest is stable across retries and contains only 0-9/a-f.
+        return 'b' . substr(hash(
+            'sha256',
+            home_url('/') . '|' . $bookingUuid . '|' . $connection->id . '|'
+                . ($connection->remoteCalendarId !== '' ? $connection->remoteCalendarId : 'primary')
+        ), 0, 51);
+    }
+
+    private function recoverOwnedEvent(
+        CalendarConnection $connection,
+        string $eventsUrl,
+        string $eventId,
+        string $bookingUuid
+    ) {
+        $existing = $this->apiRequest(
+            $connection,
+            'GET',
+            $eventsUrl . '/' . rawurlencode($eventId),
+            null
+        );
+        if (is_wp_error($existing)) {
+            return $existing;
+        }
+
+        $owner = (string)($existing['extendedProperties']['private']['wpcb_booking_uuid'] ?? '');
+        if ($owner === '' || !hash_equals($bookingUuid, $owner)) {
+            return new \WP_Error(
+                'wpcb_google_event_owner_mismatch',
+                'The deterministic Google Calendar event identifier is already owned by another event.'
+            );
+        }
+
+        $this->connections->setHealthSuccess($connection->id, 'write');
+        return ['ok' => true, 'event_id' => $eventId, 'recovered' => true];
     }
 
     public function updateEvent(array $booking, array $meta, CalendarConnection $connection, string $eventId) {
@@ -209,7 +269,7 @@ final class GoogleCalendarProvider implements CalendarSyncProviderInterface {
         ];
     }
 
-    private function apiRequest(CalendarConnection $connection, string $method, string $url, array $payload) {
+    private function apiRequest(CalendarConnection $connection, string $method, string $url, ?array $payload) {
         $response = $this->rawRequest($connection, $method, $url, $payload);
         if (is_wp_error($response)) {
             return $response;

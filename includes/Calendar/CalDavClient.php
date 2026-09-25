@@ -111,6 +111,40 @@ final class CalDavClient {
         ];
     }
 
+    /**
+     * @return array{ok:bool,url:string,etag:string,ics:string,code:int}|\WP_Error
+     */
+    public function getEvent(string $eventUrl) {
+        $eventUrl = $this->absoluteUrl($eventUrl);
+        $response = $this->request('GET', $eventUrl, [
+            'Accept' => 'text/calendar',
+        ]);
+        if (is_wp_error($response)) {
+            return $response;
+        }
+
+        $code = (int)wp_remote_retrieve_response_code($response);
+        if ($code === 404) {
+            return new \WP_Error('wpcb_caldav_not_found', 'CalDAV event does not exist.');
+        }
+        if ($code < 200 || $code >= 300) {
+            return new \WP_Error('wpcb_caldav_get_http', 'CalDAV event read returned HTTP ' . $code . '.');
+        }
+
+        $ics = (string)wp_remote_retrieve_body($response);
+        if ($ics === '') {
+            return new \WP_Error('wpcb_caldav_get_empty', 'CalDAV event read returned an empty body.');
+        }
+
+        return [
+            'ok' => true,
+            'url' => $eventUrl,
+            'etag' => (string)wp_remote_retrieve_header($response, 'etag'),
+            'ics' => $ics,
+            'code' => $code,
+        ];
+    }
+
     /** @return array{ok:bool,code:int}|\WP_Error */
     public function deleteEvent(string $eventUrl, ?string $etag = null) {
         $headers = [];

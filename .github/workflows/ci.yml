@@ -309,6 +309,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/provider-diagnostics-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run stale provider side-effect reconciliation smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/stale-provider-jobs-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run provider create idempotency smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/provider-create-idempotency-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run fail-closed provider availability smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/provider-availability-failure-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run REST API and webhook smoke test

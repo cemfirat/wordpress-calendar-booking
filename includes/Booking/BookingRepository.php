@@ -111,7 +111,7 @@ class BookingRepository {
         }
     }
 
-    public function updateMeta(int $bookingId, string $key, $value): void {
+    public function updateMeta(int $bookingId, string $key, $value): bool {
         global $wpdb;
         $existingId = $wpdb->get_var($wpdb->prepare("SELECT id FROM {$this->metaTable} WHERE booking_id = %d AND meta_key = %s LIMIT 1", $bookingId, $key));
         $data = [
@@ -120,10 +120,13 @@ class BookingRepository {
             'meta_value' => is_scalar($value) ? (string)$value : wp_json_encode($value),
         ];
         if ($existingId) {
-            $wpdb->update($this->metaTable, ['meta_value' => $data['meta_value']], ['id' => (int)$existingId]);
-        } else {
-            $wpdb->insert($this->metaTable, $data);
+            return false !== $wpdb->update(
+                $this->metaTable,
+                ['meta_value' => $data['meta_value']],
+                ['id' => (int)$existingId]
+            );
         }
+        return false !== $wpdb->insert($this->metaTable, $data);
     }
 
     public function deleteMeta(int $bookingId, string $key): void {
