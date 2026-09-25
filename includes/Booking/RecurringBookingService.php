@@ -76,6 +76,7 @@ final class RecurringBookingService {
 
         global $wpdb;
         $created = [];
+        $outbox = new BookingEffectOutbox();
         try {
             foreach ($occurrences as $occurrence) {
                 if (!$this->slots->isCanonicalSlot(
@@ -137,6 +138,11 @@ final class RecurringBookingService {
                     return new \WP_Error('wpcb_series_storage', 'One occurrence could not be stored.');
                 }
                 $created[] = $bookingId;
+                $createdBooking = $this->bookings->find($bookingId);
+                if (!$createdBooking || $outbox->recordCreated($createdBooking) < 1) {
+                    $wpdb->query('ROLLBACK');
+                    return new \WP_Error('wpcb_effect_storage', 'Recurring booking follow-up work could not be stored.');
+                }
             }
 
             if ((string)($type->payment_mode ?? 'free') === 'required') {
@@ -157,12 +163,7 @@ final class RecurringBookingService {
             $this->locks->release($resourceId);
         }
 
-        foreach ($created as $bookingId) {
-            $booking = $this->bookings->find($bookingId);
-            if ($booking) {
-                do_action('wpcb_booking_created', $booking);
-            }
-        }
+        $outbox->kick();
 
         return [
             'series_id' => $seriesId,
@@ -330,6 +331,8 @@ final class RecurringBookingService {
         }
 
         global $wpdb;
+        $transaction = false;
+        $outbox = new BookingEffectOutbox();
         try {
             foreach ($targets as $target) {
                 $member = $target['member'];
@@ -348,7 +351,10 @@ final class RecurringBookingService {
                 }
             }
 
-            $wpdb->query('START TRANSACTION');
+            if ($wpdb->query('START TRANSACTION') === false) {
+                return new \WP_Error('wpcb_series_storage', 'The recurring reschedule could not be stored.');
+            }
+            $transaction = true;
             foreach ($targets as $target) {
                 $member = $target['member'];
                 $moved = $this->bookings->moveWhenPositionMatches(
@@ -362,37 +368,46 @@ final class RecurringBookingService {
                     $target['end']
                 );
                 if (!$moved) {
-                    $wpdb->query('ROLLBACK');
                     return new \WP_Error('wpcb_series_race', 'The recurring series changed while it was being rescheduled.');
                 }
             }
-            $wpdb->query('COMMIT');
+            foreach ($targets as $target) {
+                $member = $target['member'];
+                $this->bookings->logEvent(
+                    (int)$member->id,
+                    (string)$member->status,
+                    BookingTransitionService::RESCHEDULED,
+                    $actor,
+                    'Recurring booking rescheduled'
+                );
+                $fresh = $this->bookings->find((int)$member->id);
+                $event = [
+                    'booking_id' => (int)$member->id,
+                    'event' => BookingTransitionService::RESCHEDULED,
+                    'from' => (string)$member->status,
+                    'to' => (string)$member->status,
+                    'actor' => $actor,
+                    'changed' => true,
+                    'previous_resource_id' => (int)($member->resource_id ?? 0),
+                    'previous_slot_start' => (string)$member->slot_start,
+                    'previous_slot_end' => (string)$member->slot_end,
+                ];
+                if (!$fresh || $outbox->recordEvent($event, $fresh) < 1) {
+                    return new \WP_Error('wpcb_effect_storage', 'Recurring reschedule follow-up work could not be stored.');
+                }
+            }
+            if ($wpdb->query('COMMIT') === false) {
+                return new \WP_Error('wpcb_series_storage', 'The recurring reschedule could not be stored.');
+            }
+            $transaction = false;
         } finally {
+            if ($transaction) {
+                $wpdb->query('ROLLBACK');
+            }
             $this->locks->releaseAll();
         }
 
-        foreach ($targets as $target) {
-            $member = $target['member'];
-            $this->bookings->logEvent(
-                (int)$member->id,
-                (string)$member->status,
-                BookingTransitionService::RESCHEDULED,
-                $actor,
-                'Recurring booking rescheduled'
-            );
-            $fresh = $this->bookings->find((int)$member->id);
-            do_action('wpcb_booking_event_recorded', [
-                'booking_id' => (int)$member->id,
-                'event' => BookingTransitionService::RESCHEDULED,
-                'from' => (string)$member->status,
-                'to' => (string)$member->status,
-                'actor' => $actor,
-                'changed' => true,
-                'previous_resource_id' => (int)($member->resource_id ?? 0),
-                'previous_slot_start' => (string)$member->slot_start,
-                'previous_slot_end' => (string)$member->slot_end,
-            ], $fresh);
-        }
+        $outbox->kick();
 
         return ['series_id' => (int)$series->id, 'changed_booking_ids' => array_map(
             static fn($target) => (int)$target['member']->id,

@@ -2,6 +2,7 @@
 namespace Wpcb\Sync;
 
 use Wpcb\Booking\BookingRepository;
+use Wpcb\Booking\BookingEffectJobRunner;
 use Wpcb\Admin\Settings;
 use Wpcb\Calendar\CalendarConnectionRepository;
 use Wpcb\Calendar\ProviderSyncService;
@@ -18,6 +19,7 @@ class QueueService {
     private WebhookDispatcher $webhooks;
     private VideoMeetingJobRunner $videoMeetings;
     private EmailRetryJobRunner $emailRetries;
+    private BookingEffectJobRunner $bookingEffects;
 
     public function __construct() {
         $this->jobs = new JobRepository();
@@ -28,6 +30,7 @@ class QueueService {
         $this->webhooks = new WebhookDispatcher();
         $this->videoMeetings = new VideoMeetingJobRunner();
         $this->emailRetries = new EmailRetryJobRunner();
+        $this->bookingEffects = new BookingEffectJobRunner($this->bookings);
     }
 
     public function boot(): void {
@@ -197,6 +200,8 @@ class QueueService {
                 return $this->webhooks->dispatch($payload, (int)$job->booking_id);
             case EmailRetryJobRunner::JOB_TYPE:
                 return $this->emailRetries->run($payload, (int)$job->booking_id);
+            case \Wpcb\Booking\BookingEffectOutbox::JOB_TYPE:
+                return $this->bookingEffects->run($payload, (int)$job->booking_id);
             case 'video_create':
                 return $this->videoMeetings->run('create', (int)$job->booking_id, (int)($payload['connection_id'] ?? 0));
             case 'video_update':

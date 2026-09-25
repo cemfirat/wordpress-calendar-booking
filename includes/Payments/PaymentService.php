@@ -356,6 +356,18 @@ final class PaymentService {
             return;
         }
 
+        $effectKey = sanitize_text_field((string)($event['effect_key'] ?? ''));
+        if ($effectKey === '') {
+            $effectKey = 'legacy-transition:' . hash('sha256', wp_json_encode([
+                'booking_uuid' => (string)($booking->booking_uuid ?? ''),
+                'event' => (string)($event['event'] ?? ''),
+                'from' => (string)($event['from'] ?? ''),
+                'to' => (string)($event['to'] ?? ''),
+                'updated_at' => (string)($booking->updated_at ?? ''),
+            ]));
+        }
+        $intentEventId = 'refundq_' . substr(hash('sha256', $effectKey), 0, 48);
+
         $payment = $this->paymentForBooking((int)$booking->id);
         if (!$payment || !in_array((string)$payment->status, [
             PaymentStatus::PAID,
@@ -364,32 +376,75 @@ final class PaymentService {
             return;
         }
 
-        $amount = $this->refundAllocationForBookingObject($booking, $payment);
-        if ($amount < 1) {
-            return;
-        }
         $lockName = 'wpcb_pay_refund_' . (int)$payment->id;
         if (!$this->acquireLock($lockName, 5)) {
-            return;
+            throw new \RuntimeException('Payment refund intent is busy and will be retried.');
         }
+
+        global $wpdb;
+        $transaction = false;
         try {
+            if ($wpdb->query('START TRANSACTION') === false) {
+                throw new \RuntimeException('Payment refund intent could not start a transaction.');
+            }
+            $transaction = true;
+
+            if ($this->payments->eventExists('internal', $intentEventId)) {
+                if ($wpdb->query('COMMIT') === false) {
+                    throw new \RuntimeException('Payment refund intent could not be committed.');
+                }
+                $transaction = false;
+                return;
+            }
+
             $fresh = $this->payments->find((int)$payment->id);
             if (!$fresh || !in_array((string)$fresh->status, [
                 PaymentStatus::PAID,
                 PaymentStatus::REFUND_PENDING,
             ], true)) {
+                if ($wpdb->query('COMMIT') === false) {
+                    throw new \RuntimeException('Payment refund intent could not be committed.');
+                }
+                $transaction = false;
                 return;
             }
-            if ($this->payments->queueRefund((int)$fresh->id, $amount)) {
-                $this->bookings->logEvent(
-                    (int)$booking->id,
-                    (string)$booking->status,
-                    'payment_refund_pending',
-                    'payment',
-                    'Refund queued for ' . $amount . ' minor units'
-                );
+
+            $amount = $this->refundAllocationForBookingObject($booking, $fresh);
+            if ($amount < 1) {
+                if ($wpdb->query('COMMIT') === false) {
+                    throw new \RuntimeException('Payment refund intent could not be committed.');
+                }
+                $transaction = false;
+                return;
             }
+
+            if (!$this->payments->queueRefund((int)$fresh->id, $amount)) {
+                throw new \RuntimeException('Payment refund allocation could not be queued.');
+            }
+            if (!$this->payments->recordEvent(
+                (int)$fresh->id,
+                'internal',
+                $intentEventId,
+                'refund_queued'
+            )) {
+                throw new \RuntimeException('Payment refund idempotency marker could not be stored.');
+            }
+            $this->bookings->logEvent(
+                (int)$booking->id,
+                (string)$booking->status,
+                'payment_refund_pending',
+                'payment',
+                'Refund queued for ' . $amount . ' minor units'
+            );
+
+            if ($wpdb->query('COMMIT') === false) {
+                throw new \RuntimeException('Payment refund intent could not be committed.');
+            }
+            $transaction = false;
         } finally {
+            if ($transaction) {
+                $wpdb->query('ROLLBACK');
+            }
             $this->releaseLock($lockName);
         }
     }
