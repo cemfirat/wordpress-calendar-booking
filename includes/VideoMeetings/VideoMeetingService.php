@@ -28,40 +28,59 @@ final class VideoMeetingService {
     }
 
     private function enqueue(string $operation, object $booking): void {
-        $connectionIds = [];
-        if ($operation !== 'delete') {
-            foreach ((new VideoMeetingConnectionRepository())->forBookingType((int)$booking->booking_type_id) as $connection) {
-                $connectionId = (int)$connection->id;
-                $connectionIds[$connectionId] = $connectionId;
-            }
-        }
-        if ($operation !== 'create') {
-            foreach ((new VideoMeetingRepository())->forBooking((int)$booking->id) as $meeting) {
-                $connectionIds[(int)$meeting->connection_id] = (int)$meeting->connection_id;
-            }
-        }
-        if (!$connectionIds) return;
-
+        $connections = new VideoMeetingConnectionRepository();
+        $meetings = new VideoMeetingRepository();
         $jobs = new JobRepository();
-        $queued = false;
-        foreach (array_values($connectionIds) as $connectionId) {
-            $version = hash('sha256', wp_json_encode([
-                'operation' => $operation,
-                'booking_id' => (int)$booking->id,
-                'connection_id' => $connectionId,
-                'status' => (string)$booking->status,
-                'slot_start' => (string)$booking->slot_start,
-                'slot_end' => (string)$booking->slot_end,
-                'updated_at' => (string)$booking->updated_at,
-            ]));
-            $id = $jobs->enqueue(
-                'video_' . $operation,
+
+        $currentIds = [];
+        foreach ($connections->forBookingType((int)$booking->booking_type_id) as $connection) {
+            $currentIds[(int)$connection->id] = (int)$connection->id;
+        }
+
+        $knownIds = array_values($currentIds);
+        foreach ($meetings->forBooking((int)$booking->id) as $meeting) {
+            $knownIds[] = (int)$meeting->connection_id;
+        }
+        $knownIds = array_merge(
+            $knownIds,
+            $jobs->connectionIdsForBooking(
                 (int)$booking->id,
-                ['connection_id' => $connectionId],
-                'video:' . $operation . ':' . (int)$booking->id . ':' . $connectionId . ':' . substr($version, 0, 40)
+                ['video_create', 'video_update', 'video_delete']
+            )
+        );
+        $knownIds = array_values(array_unique(array_filter(array_map('intval', $knownIds))));
+        if (!$knownIds) {
+            return;
+        }
+
+        $queued = false;
+        foreach ($knownIds as $connectionId) {
+            $connection = $connections->find($connectionId, false);
+            if (!$connection) {
+                continue;
+            }
+
+            $shouldExist = (string)$booking->status === BookingStatus::CONFIRMED
+                && !empty($connection->is_active)
+                && isset($currentIds[$connectionId]);
+            $effectiveOperation = $shouldExist
+                ? ($operation === 'create' ? 'create' : 'update')
+                : 'delete';
+            $version = VideoMeetingJobRunner::desiredVersion($booking, $connection);
+
+            $id = $jobs->enqueue(
+                'video_' . $effectiveOperation,
+                (int)$booking->id,
+                [
+                    'connection_id' => $connectionId,
+                    'desired_version' => $version,
+                ],
+                'video:' . ($shouldExist ? 'upsert' : 'delete') . ':' . (int)$booking->id . ':' . $connectionId . ':' . substr($version, 0, 40)
             );
             $queued = $queued || $id > 0;
         }
-        if ($queued) (new QueueService())->runNow();
+        if ($queued) {
+            (new QueueService())->runNow();
+        }
     }
 }

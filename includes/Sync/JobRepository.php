@@ -289,6 +289,51 @@ class JobRepository {
         return $out;
     }
 
+    /**
+     * Return bounded connection IDs referenced by prior queue work for a booking.
+     *
+     * Payloads are decoded only in-process and never returned or logged.
+     *
+     * @return int[]
+     */
+    public function connectionIdsForBooking(int $bookingId, array $jobTypes): array {
+        global $wpdb;
+        if ($bookingId < 1) {
+            return [];
+        }
+        $jobTypes = array_values(array_unique(array_filter(array_map(
+            static fn($type): string => preg_match('/^[a-z0-9_]{1,64}$/', (string)$type) ? (string)$type : '',
+            $jobTypes
+        ))));
+        $jobTypes = array_slice($jobTypes, 0, 20);
+        if (!$jobTypes) {
+            return [];
+        }
+
+        $placeholders = implode(',', array_fill(0, count($jobTypes), '%s'));
+        $rows = $wpdb->get_col(
+            $wpdb->prepare(
+                "SELECT payload_json FROM {$this->jobsTable}
+                 WHERE booking_id = %d
+                   AND job_type IN ({$placeholders})
+                 ORDER BY id DESC
+                 LIMIT 500",
+                $bookingId,
+                ...$jobTypes
+            )
+        );
+
+        $ids = [];
+        foreach ($rows as $json) {
+            $payload = json_decode((string)$json, true);
+            $id = is_array($payload) ? (int)($payload['connection_id'] ?? 0) : 0;
+            if ($id > 0) {
+                $ids[$id] = $id;
+            }
+        }
+        return array_values($ids);
+    }
+
     public function pendingCount(): int {
         global $wpdb;
         return (int)$wpdb->get_var(
