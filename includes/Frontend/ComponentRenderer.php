@@ -4,6 +4,8 @@ namespace Wpcb\Frontend;
 use Wpcb\Availability\SlotService;
 use Wpcb\Booking\BookingTypeRepository;
 use Wpcb\Forms\FieldRepository;
+use Wpcb\Forms\FieldValidator;
+use Wpcb\Forms\FormRecovery;
 use Wpcb\Calendar\IcloudProvider;
 use Wpcb\Calendar\PublicBusyPresenter;
 use Wpcb\Admin\Settings;
@@ -27,21 +29,31 @@ class ComponentRenderer {
 
     private function renderBookingFormMarkup(bool $isModal = false): string {
         $types = (new BookingTypeRepository())->all(true);
-        $fields = (new FieldRepository())->active();
         $settings = Settings::get();
+        $recovery = (new FormRecovery())->current('booking');
+        $state = is_array($recovery) ? (array)($recovery['state'] ?? []) : [];
+        $fieldValues = isset($state['fields']) && is_array($state['fields']) ? $state['fields'] : [];
+        $recoveredTypeId = absint($state['booking_type_id'] ?? 0);
+        $recoveredPartySize = max(1, absint($state['party_size'] ?? 1));
+        $recoveredRecurrenceCount = max(1, absint($state['recurrence_count'] ?? 1));
+        $recoveredRecurrenceInterval = max(1, absint($state['recurrence_interval'] ?? 1));
+        $recoveredSlot = sanitize_text_field((string)($state['slot_token'] ?? ''));
         ob_start(); ?>
         <?php
         $formClasses = ['wpcb-booking-form', 'uk-form-stacked'];
         if ($isModal) $formClasses[] = 'wpcb-booking-form-modal';
         $formClasses = (array)apply_filters('wpcb_booking_form_classes', $formClasses, $isModal);
         ?>
-        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="<?php echo esc_attr(implode(' ', array_filter(array_map('sanitize_html_class', $formClasses)))); ?>" data-wpcb-booking-form>
+        <form method="post" action="<?php echo esc_url(admin_url('admin-post.php')); ?>" class="<?php echo esc_attr(implode(' ', array_filter(array_map('sanitize_html_class', $formClasses)))); ?>" data-wpcb-booking-form<?php echo $recoveredSlot !== '' ? ' data-wpcb-recover-slot="' . esc_attr($recoveredSlot) . '"' : ''; ?>>
             <?php wp_nonce_field('wpcb_booking', 'wpcb_nonce'); ?>
             <input type="hidden" name="action" value="wpcb_submit_booking">
             <input type="hidden" name="wpcb_form_ts" value="<?php echo esc_attr(current_time('timestamp')); ?>">
             <input type="hidden" name="visit_address_value" value="<?php echo esc_attr($settings['visit_address']); ?>">
             <input type="hidden" name="own_phone_value" value="<?php echo esc_attr($settings['own_phone']); ?>">
             <div style="display:none"><input type="text" name="website" value=""></div>
+            <?php if (is_array($recovery) && !empty($recovery['message'])): ?>
+                <p class="wpcb-form-error uk-alert-danger" role="alert"><?php echo esc_html((string)$recovery['message']); ?></p>
+            <?php endif; ?>
 
             <div class="wpcb-field uk-margin">
                 <label class="uk-form-label" for="wpcb_booking_type_id<?php echo $isModal ? '_modal' : ''; ?>"><?php esc_html_e('Terminart', 'wordpress-calendar-booking'); ?></label>
@@ -49,7 +61,7 @@ class ComponentRenderer {
                     <select class="uk-select" id="wpcb_booking_type_id<?php echo $isModal ? '_modal' : ''; ?>" name="booking_type_id" required data-wpcb-type-select>
                         <option value=""><?php esc_html_e('Bitte wählen', 'wordpress-calendar-booking'); ?></option>
                         <?php foreach ($types as $type): ?>
-                            <option value="<?php echo esc_attr($type->id); ?>" data-capacity="<?php echo esc_attr(max(1, (int)($type->capacity ?? 1))); ?>" data-payment-mode="<?php echo esc_attr((string)($type->payment_mode ?? 'free')); ?>"><?php echo esc_html($type->name); ?></option>
+                            <option value="<?php echo esc_attr($type->id); ?>" <?php echo selected($recoveredTypeId, (int)$type->id, false); ?> data-capacity="<?php echo esc_attr(max(1, (int)($type->capacity ?? 1))); ?>" data-payment-mode="<?php echo esc_attr((string)($type->payment_mode ?? 'free')); ?>"><?php echo esc_html($type->name); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
@@ -60,12 +72,13 @@ class ComponentRenderer {
             foreach ($types as $type) {
                 $maxPartySize = max($maxPartySize, max(1, (int)($type->capacity ?? 1)));
             }
+            $recoveredPartySize = min($maxPartySize, $recoveredPartySize);
             ?>
             <?php if ($maxPartySize > 1): ?>
                 <div class="wpcb-field uk-margin">
                     <label class="uk-form-label" for="wpcb_party_size<?php echo $isModal ? '_modal' : ''; ?>"><?php esc_html_e('Teilnehmer', 'wordpress-calendar-booking'); ?></label>
                     <div class="uk-form-controls">
-                        <input class="uk-input" type="number" id="wpcb_party_size<?php echo $isModal ? '_modal' : ''; ?>" name="party_size" value="1" min="1" max="<?php echo (int)$maxPartySize; ?>" required data-wpcb-party-size>
+                        <input class="uk-input" type="number" id="wpcb_party_size<?php echo $isModal ? '_modal' : ''; ?>" name="party_size" value="<?php echo (int)$recoveredPartySize; ?>" min="1" max="<?php echo (int)$maxPartySize; ?>" required data-wpcb-party-size>
                     </div>
                 </div>
             <?php else: ?>
@@ -76,12 +89,9 @@ class ComponentRenderer {
                 <label class="uk-form-label" for="wpcb_recurrence_count<?php echo $isModal ? '_modal' : ''; ?>"><?php esc_html_e('Wiederholung', 'wordpress-calendar-booking'); ?></label>
                 <div class="uk-form-controls">
                     <select class="uk-select" id="wpcb_recurrence_count<?php echo $isModal ? '_modal' : ''; ?>" name="recurrence_count">
-                        <option value="1"><?php esc_html_e('Einmaliger Termin', 'wordpress-calendar-booking'); ?></option>
-                        <option value="2"><?php esc_html_e('2 Termine', 'wordpress-calendar-booking'); ?></option>
-                        <option value="4"><?php esc_html_e('4 Termine', 'wordpress-calendar-booking'); ?></option>
-                        <option value="6"><?php esc_html_e('6 Termine', 'wordpress-calendar-booking'); ?></option>
-                        <option value="8"><?php esc_html_e('8 Termine', 'wordpress-calendar-booking'); ?></option>
-                        <option value="12"><?php esc_html_e('12 Termine', 'wordpress-calendar-booking'); ?></option>
+                        <?php foreach ([1 => __('Einmaliger Termin', 'wordpress-calendar-booking'), 2 => __('2 Termine', 'wordpress-calendar-booking'), 4 => __('4 Termine', 'wordpress-calendar-booking'), 6 => __('6 Termine', 'wordpress-calendar-booking'), 8 => __('8 Termine', 'wordpress-calendar-booking'), 12 => __('12 Termine', 'wordpress-calendar-booking')] as $count => $label): ?>
+                            <option value="<?php echo (int)$count; ?>" <?php echo selected($recoveredRecurrenceCount, (int)$count, false); ?>><?php echo esc_html($label); ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
             </div>
@@ -89,10 +99,9 @@ class ComponentRenderer {
                 <label class="uk-form-label" for="wpcb_recurrence_interval<?php echo $isModal ? '_modal' : ''; ?>"><?php esc_html_e('Serienabstand', 'wordpress-calendar-booking'); ?></label>
                 <div class="uk-form-controls">
                     <select class="uk-select" id="wpcb_recurrence_interval<?php echo $isModal ? '_modal' : ''; ?>" name="recurrence_interval">
-                        <option value="1"><?php esc_html_e('Wöchentlich', 'wordpress-calendar-booking'); ?></option>
-                        <option value="2"><?php esc_html_e('Alle 2 Wochen', 'wordpress-calendar-booking'); ?></option>
-                        <option value="3"><?php esc_html_e('Alle 3 Wochen', 'wordpress-calendar-booking'); ?></option>
-                        <option value="4"><?php esc_html_e('Alle 4 Wochen', 'wordpress-calendar-booking'); ?></option>
+                        <?php foreach ([1 => __('Wöchentlich', 'wordpress-calendar-booking'), 2 => __('Alle 2 Wochen', 'wordpress-calendar-booking'), 3 => __('Alle 3 Wochen', 'wordpress-calendar-booking'), 4 => __('Alle 4 Wochen', 'wordpress-calendar-booking')] as $interval => $label): ?>
+                            <option value="<?php echo (int)$interval; ?>" <?php echo selected($recoveredRecurrenceInterval, (int)$interval, false); ?>><?php echo esc_html($label); ?></option>
+                        <?php endforeach; ?>
                     </select>
                 </div>
                 <p class="uk-text-meta"><?php esc_html_e('Serien sind derzeit für Terminarten ohne Zahlung verfügbar.', 'wordpress-calendar-booking'); ?></p>
@@ -107,12 +116,7 @@ class ComponentRenderer {
                 </div>
             </div>
 
-            <?php foreach ($fields as $field): ?>
-                <div class="wpcb-field uk-margin" data-wpcb-field="<?php echo esc_attr($field->field_key); ?>">
-                    <label class="uk-form-label" for="wpcb_<?php echo esc_attr($field->field_key . ($isModal ? '_modal' : '')); ?>"><?php echo esc_html($field->label); ?><?php echo $field->is_required ? ' *' : ''; ?></label>
-                    <div class="uk-form-controls"><?php $this->renderField($field, $isModal); ?></div>
-                </div>
-            <?php endforeach; ?>
+            <?php echo $this->formFieldsMarkup($fieldValues, $isModal ? '_modal' : ''); ?>
             <?php $buttonClasses = (array)apply_filters('wpcb_booking_button_classes', ['uk-button', 'uk-button-primary'], 'submit'); ?>
             <button type="submit" class="<?php echo esc_attr(implode(' ', array_filter(array_map('sanitize_html_class', $buttonClasses)))); ?>"><?php esc_html_e('Termin buchen', 'wordpress-calendar-booking'); ?></button>
         </form>
@@ -121,37 +125,67 @@ class ComponentRenderer {
         return (string)apply_filters('wpcb_render_booking_form_markup', $html, $isModal);
     }
 
-    private function fieldOptions(object $field): array {
-        if (empty($field->options_json)) return [];
-        $decoded = json_decode((string)$field->options_json, true);
-        return is_array($decoded) ? array_values($decoded) : [];
+    public function formFieldsMarkup(array $values = [], string $idSuffix = ''): string {
+        $fields = (new FieldRepository())->active();
+        ob_start();
+        foreach ($fields as $field) {
+            $key = sanitize_key((string)$field->field_key);
+            $value = isset($values[$key]) && is_scalar($values[$key]) ? (string)$values[$key] : '';
+            $constraints = (new FieldValidator())->constraints($field);
+            $required = !empty($field->is_required)
+                || (!is_wp_error($constraints) && !empty($constraints['must_be_checked']));
+            ?>
+            <div class="wpcb-field uk-margin" data-wpcb-field="<?php echo esc_attr($key); ?>">
+                <label class="uk-form-label" for="wpcb_<?php echo esc_attr($key . $idSuffix); ?>"><?php echo esc_html($field->label); ?><?php echo $required ? ' *' : ''; ?></label>
+                <div class="uk-form-controls">
+                    <?php
+                    if (is_wp_error($constraints)) {
+                        echo '<p class="uk-text-danger">' . esc_html__('Dieses Feld ist ungültig konfiguriert.', 'wordpress-calendar-booking') . '</p>';
+                    } else {
+                        $this->renderField($field, $value, $idSuffix, $constraints);
+                    }
+                    ?>
+                </div>
+            </div>
+            <?php
+        }
+        return (string)ob_get_clean();
     }
 
-    private function renderField(object $field, bool $isModal = false): void {
-        $name = esc_attr($field->field_key);
-        $required = $field->is_required ? 'required' : '';
-        $id = 'wpcb_' . $name . ($isModal ? '_modal' : '');
-        $options = $this->fieldOptions($field);
-        switch ($field->field_type) {
+    private function renderField(object $field, string $value, string $idSuffix, array $constraints): void {
+        $name = sanitize_key((string)$field->field_key);
+        $required = (!empty($field->is_required) || !empty($constraints['must_be_checked'])) ? ' required' : '';
+        $id = 'wpcb_' . $name . $idSuffix;
+        $min = (int)($constraints['min_length'] ?? 0);
+        $max = (int)($constraints['max_length'] ?? 0);
+        $lengthAttrs = ($min > 0 ? ' minlength="' . $min . '"' : '')
+            . ($max > 0 ? ' maxlength="' . $max . '"' : '');
+        $options = (array)($constraints['options'] ?? []);
+
+        switch ((string)$field->field_type) {
             case 'textarea':
-                echo '<textarea class="uk-textarea" id="' . esc_attr($id) . '" name="' . $name . '" ' . $required . '></textarea>';
+                echo '<textarea class="uk-textarea" id="' . esc_attr($id) . '" name="' . esc_attr($name) . '"' . $required . $lengthAttrs . '>' . esc_textarea($value) . '</textarea>';
                 break;
             case 'checkbox':
-                echo '<label><input class="uk-checkbox" type="checkbox" id="' . esc_attr($id) . '" name="' . $name . '" value="1" ' . $required . '> </label>';
+                echo '<label><input class="uk-checkbox" type="checkbox" id="' . esc_attr($id) . '" name="' . esc_attr($name) . '" value="1"' . checked($value, '1', false) . $required . '> </label>';
                 break;
             case 'email':
-                echo '<input class="uk-input" type="email" id="' . esc_attr($id) . '" name="' . $name . '" ' . $required . '>';
+                echo '<input class="uk-input" type="email" id="' . esc_attr($id) . '" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"' . $required . $lengthAttrs . '>';
                 break;
             case 'select':
-                echo '<select class="uk-select" id="' . esc_attr($id) . '" name="' . $name . '" ' . $required . '><option value="">' . esc_html__('Bitte wählen', 'wordpress-calendar-booking') . '</option>';
-                foreach ($options as $option) echo '<option value="' . esc_attr($option) . '">' . esc_html($option) . '</option>';
+                echo '<select class="uk-select" id="' . esc_attr($id) . '" name="' . esc_attr($name) . '"' . $required . '><option value="">' . esc_html__('Bitte wählen', 'wordpress-calendar-booking') . '</option>';
+                foreach ($options as $option) {
+                    echo '<option value="' . esc_attr($option) . '"' . selected($value, (string)$option, false) . '>' . esc_html($option) . '</option>';
+                }
                 echo '</select>';
                 break;
             case 'radio':
-                foreach ($options as $idx => $option) echo '<label class="uk-margin-small-right"><input class="uk-radio" type="radio" id="' . esc_attr($id . '_' . $idx) . '" name="' . $name . '" value="' . esc_attr($option) . '" ' . $required . '> ' . esc_html($option) . '</label>';
+                foreach ($options as $idx => $option) {
+                    echo '<label class="uk-margin-small-right"><input class="uk-radio" type="radio" id="' . esc_attr($id . '_' . $idx) . '" name="' . esc_attr($name) . '" value="' . esc_attr($option) . '"' . checked($value, (string)$option, false) . $required . '> ' . esc_html($option) . '</label>';
+                }
                 break;
             default:
-                echo '<input class="uk-input" type="text" id="' . esc_attr($id) . '" name="' . $name . '" ' . $required . '>';
+                echo '<input class="uk-input" type="text" id="' . esc_attr($id) . '" name="' . esc_attr($name) . '" value="' . esc_attr($value) . '"' . $required . $lengthAttrs . '>';
         }
     }
 
