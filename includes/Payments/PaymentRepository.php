@@ -140,7 +140,7 @@ final class PaymentRepository {
                  updated_at = %s
              WHERE id = %d
                AND status IN (%s, %s)
-               AND refunded_minor + refund_pending_minor + %d <= amount_minor",
+               AND refunded_minor + refund_pending_minor + refund_inflight_minor + %d <= amount_minor",
             $amountMinor,
             PaymentStatus::REFUND_PENDING,
             Time::formatUtc(Time::nowUtc()),
@@ -207,11 +207,15 @@ final class PaymentRepository {
         }
         $delta = $totalRefundedMinor - $currentRefunded;
         $currentPending = (int)($payment->refund_pending_minor ?? 0);
-        if ($delta > $currentPending) {
+        $currentInflight = (int)($payment->refund_inflight_minor ?? 0);
+        if ($delta > $currentPending + $currentInflight) {
             return false;
         }
         if ($delta === 0) {
             return true;
+        }
+        if ($delta > $currentPending) {
+            return false;
         }
         return $this->completeRefund($paymentId, $delta);
     }
@@ -278,7 +282,7 @@ final class PaymentRepository {
         global $wpdb;
         return $wpdb->get_results($wpdb->prepare(
             "SELECT id, payment_uuid, booking_id, provider, amount_minor, refunded_minor,
-                    refund_pending_minor, currency, status, expires_at, paid_at, refunded_at,
+                    refund_pending_minor, refund_inflight_minor, currency, status, expires_at, paid_at, refunded_at,
                     created_at, updated_at
              FROM {$this->table} ORDER BY id DESC LIMIT %d",
             max(1, min(500, $limit))
