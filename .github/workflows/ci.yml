@@ -526,6 +526,99 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
+
+  multisite_release:
+    name: Multisite per-site lifecycle
+    needs: [package]
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: wordpress
+          MYSQL_DATABASE: wordpress
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pwordpress"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.3'
+          extensions: mysqli, dom, sodium, zip, mbstring
+          tools: wp-cli:2.12.0
+          coverage: none
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-package
+          path: dist
+      - name: Verify packaged multisite lifecycle
+        run: |
+          set -euo pipefail
+          WP_ROOT="$RUNNER_TEMP/wordpress"
+          PRIMARY_URL="http://wpcb.test/"
+          SECOND_URL="http://wpcb.test/second/"
+          THIRD_URL="http://wpcb.test/third/"
+          PLUGIN="wordpress-calendar-booking"
+
+          wp core download --path="$WP_ROOT" --version=latest
+          wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
+          wp core multisite-install --path="$WP_ROOT" --url="$PRIMARY_URL" --title=WPCB-Multisite --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
+          wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --path="$WP_ROOT"
+          wp site create --path="$WP_ROOT" --url="$PRIMARY_URL" --slug=second --title=Second --email=second@example.com >/dev/null
+
+          set +e
+          network_output="$(wp plugin activate "$PLUGIN" --network --path="$WP_ROOT" 2>&1)"
+          network_status=$?
+          set -e
+          printf '%s\n' "$network_output"
+          test "$network_status" -ne 0
+          printf '%s\n' "$network_output" | grep -Fq 'Network-wide activation is not supported.'
+          test "$(wp eval 'require_once ABSPATH . "wp-admin/includes/plugin.php"; echo is_plugin_active_for_network("wordpress-calendar-booking/wordpress-calendar-booking.php") ? "active" : "inactive";' --path="$WP_ROOT")" = "inactive"
+
+          for url in "$PRIMARY_URL" "$SECOND_URL"; do
+            ! wp plugin is-active "$PLUGIN" --path="$WP_ROOT" --url="$url" >/dev/null 2>&1
+            table_count="$(wp eval 'global $wpdb; echo count($wpdb->get_col($wpdb->prepare("SHOW TABLES LIKE %s", $wpdb->esc_like($wpdb->prefix . "wpcb_") . "%")));' --path="$WP_ROOT" --url="$url")"
+            test "$table_count" -eq 0
+          done
+
+          wp plugin activate "$PLUGIN" --path="$WP_ROOT" --url="$PRIMARY_URL"
+          wp plugin activate "$PLUGIN" --path="$WP_ROOT" --url="$SECOND_URL"
+          wp eval 'echo "BOOTED";' --path="$WP_ROOT" --url="$PRIMARY_URL" >/dev/null
+          wp eval 'echo "BOOTED";' --path="$WP_ROOT" --url="$SECOND_URL" >/dev/null
+
+          third_id="$(wp site create --path="$WP_ROOT" --url="$PRIMARY_URL" --slug=third --title=Third --email=third@example.com --porcelain)"
+          test -n "$third_id"
+          ! wp plugin is-active "$PLUGIN" --path="$WP_ROOT" --url="$THIRD_URL" >/dev/null 2>&1
+          third_tables="$(wp eval 'global $wpdb; echo count($wpdb->get_col($wpdb->prepare("SHOW TABLES LIKE %s", $wpdb->esc_like($wpdb->prefix . "wpcb_") . "%")));' --path="$WP_ROOT" --url="$THIRD_URL")"
+          test "$third_tables" -eq 0
+
+          wp plugin activate "$PLUGIN" --path="$WP_ROOT" --url="$THIRD_URL"
+          wp eval 'echo "BOOTED";' --path="$WP_ROOT" --url="$THIRD_URL" >/dev/null
+          test "$(wp eval 'require_once ABSPATH . "wp-admin/includes/plugin.php"; echo is_plugin_active_for_network("wordpress-calendar-booking/wordpress-calendar-booking.php") ? "active" : "inactive";' --path="$WP_ROOT")" = "inactive"
+          WPCB_MULTISITE_PHASE=seed_isolation wp eval-file "$GITHUB_WORKSPACE/tests/multisite-lifecycle-smoke.php" --path="$WP_ROOT" --url="$PRIMARY_URL"
+
+          wp eval 'wp_schedule_single_event(time() + HOUR_IN_SECONDS, "wpcb_waitlist_send_offer", [987654]);' --path="$WP_ROOT" --url="$PRIMARY_URL"
+          wp plugin deactivate "$PLUGIN" --path="$WP_ROOT" --url="$PRIMARY_URL"
+          WPCB_MULTISITE_PHASE=deactivated_primary wp eval-file "$GITHUB_WORKSPACE/tests/multisite-lifecycle-smoke.php" --path="$WP_ROOT" --url="$SECOND_URL"
+
+          wp plugin activate "$PLUGIN" --path="$WP_ROOT" --url="$PRIMARY_URL"
+          wp eval 'echo "BOOTED";' --path="$WP_ROOT" --url="$PRIMARY_URL" >/dev/null
+          WPCB_MULTISITE_PHASE=reactivated wp eval-file "$GITHUB_WORKSPACE/tests/multisite-lifecycle-smoke.php" --path="$WP_ROOT" --url="$PRIMARY_URL"
+          WPCB_MULTISITE_PHASE=prepare_uninstall wp eval-file "$GITHUB_WORKSPACE/tests/multisite-lifecycle-smoke.php" --path="$WP_ROOT" --url="$PRIMARY_URL"
+
+          for url in "$PRIMARY_URL" "$SECOND_URL" "$THIRD_URL"; do
+            wp plugin deactivate "$PLUGIN" --path="$WP_ROOT" --url="$url"
+            wp eval 'wp_schedule_single_event(time() + HOUR_IN_SECONDS, "wpcb_waitlist_send_offer", [123456]);' --path="$WP_ROOT" --url="$url"
+          done
+
+          wp plugin uninstall "$PLUGIN" --path="$WP_ROOT" --url="$PRIMARY_URL"
+          WPCB_MULTISITE_PHASE=after_uninstall wp eval-file "$GITHUB_WORKSPACE/tests/multisite-lifecycle-smoke.php" --path="$WP_ROOT" --url="$PRIMARY_URL"
+
   browser_release:
     name: Browser release acceptance
     needs: [package]
@@ -768,7 +861,7 @@ jobs:
   release:
     name: Publish stable release
     if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
-    needs: [docs, php, dependency_audit, i18n, wordpress, fresh_release, legacy_upgrade, browser_release, uninstall_release]
+    needs: [docs, php, dependency_audit, i18n, wordpress, fresh_release, legacy_upgrade, browser_release, multisite_release, uninstall_release]
     runs-on: ubuntu-latest
     permissions:
       contents: write
