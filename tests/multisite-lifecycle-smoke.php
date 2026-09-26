@@ -190,4 +190,53 @@ if ($phase === 'prepare_uninstall') {
     return;
 }
 
+if ($phase === 'after_uninstall') {
+    foreach ([
+        $primaryId => ['label' => 'primary', 'deleted' => false],
+        $secondId => ['label' => 'second', 'deleted' => true],
+        $thirdId => ['label' => 'third', 'deleted' => false],
+    ] as $siteId => $expectation) {
+        wpcb_multisite_with_site($siteId, function () use ($expectation) {
+            global $wpdb;
+            $tables = $wpdb->get_col(
+                $wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($wpdb->prefix . 'wpcb_') . '%')
+            );
+            if ($expectation['deleted']) {
+                wpcb_multisite_assert($tables === [], 'Destructive multisite uninstall removes second-site plugin tables.');
+                wpcb_multisite_assert(
+                    get_option('wpcb_multisite_marker', '__missing__') === '__missing__'
+                    && get_option('wpcb_stripe_settings', '__missing__') === '__missing__',
+                    'Destructive multisite uninstall removes second-site plugin options and credentials.'
+                );
+            } else {
+                wpcb_multisite_assert($tables !== [], ucfirst($expectation['label']) . '-site durable plugin tables are preserved by default.');
+                wpcb_multisite_assert(
+                    get_option('wpcb_multisite_marker', '__missing__') === $expectation['label'],
+                    ucfirst($expectation['label']) . '-site durable settings are preserved by default.'
+                );
+                $stripe = get_option('wpcb_stripe_settings', []);
+                wpcb_multisite_assert(
+                    is_array($stripe)
+                    && !empty($stripe['secret_key_enc'])
+                    && !empty($stripe['webhook_secret_enc']),
+                    ucfirst($expectation['label']) . '-site encrypted credentials are preserved by default.'
+                );
+            }
+            wpcb_multisite_assert(get_transient('wpcb_multisite_fixture') === false, 'Multisite uninstall clears plugin transients on ' . $expectation['label'] . ' site.');
+            foreach (['wpcb_sync_queue','wpcb_hourly_reminders','wpcb_privacy_retention','wpcb_portal_session_cleanup','wpcb_waitlist_send_offer'] as $hook) {
+                wpcb_multisite_assert(
+                    wpcb_multisite_cron_count($hook) === 0,
+                    $hook . ' is absent after multisite uninstall on ' . $expectation['label'] . ' site.'
+                );
+            }
+        });
+    }
+    wpcb_multisite_assert(
+        !is_file(WP_PLUGIN_DIR . '/wordpress-calendar-booking/wordpress-calendar-booking.php'),
+        'Packaged plugin files are removed only after multisite uninstall policy completes.'
+    );
+    WP_CLI::success('Multisite uninstall policy checks passed.');
+    return;
+}
+
 throw new RuntimeException('Unknown multisite lifecycle phase: ' . $phase);
