@@ -4,6 +4,7 @@ namespace Wpcb\Admin;
 use Wpcb\Payments\PaymentRepository;
 use Wpcb\Payments\PaymentService;
 use Wpcb\Payments\PaymentStatus;
+use Wpcb\Payments\PaymentRefundStatus;
 use Wpcb\Payments\StripeAdapter;
 use Wpcb\Payments\StripeConfig;
 
@@ -36,8 +37,19 @@ final class PaymentAdminPage {
         $this->requireAdmin();
         $paymentId = absint($_POST['payment_id'] ?? 0);
         check_admin_referer('wpcb_stripe_refund_' . $paymentId);
-        $result = (new PaymentService())->refund($paymentId, new StripeAdapter());
-        $notice = is_wp_error($result) ? $result->get_error_message() : __('Stripe-Rückerstattung verarbeitet.', 'wordpress-calendar-booking');
+        $service = new PaymentService();
+        $result = $service->refund($paymentId, new StripeAdapter());
+        if (is_wp_error($result)) {
+            $notice = $result->get_error_message();
+        } else {
+            $attempt = $service->latestRefundForPayment($paymentId);
+            $status = $attempt ? (string)$attempt->status : '';
+            $notice = $status === PaymentRefundStatus::SUCCEEDED
+                ? __('Stripe hat die Rückerstattung bestätigt.', 'wordpress-calendar-booking')
+                : ($status !== ''
+                    ? sprintf(__('Stripe-Erstattungsstatus: %s', 'wordpress-calendar-booking'), PaymentRefundStatus::customerLabel($status))
+                    : __('Stripe-Erstattungsstatus wurde geprüft.', 'wordpress-calendar-booking'));
+        }
         wp_safe_redirect(add_query_arg(['page' => 'wpcb_payments', 'wpcb_notice' => rawurlencode($notice)], admin_url('admin.php')));
         exit;
     }
@@ -48,6 +60,7 @@ final class PaymentAdminPage {
         $rows = $repo->recent(200);
         $config = new StripeConfig();
         $stripe = $config->status();
+        $paymentService = new PaymentService();
 
         echo '<div class="wrap"><h1>' . esc_html__('Zahlungen', 'wordpress-calendar-booking') . '</h1>';
         if (!empty($_GET['wpcb_notice'])) {
@@ -93,6 +106,8 @@ final class PaymentAdminPage {
             $amount = number_format(((int)$row->amount_minor) / 100, 2, ',', '.');
             $refunded = number_format(((int)($row->refunded_minor ?? 0)) / 100, 2, ',', '.');
             $pendingRefund = number_format(((int)($row->refund_pending_minor ?? 0)) / 100, 2, ',', '.');
+            $inflightRefund = number_format(((int)($row->refund_inflight_minor ?? 0)) / 100, 2, ',', '.');
+            $refundAttempt = $paymentService->latestRefundForPayment((int)$row->id);
             echo '<tr><td>#' . (int)$row->id . '</td><td>#' . (int)$row->booking_id . '</td>';
             echo '<td>' . esc_html((string)$row->provider ?: '—') . '</td>';
             echo '<td>' . esc_html($amount . ' ' . (string)$row->currency);
@@ -100,22 +115,49 @@ final class PaymentAdminPage {
                 echo '<br><small>' . esc_html(sprintf(__('Erstattet: %s %s', 'wordpress-calendar-booking'), $refunded, (string)$row->currency)) . '</small>';
             }
             if ((int)($row->refund_pending_minor ?? 0) > 0) {
-                echo '<br><small>' . esc_html(sprintf(__('Vorgemerkt: %s %s', 'wordpress-calendar-booking'), $pendingRefund, (string)$row->currency)) . '</small>';
+                echo '<br><small>' . esc_html(sprintf(__('Noch nicht übermittelt: %s %s', 'wordpress-calendar-booking'), $pendingRefund, (string)$row->currency)) . '</small>';
+            }
+            if ((int)($row->refund_inflight_minor ?? 0) > 0) {
+                echo '<br><small>' . esc_html(sprintf(__('Beim Zahlungsanbieter: %s %s', 'wordpress-calendar-booking'), $inflightRefund, (string)$row->currency)) . '</small>';
             }
             echo '</td>';
-            echo '<td><code>' . esc_html((string)$row->status) . '</code></td>';
+            echo '<td><code>' . esc_html((string)$row->status) . '</code>';
+            if ($refundAttempt) {
+                echo '<br><small>' . esc_html(PaymentRefundStatus::customerLabel((string)$refundAttempt->status)) . '</small>';
+                if (!empty($refundAttempt->provider_refund_id)) {
+                    echo '<br><small><code>' . esc_html((string)$refundAttempt->provider_refund_id) . '</code></small>';
+                }
+                if (!empty($refundAttempt->failure_reason)
+                    && in_array((string)$refundAttempt->status, [PaymentRefundStatus::FAILED, PaymentRefundStatus::CANCELED, PaymentRefundStatus::UNCERTAIN], true)
+                ) {
+                    echo '<br><small>' . esc_html(sprintf(__('Hinweis: %s', 'wordpress-calendar-booking'), (string)$refundAttempt->failure_reason)) . '</small>';
+                }
+            }
+            echo '</td>';
             echo '<td>' . esc_html((string)$row->updated_at) . '</td><td>';
             if ((string)$row->provider === 'stripe' && (string)$row->status === PaymentStatus::REFUND_PENDING) {
                 echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '">';
                 echo '<input type="hidden" name="action" value="wpcb_stripe_refund">';
                 echo '<input type="hidden" name="payment_id" value="' . (int)$row->id . '">';
                 wp_nonce_field('wpcb_stripe_refund_' . (int)$row->id);
-                $refundLabel = sprintf(
-                    __('%s %s erstatten', 'wordpress-calendar-booking'),
-                    $pendingRefund,
-                    (string)$row->currency
-                );
-                echo '<button class="button button-secondary" type="submit">' . esc_html($refundLabel) . '</button></form>';
+                $activeAttempt = $refundAttempt
+                    && in_array((string)$refundAttempt->status, PaymentRefundStatus::activeStatuses(), true);
+                if ($activeAttempt) {
+                    $refundLabel = __('Stripe-Status erneut prüfen', 'wordpress-calendar-booking');
+                } else {
+                    $refundLabel = sprintf(
+                        __('%s %s erstatten', 'wordpress-calendar-booking'),
+                        $pendingRefund,
+                        (string)$row->currency
+                    );
+                }
+                echo '<button class="button button-secondary" type="submit">' . esc_html($refundLabel) . '</button>';
+                if ($activeAttempt && (string)$refundAttempt->status === PaymentRefundStatus::REQUIRES_ACTION) {
+                    echo '<p class="description">' . esc_html__('Die Erstattung benötigt eine Aktion bei Stripe. Nach der Bearbeitung dort den Status erneut prüfen.', 'wordpress-calendar-booking') . '</p>';
+                } elseif ($activeAttempt && (string)$refundAttempt->status === PaymentRefundStatus::UNCERTAIN) {
+                    echo '<p class="description">' . esc_html__('Der letzte Provider-Aufruf war mehrdeutig. Die erneute Prüfung verwendet denselben Erstattungsvorgang.', 'wordpress-calendar-booking') . '</p>';
+                }
+                echo '</form>';
             } else {
                 echo '—';
             }
