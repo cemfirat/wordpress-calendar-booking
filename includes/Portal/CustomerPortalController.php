@@ -14,8 +14,7 @@ use Wpcb\Tokens\TokenService;
 use Wpcb\Payments\PaymentRepository;
 use Wpcb\Payments\PaymentService;
 use Wpcb\Payments\PaymentStatus;
-use Wpcb\Payments\StripeAdapter;
-use Wpcb\Payments\StripeConfig;
+use Wpcb\Payments\CheckoutHandoffService;
 use Wpcb\Mail\SpecialNotificationMailer;
 
 final class CustomerPortalController {
@@ -290,26 +289,19 @@ final class CustomerPortalController {
             $this->redirect($returnUrl, 'payment_unavailable');
         }
 
-        $paymentService = new PaymentService();
-        $payment = $paymentService->paymentForBooking($bookingId);
+        $payment = (new PaymentService())->paymentForBooking($bookingId);
         if (!$payment
             || (string)$payment->status !== PaymentStatus::PENDING
             || !in_array((string)$payment->provider, ['', 'stripe'], true)
-            || !(new StripeConfig())->ready()
         ) {
             $this->redirect($returnUrl, 'payment_unavailable');
         }
 
-        $started = $paymentService->begin($bookingId, new StripeAdapter());
-        if (is_wp_error($started) || empty($started->checkout_url)) {
+        $handoff = (new CheckoutHandoffService())->beginForBooking($bookingId);
+        if (is_wp_error($handoff) || empty($handoff['checkout_url'])) {
             $this->redirect($returnUrl, 'action_failed');
         }
-        $checkoutUrl = esc_url_raw((string)$started->checkout_url);
-        $host = strtolower((string)wp_parse_url($checkoutUrl, PHP_URL_HOST));
-        if ($host !== 'checkout.stripe.com' && !str_ends_with($host, '.stripe.com')) {
-            $this->redirect($returnUrl, 'action_failed');
-        }
-        wp_redirect($checkoutUrl, 303);
+        wp_redirect((string)$handoff['checkout_url'], 303);
         exit;
     }
 
@@ -439,11 +431,15 @@ final class CustomerPortalController {
             $ownerBookingId = (int)$payment->booking_id;
             $ownerBooking = $ownerBookingId === (int)$booking->id ? $booking : $this->bookings->find($ownerBookingId);
             $reservedUntil = $ownerBooking ? Time::parseUtc((string)($ownerBooking->reserved_until ?? '')) : null;
+            $paymentPreflight = $ownerBooking
+                ? (new CheckoutHandoffService())->preflightType((int)$ownerBooking->booking_type_id)
+                : new \WP_Error('wpcb_payment_booking_missing', __('Booking not found.', 'wordpress-calendar-booking'));
             if ((string)$payment->status === PaymentStatus::PENDING
                 && $ownerBooking && (string)$ownerBooking->status === BookingStatus::RESERVED_UNCONFIRMED
                 && $reservedUntil && $reservedUntil > Time::nowUtc()
                 && in_array((string)$payment->provider, ['', 'stripe'], true)
-                && (new StripeConfig())->ready()
+                && !is_wp_error($paymentPreflight)
+                && !empty($paymentPreflight['required'])
             ) {
                 $paymentFields = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '">'
                     . '<button class="uk-button uk-button-primary" type="submit">'

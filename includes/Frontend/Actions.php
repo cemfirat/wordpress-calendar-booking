@@ -17,9 +17,7 @@ use Wpcb\Availability\SlotService;
 use Wpcb\Availability\SlotSelectionService;
 use Wpcb\Admin\Settings;
 use Wpcb\Booking\BookingTypeRepository;
-use Wpcb\Payments\PaymentService;
-use Wpcb\Payments\StripeAdapter;
-use Wpcb\Payments\StripeConfig;
+use Wpcb\Payments\CheckoutHandoffService;
 use Wpcb\Support\BookingFormatter;
 use Wpcb\Support\Time;
 
@@ -121,11 +119,12 @@ class Actions {
         $typeId = (int)$selection['type_id'];
         $type = (new BookingTypeRepository())->find($typeId);
         if (!$type) wp_die(esc_html__('Terminart nicht gefunden.', 'wordpress-calendar-booking'));
-        $requiresPayment = (string)($type->payment_mode ?? 'free') === 'required';
-        $stripe = new StripeConfig();
-        if ($requiresPayment && !$stripe->ready()) {
-            wp_die(esc_html__('Für diese Terminart ist eine Zahlung erforderlich, der Zahlungsanbieter ist derzeit aber nicht verfügbar.', 'wordpress-calendar-booking'));
+        $checkout = new CheckoutHandoffService();
+        $paymentPreflight = $checkout->preflightType($typeId);
+        if (is_wp_error($paymentPreflight)) {
+            wp_die(esc_html($paymentPreflight->get_error_message()));
         }
+        $requiresPayment = !empty($paymentPreflight['required']);
 
         $fields = (new FieldRepository())->active();
         $meta = [];
@@ -188,31 +187,15 @@ class Actions {
             }
         }
 
-        $repo = new BookingRepository();
-        $booking = (array)$repo->find((int)$bookingId);
-        $tokenService = new TokenService();
-        $doiToken = $tokenService->create($bookingId, 'doi', (int)$settings['token_ttl_minutes']);
-        $links = [
-            'confirm' => $this->linkUrl('confirm', $doiToken),
-        ];
-        $mailer = new Mailer();
-        $mailer->sendTemplateOnce('mail:user:' . $bookingId . ':doi', 'doi', $booking, $meta, $links, false);
-        $mailer->sendInternalOnce('mail:internal:' . $bookingId . ':reserved', $booking, $meta);
-
         if ($requiresPayment) {
-            $started = (new PaymentService())->begin((int)$bookingId, new StripeAdapter($stripe));
-            if (is_wp_error($started) || empty($started->checkout_url)) {
-                $message = is_wp_error($started)
-                    ? $started->get_error_message()
+            $handoff = $checkout->beginForBooking((int)$bookingId);
+            if (is_wp_error($handoff) || empty($handoff['checkout_url'])) {
+                $message = is_wp_error($handoff)
+                    ? $handoff->get_error_message()
                     : __('Die Zahlung konnte nicht gestartet werden.', 'wordpress-calendar-booking');
                 wp_die(esc_html($message));
             }
-            $checkoutUrl = esc_url_raw((string)$started->checkout_url);
-            $host = strtolower((string)wp_parse_url($checkoutUrl, PHP_URL_HOST));
-            if ($host !== 'checkout.stripe.com' && !str_ends_with($host, '.stripe.com')) {
-                wp_die(esc_html__('Der Zahlungsanbieter hat eine ungültige Weiterleitungsadresse geliefert.', 'wordpress-calendar-booking'));
-            }
-            wp_redirect($checkoutUrl, 303);
+            wp_redirect((string)$handoff['checkout_url'], 303);
             exit;
         }
 
