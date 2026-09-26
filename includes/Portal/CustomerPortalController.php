@@ -431,11 +431,15 @@ final class CustomerPortalController {
             $ownerBookingId = (int)$payment->booking_id;
             $ownerBooking = $ownerBookingId === (int)$booking->id ? $booking : $this->bookings->find($ownerBookingId);
             $reservedUntil = $ownerBooking ? Time::parseUtc((string)($ownerBooking->reserved_until ?? '')) : null;
+            $paymentPreflight = $ownerBooking
+                ? (new CheckoutHandoffService())->preflightType((int)$ownerBooking->booking_type_id)
+                : new \WP_Error('wpcb_payment_booking_missing', __('Booking not found.', 'wordpress-calendar-booking'));
             if ((string)$payment->status === PaymentStatus::PENDING
                 && $ownerBooking && (string)$ownerBooking->status === BookingStatus::RESERVED_UNCONFIRMED
                 && $reservedUntil && $reservedUntil > Time::nowUtc()
                 && in_array((string)$payment->provider, ['', 'stripe'], true)
-                && (new StripeConfig())->ready()
+                && !is_wp_error($paymentPreflight)
+                && !empty($paymentPreflight['required'])
             ) {
                 $paymentFields = '<input type="hidden" name="booking_id" value="' . (int)$booking->id . '">'
                     . '<button class="uk-button uk-button-primary" type="submit">'
