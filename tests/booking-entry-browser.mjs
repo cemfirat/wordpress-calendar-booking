@@ -46,6 +46,69 @@ test('packaged payment preflight keeps free forms usable and rejects stale paid 
   } finally { fixture('cleanup'); }
 });
 
+test('packaged custom-field validation recovers valid input without reserving capacity', async ({page}) => {
+  test.setTimeout(120000);
+  try {
+    const setup = fixture('setup');
+    await page.goto(setup.page);
+    const form = page.locator('.wpcb-booking-form-wrap [data-wpcb-booking-form]');
+    await form.locator('[data-wpcb-type-select]').selectOption(String(setup.types[0]));
+    const slots = form.locator('[data-wpcb-slot-select]');
+    await expect.poll(() => slots.locator('option').count()).toBeGreaterThan(1);
+    const slotToken = await slots.locator('option').nth(1).getAttribute('value');
+    expect(slotToken).toBeTruthy();
+    await slots.selectOption(slotToken);
+
+    await form.locator('[name="subject"]').fill('Typed recovery');
+    await form.locator('[name="gender"]').selectOption('Herr');
+    await form.locator('[name="first_name"]').fill('Valid');
+    await form.locator('[name="last_name"]').fill('Input');
+    await form.locator('[name="email"]').fill('typed-recovery@example.com');
+    await form.locator('[name="privacy"]').check();
+
+    // Simulate a stale/tampered choice that the browser UI itself would never
+    // generate. Server-side validation must reject it before any reservation.
+    await form.locator('[name="gender"]').evaluate((select) => {
+      const option = document.createElement('option');
+      option.value = 'removed-option';
+      option.textContent = 'Removed option';
+      select.appendChild(option);
+      select.value = option.value;
+    });
+
+    const before = fixture('counts');
+    const [response] = await Promise.all([
+      page.waitForNavigation(),
+      form.locator('button[type="submit"]').click(),
+    ]);
+    expect(response.status()).toBe(400);
+
+    const recovered = page.locator('[data-wpcb-booking-form]');
+    await expect(page.locator('.wpcb-form-error')).toContainText('Eine Auswahl ist nicht mehr gültig');
+    await expect(recovered.locator('[name="subject"]')).toHaveValue('Typed recovery');
+    await expect(recovered.locator('[name="first_name"]')).toHaveValue('Valid');
+    await expect(recovered.locator('[name="last_name"]')).toHaveValue('Input');
+    await expect(recovered.locator('[name="email"]')).toHaveValue('typed-recovery@example.com');
+    await expect(recovered.locator('[name="privacy"]')).toBeChecked();
+    await expect(recovered.locator('[name="gender"]')).toHaveValue('');
+    await expect(recovered.locator('[data-wpcb-slot-select]')).toHaveValue(slotToken);
+    await expect(recovered.locator('button[type="submit"]')).toBeEnabled();
+
+    const action = await recovered.getAttribute('action');
+    const recoveredFields = await recovered.evaluate((element) => Object.fromEntries(new FormData(element).entries()));
+    recoveredFields.gender = 'Herr';
+    delete recoveredFields.privacy;
+    const missingConsent = await page.request.post(action, {
+      form: recoveredFields,
+      maxRedirects: 0,
+    });
+    expect(missingConsent.status()).toBe(400);
+    expect(await missingConsent.text()).toContain('Bitte alle Pflichtfelder bestätigen');
+
+    expect(fixture('counts')).toEqual(before);
+  } finally { fixture('cleanup'); }
+});
+
 test('packaged expired single and series links offer fresh booking without modifying data or consuming DOI', async ({page}) => {
   test.setTimeout(120000);
   try {

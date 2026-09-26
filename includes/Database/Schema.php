@@ -441,6 +441,7 @@ class Schema {
             full_name varchar(190) DEFAULT NULL,
             email varchar(190) NOT NULL,
             phone varchar(100) DEFAULT NULL,
+            form_data_json longtext DEFAULT NULL,
             status varchar(20) NOT NULL DEFAULT 'waiting',
             offer_selector varchar(32) DEFAULT NULL,
             offer_hash varchar(64) DEFAULT NULL,

@@ -12,6 +12,8 @@ use Wpcb\Support\Time;
 use Wpcb\Tokens\SlotTokenService;
 use Wpcb\Mail\SpecialNotificationMailer;
 use Wpcb\Payments\CheckoutHandoffService;
+use Wpcb\Forms\BookingFormData;
+use Wpcb\Forms\FieldSubmissionValidator;
 
 final class WaitingListService {
     private WaitingListRepository $repo;
@@ -20,6 +22,8 @@ final class WaitingListService {
     private BookingTypeRepository $types;
     private ResourceRepository $resources;
     private BufferPolicy $buffers;
+    private FieldSubmissionValidator $fieldValidator;
+    private BookingFormData $formData;
 
     public function __construct(
         ?WaitingListRepository $repo = null,
@@ -27,7 +31,9 @@ final class WaitingListService {
         ?ResourceLock $locks = null,
         ?BookingTypeRepository $types = null,
         ?ResourceRepository $resources = null,
-        ?BufferPolicy $buffers = null
+        ?BufferPolicy $buffers = null,
+        ?FieldSubmissionValidator $fieldValidator = null,
+        ?BookingFormData $formData = null
     ) {
         $this->repo = $repo ?: new WaitingListRepository();
         $this->capacity = $capacity ?: new CapacityService();
@@ -35,6 +41,8 @@ final class WaitingListService {
         $this->types = $types ?: new BookingTypeRepository();
         $this->resources = $resources ?: new ResourceRepository();
         $this->buffers = $buffers ?: new BufferPolicy(null, $this->types);
+        $this->fieldValidator = $fieldValidator ?: new FieldSubmissionValidator();
+        $this->formData = $formData ?: new BookingFormData();
     }
 
     public function join(array $data) {
@@ -43,7 +51,20 @@ final class WaitingListService {
         $start = (string)($data['slot_start'] ?? '');
         $end = (string)($data['slot_end'] ?? '');
         $partySize = max(1, (int)($data['party_size'] ?? 1));
-        $email = sanitize_email((string)($data['email'] ?? ''));
+        $fieldInput = isset($data['form_data']) && is_array($data['form_data'])
+            ? $data['form_data']
+            : $data;
+
+        $validated = $this->fieldValidator->validate($fieldInput);
+        if (is_wp_error($validated)) {
+            return $validated;
+        }
+        $prepared = $this->formData->prepare($typeId, $validated);
+        if (is_wp_error($prepared)) {
+            return $prepared;
+        }
+        $email = strtolower((string)$prepared['customer']['email']);
+        $validated['email'] = $email;
 
         $startUtc = Time::parseUtc($start);
         $endUtc = Time::parseUtc($end);
@@ -57,10 +78,10 @@ final class WaitingListService {
             || !$this->buffers->matchingRuleForSlot($typeId, $resourceId, $start, $end)
             || $partySize > $this->capacity->effectiveCapacity($typeId, $resourceId)
         ) {
-            return new \WP_Error('wpcb_waitlist_invalid', 'Waiting-list request is invalid.');
+            return new \WP_Error('wpcb_waitlist_invalid', __('Die Wartelistenanfrage ist ungültig.', 'wordpress-calendar-booking'));
         }
         if ($this->capacity->canFit($typeId, $resourceId, $start, $end, $partySize)) {
-            return new \WP_Error('wpcb_waitlist_not_full', 'This slot still has enough capacity and can be booked directly.');
+            return new \WP_Error('wpcb_waitlist_not_full', __('Dieser Termin kann noch direkt gebucht werden.', 'wordpress-calendar-booking'));
         }
         $duplicate = $this->repo->findDuplicate($typeId, $resourceId, $start, $end, $email);
         if ($duplicate) {
@@ -73,11 +94,14 @@ final class WaitingListService {
             'slot_start' => $start,
             'slot_end' => $end,
             'party_size' => $partySize,
-            'full_name' => sanitize_text_field((string)($data['full_name'] ?? '')),
+            'full_name' => (string)$prepared['customer']['full_name'],
             'email' => $email,
-            'phone' => sanitize_text_field((string)($data['phone'] ?? '')),
+            'phone' => (string)$prepared['customer']['phone'],
+            'form_data_json' => wp_json_encode($validated),
         ]);
-        return $id > 0 ? $id : new \WP_Error('wpcb_waitlist_storage', 'Waiting-list entry could not be stored.');
+        return $id > 0
+            ? $id
+            : new \WP_Error('wpcb_waitlist_storage', __('Der Wartelisteneintrag konnte nicht gespeichert werden.', 'wordpress-calendar-booking'));
     }
 
     public function promoteSlot(int $typeId, int $resourceId, string $start, string $end): int {
@@ -117,12 +141,30 @@ final class WaitingListService {
         (new SpecialNotificationMailer())->sendWaitingListOffer($entryId);
     }
 
-    public function accept(int $entryId, string $token) {
+    public function accept(int $entryId, string $token, ?array $formInput = null) {
         [$selector, $verifier] = array_pad(explode('.', $token, 2), 2, '');
         $candidate = $this->repo->acceptIfTokenMatches($entryId, $selector, $verifier);
         if (!$candidate) {
             return new \WP_Error('wpcb_waitlist_token_invalid', 'This waiting-list offer is invalid, expired or already being claimed.');
         }
+
+        $validated = $this->fieldValidator->validate($formInput ?? $this->repo->formData($candidate));
+        if (is_wp_error($validated)) {
+            return $validated;
+        }
+        $prepared = $this->formData->prepare((int)$candidate->booking_type_id, $validated);
+        if (is_wp_error($prepared)) {
+            return $prepared;
+        }
+        if (strtolower((string)$prepared['customer']['email']) !== strtolower((string)$candidate->email)) {
+            return new \WP_Error(
+                'wpcb_field_email_mismatch',
+                __('Die E-Mail-Adresse eines Wartelistenangebots kann nicht geändert werden.', 'wordpress-calendar-booking'),
+                ['field' => 'email']
+            );
+        }
+        $validated['email'] = (string)$candidate->email;
+        $prepared['customer']['email'] = (string)$candidate->email;
 
         $paymentPreflight = (new CheckoutHandoffService())->preflightType((int)$candidate->booking_type_id);
         if (is_wp_error($paymentPreflight)) {
@@ -151,18 +193,19 @@ final class WaitingListService {
             $bookingId = (new ReservationService())->reserve(
                 $slotToken,
                 (int)$fresh->booking_type_id,
-                [
-                    'full_name' => (string)$fresh->full_name,
-                    'email' => (string)$fresh->email,
-                    'phone' => (string)$fresh->phone,
+                array_merge($prepared['customer'], [
+                    'notes' => isset($prepared['meta']['message']) ? (string)$prepared['meta']['message'] : '',
                     'party_size' => (int)$fresh->party_size,
                     'source' => 'waiting_list',
                     'lang' => 'de',
-                ],
-                ['waiting_list_entry_id' => (int)$fresh->id],
+                ]),
+                array_merge($prepared['meta'], ['waiting_list_entry_id' => (int)$fresh->id]),
                 fn(int $createdBookingId): bool => $this->repo->markAccepted(
                     (int)$fresh->id,
-                    $createdBookingId
+                    $createdBookingId,
+                    $validated,
+                    (string)$prepared['customer']['full_name'],
+                    (string)$prepared['customer']['phone']
                 )
             );
 

@@ -137,12 +137,21 @@ final class WaitingListRepository {
         ], ['id' => $id, 'status' => 'claiming']);
     }
 
-    public function markAccepted(int $id, int $bookingId): bool {
+    public function markAccepted(
+        int $id,
+        int $bookingId,
+        array $formData = [],
+        string $fullName = '',
+        string $phone = ''
+    ): bool {
         global $wpdb;
         $now = Time::formatUtc(Time::nowUtc());
         return 1 === (int)$wpdb->update($this->table, [
             'status' => 'accepted',
             'booking_id' => $bookingId,
+            'full_name' => $fullName,
+            'phone' => $phone,
+            'form_data_json' => $formData ? wp_json_encode($formData) : null,
             'offer_selector' => null,
             'offer_hash' => null,
             'offer_secret_enc' => null,
@@ -150,6 +159,22 @@ final class WaitingListRepository {
             'accepted_at' => $now,
             'updated_at' => $now,
         ], ['id' => $id, 'status' => 'claiming']);
+    }
+
+    public function formData(object $row): array {
+        $decoded = json_decode((string)($row->form_data_json ?? ''), true);
+        if (!is_array($decoded)) {
+            return [];
+        }
+        $out = [];
+        foreach ($decoded as $key => $value) {
+            $safeKey = sanitize_key((string)$key);
+            if ($safeKey === '' || $safeKey !== (string)$key || !is_scalar($value)) {
+                continue;
+            }
+            $out[$safeKey] = (string)$value;
+        }
+        return $out;
     }
 
     public function waitingSlots(int $limit = 100): array {

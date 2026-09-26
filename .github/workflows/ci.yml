@@ -275,6 +275,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/site-health-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run configuration CRUD smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/configuration-crud-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run typed form-field validation smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/form-field-validation-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run configuration backup and restore smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/configuration-backup-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run resource scheduling smoke test

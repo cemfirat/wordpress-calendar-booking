@@ -2,6 +2,7 @@
 namespace Wpcb\Admin;
 
 use Wpcb\Support\Time;
+use Wpcb\Forms\FieldContract;
 
 final class ConfigurationService {
     public function saveBookingType(array $input, int $id = 0): int {
@@ -73,32 +74,84 @@ final class ConfigurationService {
         return $deleted !== false;
     }
 
-    public function saveField(array $input, int $id = 0): int {
+    public function saveField(array $input, int $id = 0) {
         global $wpdb;
+        $table = $wpdb->prefix . 'wpcb_form_fields';
+
         $rawOptions = (string)($input['options_raw'] ?? '');
         $options = preg_split('/\r\n|\r|\n/', $rawOptions) ?: [];
-        $options = array_values(array_filter(array_map(
+        $options = array_values(array_unique(array_filter(array_map(
             static fn($value): string => sanitize_text_field(trim((string)$value)),
             $options
-        )));
-        $data = [
+        ), static fn(string $value): bool => $value !== '')));
+
+        $rulesJson = null;
+        if (array_key_exists('validation_rules_json', $input)) {
+            $rawRules = $input['validation_rules_json'];
+            $rulesJson = $rawRules === null || $rawRules === '' ? null : (string)$rawRules;
+        } elseif (!empty($input['field_rules_present'])) {
+            $rules = [];
+            foreach (['min_length', 'max_length'] as $key) {
+                $value = trim((string)($input[$key] ?? ''));
+                if ($value !== '') {
+                    $rules[$key] = $value;
+                }
+            }
+            if (!empty($input['must_be_checked'])) {
+                $rules['must_be_checked'] = true;
+            }
+            $rulesJson = $rules ? wp_json_encode($rules) : null;
+        } elseif ($id > 0) {
+            $rulesJson = $wpdb->get_var($wpdb->prepare(
+                "SELECT validation_rules_json FROM {$table} WHERE id = %d",
+                $id
+            ));
+            $rulesJson = $rulesJson === null || $rulesJson === '' ? null : (string)$rulesJson;
+        }
+
+        $candidate = [
             'field_key' => sanitize_key((string)($input['field_key'] ?? '')),
             'label' => sanitize_text_field((string)($input['label'] ?? '')),
             'field_type' => sanitize_key((string)($input['field_type'] ?? 'text')),
             'options_json' => $options ? wp_json_encode($options) : null,
+            'validation_rules_json' => $rulesJson,
             'is_required' => empty($input['is_required']) ? 0 : 1,
             'is_active' => empty($input['is_active']) ? 0 : 1,
+        ];
+        $definition = FieldContract::definition($candidate);
+        if (is_wp_error($definition)) {
+            return $definition;
+        }
+
+        $data = [
+            'field_key' => (string)$definition['field_key'],
+            'label' => (string)$definition['label'],
+            'field_type' => (string)$definition['field_type'],
+            'options_json' => $definition['options_json'],
+            'validation_rules_json' => $definition['validation_rules_json'],
+            'is_required' => !empty($definition['is_required']) ? 1 : 0,
+            'is_active' => !empty($definition['is_active']) ? 1 : 0,
             'sort_order' => (int)($input['sort_order'] ?? 0),
             'updated_at' => current_time('mysql'),
         ];
 
-        $table = $wpdb->prefix . 'wpcb_form_fields';
         if ($id > 0) {
-            $wpdb->update($table, $data, ['id' => $id]);
+            if ($wpdb->update($table, $data, ['id' => $id]) === false) {
+                return new \WP_Error(
+                    'wpcb_field_storage',
+                    __('Das Formularfeld konnte nicht gespeichert werden.', 'wordpress-calendar-booking')
+                );
+            }
             return $id;
         }
+
         $data['created_at'] = current_time('mysql');
-        $wpdb->insert($table, $data);
+        if ($wpdb->insert($table, $data) === false || (int)$wpdb->insert_id < 1) {
+            return new \WP_Error(
+                'wpcb_field_storage',
+                __('Das Formularfeld konnte nicht gespeichert werden.', 'wordpress-calendar-booking')
+            );
+        }
         return (int)$wpdb->insert_id;
     }
 

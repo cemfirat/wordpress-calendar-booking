@@ -40,6 +40,7 @@ function harness(){
   const tick=async()=>{for(let i=0;i<8;i++)await Promise.resolve();};
   return {handlers,forms,requests,change,answer,tick};
 }
+test('recovered signed slot survives initial boot without an unnecessary replacement request',()=>{const h=harness(),f=h.forms[0];f.type.value='A';f.slots.value='signed-recovery-token';f.slots.setAttribute('data-wpcb-recovered-slot','1');h.handlers.DOMContentLoaded();assert.equal(h.requests.length,0);assert.equal(f.slots.value,'signed-recovery-token');assert.equal(f.submit.disabled,false);});
 test('obsolete type success cannot overwrite a newer selection',async()=>{const h=harness(),f=h.forms[0];h.change(f,'A');h.change(f,'B');h.answer(1,'B-token');await h.tick();h.answer(0,'A-token');await h.tick();assert.deepEqual(f.slots.options.map(x=>x.value),['','B-token']);});
 test('obsolete failure cannot erase newer slots',async()=>{const h=harness(),f=h.forms[0];h.change(f,'A');h.change(f,'B');h.answer(1,'B-token');await h.tick();h.requests[0].reject(new Error('old'));await h.tick();assert.ok(f.slots.options.some(x=>x.value==='B-token'));});
 test('clearing the type does not fetch type zero and invalidates old work',async()=>{const h=harness(),f=h.forms[0];h.change(f,'A');h.change(f,'');assert.equal(h.requests.length,1);h.answer(0,'old');await h.tick();assert.equal(f.slots.value,'');assert.equal(f.submit.disabled,true);});

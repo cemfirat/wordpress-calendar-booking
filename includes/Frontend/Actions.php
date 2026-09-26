@@ -3,7 +3,8 @@ namespace Wpcb\Frontend;
 
 use Wpcb\Security\Guard;
 use Wpcb\Security\AvailabilityRequestGuard;
-use Wpcb\Forms\FieldRepository;
+use Wpcb\Forms\FieldSubmissionValidator;
+use Wpcb\Forms\BookingFormData;
 use Wpcb\Booking\BookingRepository;
 use Wpcb\Booking\BookingStatus;
 use Wpcb\Booking\BookingStateMachine;
@@ -126,39 +127,24 @@ class Actions {
         }
         $requiresPayment = !empty($paymentPreflight['required']);
 
-        $fields = (new FieldRepository())->active();
-        $meta = [];
-        $email = '';
-        $phone = '';
-        foreach ($fields as $field) {
-            $key = $field->field_key;
-            $raw = $_POST[$key] ?? '';
-            $value = is_array($raw) ? array_map('sanitize_text_field', wp_unslash($raw)) : sanitize_text_field(wp_unslash($raw));
-            if ($field->field_type === 'email') $value = sanitize_email(wp_unslash($raw));
-            if ($field->is_required && (empty($value) || $value === '0')) wp_die(esc_html__('Bitte alle Pflichtfelder ausfüllen.', 'wordpress-calendar-booking'));
-            if ($field->field_type === 'checkbox' && $field->is_required && empty($value)) wp_die(esc_html__('Bitte alle Pflichtfelder bestätigen.', 'wordpress-calendar-booking'));
-            $meta[$key] = $value;
-            if ($key === 'email') $email = (string)$value;
-            if ($key === 'phone') $phone = (string)$value;
+        $submitted = (array)wp_unslash($_POST);
+        $validated = (new FieldSubmissionValidator())->validate($submitted);
+        if (is_wp_error($validated)) {
+            $this->renderBookingValidationError($submitted, $validated);
         }
-        if (!is_email($email)) wp_die(esc_html__('Bitte eine gültige E-Mail-Adresse eingeben.', 'wordpress-calendar-booking'));
-
-        $settings = Settings::get();
-        $meta['computed_location'] = $this->formatter->location(['booking_type_id' => $typeId], $meta, $settings);
-        $fullName = $this->formatter->displayName([], $meta);
-        if (!$phone && !empty($meta['who_calls']) && $meta['who_calls'] === 'Ich rufe an') $phone = (string)$settings['own_phone'];
-
+        $prepared = (new BookingFormData($this->formatter))->prepare($typeId, $validated);
+        if (is_wp_error($prepared)) {
+            $this->renderBookingValidationError($submitted, $prepared);
+        }
+        $meta = $prepared['meta'];
         $partySize = max(1, min(10000, absint($_POST['party_size'] ?? 1)));
 
-        $customer = [
-            'full_name' => $fullName,
-            'email' => $email,
-            'phone' => $phone,
+        $customer = array_merge($prepared['customer'], [
             'notes' => isset($meta['message']) ? (string)$meta['message'] : '',
             'source' => 'frontend',
             'lang' => 'de',
             'party_size' => $partySize,
-        ];
+        ]);
         $recurrenceCount = max(1, min(24, absint($_POST['recurrence_count'] ?? 1)));
         $recurrenceInterval = max(1, min(4, absint($_POST['recurrence_interval'] ?? 1)));
 
@@ -200,6 +186,28 @@ class Actions {
         }
 
         wp_safe_redirect(add_query_arg('wpcb_notice', rawurlencode(__('Bitte bestätige deine E-Mail über den Link in der Nachricht.', 'wordpress-calendar-booking')), wp_get_referer() ?: home_url('/')));
+        exit;
+    }
+
+    private function renderBookingValidationError(array $values, \WP_Error $error): void {
+        $assets = new AssetManager();
+        $assets->register();
+
+        ob_start();
+        $form = (new ComponentRenderer($assets))->bookingForm($values, $error->get_error_message());
+        $hookOutput = (string)ob_get_clean();
+
+        status_header(400);
+        nocache_headers();
+        echo '<!doctype html><html><head><meta charset="' . esc_attr(get_bloginfo('charset'))
+            . '"><meta name="robots" content="noindex,nofollow"><title>'
+            . esc_html__('Formular prüfen', 'wordpress-calendar-booking') . '</title>';
+        wp_head();
+        echo '</head><body><main class="wpcb-form-recovery"><h1>'
+            . esc_html__('Formular prüfen', 'wordpress-calendar-booking')
+            . '</h1>' . $hookOutput . $form . '</main>';
+        wp_footer();
+        echo '</body></html>';
         exit;
     }
 

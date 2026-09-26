@@ -19,6 +19,14 @@ if (!defined('ABSPATH') || getenv('GITHUB_ACTIONS') !== 'true'
             if (!preg_match('/^[a-zA-Z0-9_]+$/', $table)) throw new RuntimeException('Invalid test table');
             $rows = $wpdb->get_results('SELECT * FROM `' . $table . '`', ARRAY_A);
             if ($wpdb->last_error !== '') throw new RuntimeException('Failed fixture snapshot');
+            // Candidate-only nullable columns are excluded from the historical
+            // byte-equivalence hash; the new schema contract is asserted below.
+            if (str_ends_with($table, 'wpcb_waiting_list')) {
+                foreach ($rows as &$row) {
+                    unset($row['form_data_json']);
+                }
+                unset($row);
+            }
             // Mapping tables use composite keys, not an id column.
             $encoded = array_map('serialize', $rows);
             sort($encoded, SORT_STRING);
@@ -84,6 +92,10 @@ if (!defined('ABSPATH') || getenv('GITHUB_ACTIONS') !== 'true'
     } elseif ($phase === 'assert') {
         $assert(WPCB_VERSION === getenv('WPCB_UPGRADE_VERSION'), 'New PHP process boots the exact candidate version.');
         $assert(Wpcb\Database\SchemaMigration::isReady(), 'Upgraded schema verification is complete.');
+        $assert(
+            $wpdb->get_var("SHOW COLUMNS FROM {$wpdb->prefix}wpcb_waiting_list LIKE 'form_data_json'") === 'form_data_json',
+            'Upgrade adds the nullable waiting-list form-data column without rewriting historical rows.'
+        );
         $assert(Wpcb\Database\DefaultSeedMigration::isReady(), 'Upgraded default seed migration is complete.');
         $assert(Wpcb\Database\MigrationReadiness::isReady(), 'Upgraded required migrations are ready.');
         $fixture = get_option('wpcb_upgrade_test_fixture');
