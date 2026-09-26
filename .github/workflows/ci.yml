@@ -616,7 +616,31 @@ jobs:
             wp eval 'wp_schedule_single_event(time() + HOUR_IN_SECONDS, "wpcb_waitlist_send_offer", [123456]);' --path="$WP_ROOT" --url="$url"
           done
 
+          mkdir -p "$WP_ROOT/wp-content/mu-plugins"
+          cat > "$WP_ROOT/wp-content/mu-plugins/wpcb-uninstall-batch-ci.php" <<'PHP'
+          <?php
+          add_filter('wpcb_uninstall_site_batch_size', static function (): int {
+              return 2;
+          });
+          add_action('pre_get_sites', static function (WP_Site_Query $query): void {
+              $vars = $query->query_vars;
+              if (($vars['fields'] ?? '') !== 'ids'
+                  || (int)($vars['number'] ?? 0) !== 2
+                  || (int)($vars['offset'] ?? -1) < 0
+                  || ($vars['orderby'] ?? '') !== 'id'
+                  || strtoupper((string)($vars['order'] ?? '')) !== 'ASC'
+              ) {
+                  return;
+              }
+              update_site_option(
+                  'wpcb_ci_uninstall_site_query_count',
+                  (int)get_site_option('wpcb_ci_uninstall_site_query_count', 0) + 1
+              );
+          });
+          PHP
+
           wp plugin uninstall "$PLUGIN" --path="$WP_ROOT" --url="$PRIMARY_URL"
+          test "$(wp eval 'echo (int)get_site_option("wpcb_ci_uninstall_site_query_count",0);' --path="$WP_ROOT" --url="$PRIMARY_URL")" -eq 2
           WPCB_MULTISITE_PHASE=after_uninstall wp eval-file "$GITHUB_WORKSPACE/tests/multisite-lifecycle-smoke.php" --path="$WP_ROOT" --url="$PRIMARY_URL"
 
   browser_release:

@@ -115,16 +115,44 @@ function wpcb_uninstall_site(): void {
     }
 }
 
+/**
+ * Process multisite uninstall in bounded, deterministic batches.
+ *
+ * Site rows are not added or removed by this routine, so offset pagination over
+ * an explicit ascending ID order is stable for the duration of the uninstall.
+ */
+function wpcb_uninstall_network_sites(): void {
+    $batchSize = (int)apply_filters('wpcb_uninstall_site_batch_size', 100);
+    $batchSize = max(1, min(500, $batchSize));
+    $offset = 0;
+
+    do {
+        $siteIds = get_sites([
+            'fields' => 'ids',
+            'number' => $batchSize,
+            'offset' => $offset,
+            'orderby' => 'id',
+            'order' => 'ASC',
+            'update_site_cache' => false,
+            'update_site_meta_cache' => false,
+        ]);
+        $count = count($siteIds);
+
+        foreach ($siteIds as $siteId) {
+            switch_to_blog((int)$siteId);
+            try {
+                wpcb_uninstall_site();
+            } finally {
+                restore_current_blog();
+            }
+        }
+
+        $offset += $count;
+    } while ($count === $batchSize);
+}
+
 if (is_multisite()) {
-    $siteIds = get_sites([
-        'fields' => 'ids',
-        'number' => 0,
-    ]);
-    foreach ($siteIds as $siteId) {
-        switch_to_blog((int)$siteId);
-        wpcb_uninstall_site();
-        restore_current_blog();
-    }
+    wpcb_uninstall_network_sites();
 } else {
     wpcb_uninstall_site();
 }
