@@ -1,6 +1,8 @@
 <?php
 namespace Wpcb\Admin;
 
+use Wpcb\Forms\FieldValidator;
+
 use Wpcb\Support\Time;
 use Wpcb\Resources\ResourceRepository;
 use Wpcb\Calendar\CalendarConnectionRepository;
@@ -480,16 +482,8 @@ final class ConfigurationBackupService {
                 $input = $row;
                 $input['options_raw'] = is_array($options) ? implode("\n", array_map('strval', $options)) : '';
                 $id = $configuration->saveField($input, $existing);
-                if ($id < 1) {
+                if (is_wp_error($id) || (int)$id < 1) {
                     throw new \RuntimeException('form field');
-                }
-                $validation = $this->safeJson($row['validation_rules_json'] ?? null);
-                if ($wpdb->update(
-                    $wpdb->prefix . 'wpcb_form_fields',
-                    ['validation_rules_json' => $validation],
-                    ['id' => $id]
-                ) === false) {
-                    throw new \RuntimeException('form validation');
                 }
             }
 
@@ -704,18 +698,28 @@ final class ConfigurationBackupService {
             }
         }
 
-        $fieldTypes = ['text','email','textarea','checkbox','select','radio'];
+        $fieldValidator = new FieldValidator();
         foreach ($data['form_fields'] as $row) {
             if (!$this->validKey($row['field_key'], 190)
                 || !$this->validString($row['label'], 190, false)
                 || !is_string($row['field_type'])
-                || !in_array($row['field_type'], $fieldTypes, true)
                 || !$this->validBoolean($row['is_required'])
                 || !$this->validBoolean($row['is_active'])
                 || !$this->validJsonArray($row['options_json'], true)
                 || !$this->validJsonArray($row['validation_rules_json'], false)
                 || !$this->validInteger($row['sort_order'], -1000000, 1000000)) {
                 return $this->schemaError('wpcb_backup_field_schema', __('Ein Formularfeld enthält ungültige Typen oder Werte.', 'wordpress-calendar-booking'));
+            }
+            $definition = $fieldValidator->validateStoredDefinition(
+                (string)$row['field_type'],
+                $row['options_json'],
+                $row['validation_rules_json']
+            );
+            if (is_wp_error($definition)) {
+                return $this->schemaError(
+                    'wpcb_backup_field_validation_schema',
+                    __('Ein Formularfeld enthält nicht unterstützte Optionen oder Validierungsregeln.', 'wordpress-calendar-booking')
+                );
             }
         }
 
