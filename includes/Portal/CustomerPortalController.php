@@ -14,6 +14,7 @@ use Wpcb\Tokens\TokenService;
 use Wpcb\Payments\PaymentRepository;
 use Wpcb\Payments\PaymentService;
 use Wpcb\Payments\PaymentStatus;
+use Wpcb\Payments\PaymentRefundStatus;
 use Wpcb\Payments\CheckoutHandoffService;
 use Wpcb\Mail\SpecialNotificationMailer;
 
@@ -415,6 +416,8 @@ final class CustomerPortalController {
             $paymentSummary = $amount . ' ' . (string)$payment->currency . ' · ' . (string)$payment->status;
             $refundedMinor = (int)($payment->refunded_minor ?? 0);
             $refundPendingMinor = (int)($payment->refund_pending_minor ?? 0);
+            $refundInflightMinor = (int)($payment->refund_inflight_minor ?? 0);
+            $refundAttempt = (new PaymentService())->latestRefundForPayment((int)$payment->id);
             if ($refundedMinor > 0) {
                 $paymentSummary .= ' · ' . sprintf(
                     __('%s erstattet', 'wordpress-calendar-booking'),
@@ -426,6 +429,18 @@ final class CustomerPortalController {
                     __('%s zur Erstattung vorgemerkt', 'wordpress-calendar-booking'),
                     number_format($refundPendingMinor / 100, 2, ',', '.') . ' ' . (string)$payment->currency
                 );
+            }
+            if ($refundInflightMinor > 0) {
+                $providerLabel = $refundAttempt
+                    ? PaymentRefundStatus::customerLabel((string)$refundAttempt->status)
+                    : __('Erstattungsstatus wird geprüft', 'wordpress-calendar-booking');
+                $paymentSummary .= ' · ' . sprintf(
+                    __('%s beim Zahlungsanbieter · %s', 'wordpress-calendar-booking'),
+                    number_format($refundInflightMinor / 100, 2, ',', '.') . ' ' . (string)$payment->currency,
+                    $providerLabel
+                );
+            } elseif ($refundAttempt && in_array((string)$refundAttempt->status, [PaymentRefundStatus::FAILED, PaymentRefundStatus::CANCELED], true)) {
+                $paymentSummary .= ' · ' . PaymentRefundStatus::customerLabel((string)$refundAttempt->status);
             }
             $html .= '<dt>' . esc_html($paymentLabel) . '</dt><dd>' . esc_html($paymentSummary) . '</dd>';
             $ownerBookingId = (int)$payment->booking_id;
