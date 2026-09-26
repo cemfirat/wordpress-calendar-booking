@@ -141,10 +141,22 @@ class Admin {
                 }
                 break;
             case 'save_field':
-                (new ConfigurationService())->saveField(
+                $fieldId = absint($_POST['id'] ?? 0);
+                $fieldResult = (new ConfigurationService())->saveField(
                     (array)wp_unslash($_POST),
-                    absint($_POST['id'] ?? 0)
+                    $fieldId
                 );
+                if (is_wp_error($fieldResult)) {
+                    $args = [
+                        'page' => 'wpcb_fields',
+                        'wpcb_error' => $fieldResult->get_error_message(),
+                    ];
+                    if ($fieldId > 0) {
+                        $args['edit_field'] = $fieldId;
+                    }
+                    wp_safe_redirect(add_query_arg($args, admin_url('admin.php')));
+                    exit;
+                }
                 break;
             case 'delete_field':
                 (new ConfigurationService())->deleteField(absint($_POST['id'] ?? 0));
@@ -807,6 +819,8 @@ class Admin {
         $isEdit = $editing !== null;
         $options = $isEdit ? json_decode((string)($editing->options_json ?? ''), true) : [];
         $options = is_array($options) ? $options : [];
+        $validation = $isEdit ? json_decode((string)($editing->validation_rules_json ?? ''), true) : [];
+        $validation = is_array($validation) ? $validation : [];
         echo '<h2>' . esc_html($isEdit ? __('Formularfeld bearbeiten', 'wordpress-calendar-booking') : __('Neues Formularfeld', 'wordpress-calendar-booking')) . '</h2><form method="post">';
         wp_nonce_field('wpcb_admin_action');
         echo '<input type="hidden" name="wpcb_admin_action" value="save_field">';
@@ -822,7 +836,22 @@ class Admin {
             $fieldOptions .= '<option value="' . esc_attr($value) . '" ' . selected($fieldType, $value, false) . '>' . esc_html($label) . '</option>';
         }
         $this->row(__('Typ', 'wordpress-calendar-booking'), '<select name="field_type">' . $fieldOptions . '</select>');
-        $this->row(__('Optionen', 'wordpress-calendar-booking'), '<textarea name="options_raw" rows="5" class="regular-text" placeholder="' . esc_attr__('Eine Option pro Zeile', 'wordpress-calendar-booking') . '">' . esc_textarea(implode("\n", $options)) . '</textarea>');
+        $this->row(__('Optionen', 'wordpress-calendar-booking'), '<textarea name="options_raw" rows="5" class="regular-text" placeholder="' . esc_attr__('Eine Option pro Zeile; nur für Select/Radio', 'wordpress-calendar-booking') . '">' . esc_textarea(implode("\n", $options)) . '</textarea>');
+        $this->row(
+            __('Mindestlänge', 'wordpress-calendar-booking'),
+            '<input type="number" min="0" name="validation_min_length" value="' . esc_attr(isset($validation['min_length']) ? (string)$validation['min_length'] : '') . '"> '
+            . '<span class="description">' . esc_html__('Nur Text, E-Mail und Textarea.', 'wordpress-calendar-booking') . '</span>'
+        );
+        $this->row(
+            __('Maximallänge', 'wordpress-calendar-booking'),
+            '<input type="number" min="1" name="validation_max_length" value="' . esc_attr(isset($validation['max_length']) ? (string)$validation['max_length'] : '') . '"> '
+            . '<span class="description">' . esc_html__('Ohne Angabe gelten sichere Typgrenzen.', 'wordpress-calendar-booking') . '</span>'
+        );
+        $this->row(
+            __('Checkbox-Regel', 'wordpress-calendar-booking'),
+            '<label><input type="checkbox" name="validation_must_be_checked" value="1" ' . checked(!empty($validation['must_be_checked']), true, false) . '> '
+            . esc_html__('muss bestätigt werden', 'wordpress-calendar-booking') . '</label>'
+        );
         $this->row(__('Sortierung', 'wordpress-calendar-booking'), '<input type="number" name="sort_order" value="' . esc_attr((string)($editing->sort_order ?? 0)) . '">');
         $this->row(__('Pflicht', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="is_required" value="1" ' . checked((int)($editing->is_required ?? 0), 1, false) . '> ' . esc_html__('ja', 'wordpress-calendar-booking') . '</label>');
         $this->row(__('Aktiv', 'wordpress-calendar-booking'), '<label><input type="checkbox" name="is_active" value="1" ' . checked((int)($editing->is_active ?? 1), 1, false) . '> ' . esc_html__('ja', 'wordpress-calendar-booking') . '</label>');
