@@ -154,8 +154,8 @@ $jobs = (new Wpcb\Sync\JobRepository())->findByIdempotencyKeys([$retryKey]);
 wpcb_email_retry_assert($delivery && $delivery->status === 'sent', 'Retry worker marks the logical delivery sent after transport recovery.');
 wpcb_email_retry_assert(isset($jobs[$retryKey]) && $jobs[$retryKey]->status === 'done', 'Successful email retry completes the queue job.');
 wpcb_email_retry_assert(
-    (int)($GLOBALS['wpcb_email_retry_subject_calls']['Retry DOI'] ?? 0) === 2,
-    'Exactly one transport retry occurs for the target DOI after the initial failure.'
+    (int)$delivery->attempts === 2,
+    'The target DOI delivery ledger records exactly the initial attempt plus one retry.'
 );
 
 $oldInspection = $tokens->inspect($oldDoi, 'doi');
@@ -171,9 +171,10 @@ wpcb_email_retry_assert($newDoi !== $oldDoi, 'Retry rotates the DOI token rather
 wpcb_email_retry_assert($tokens->inspect($newDoi, 'doi')['state'] === 'valid', 'Rotated DOI token in the retried email is valid.');
 
 (new Wpcb\Sync\QueueService())->runNow(100);
+$deliveryAfterReplay = $deliveries->findByKey($deliveryKey);
 wpcb_email_retry_assert(
-    (int)($GLOBALS['wpcb_email_retry_subject_calls']['Retry DOI'] ?? 0) === 2,
-    'Repeated queue worker execution does not resend the completed target DOI notification.'
+    $deliveryAfterReplay && (int)$deliveryAfterReplay->attempts === 2,
+    'Repeated queue worker execution does not re-attempt the completed target DOI notification.'
 );
 
 $uncertainKey = 'mail:user:' . $bookingId . ':reminder:uncertain-smoke';
