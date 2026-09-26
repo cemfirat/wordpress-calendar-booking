@@ -25,6 +25,7 @@ if ($action === 'cleanup') {
     $typeId = $owner ? (int)$owner->booking_type_id : 0;
     $members = $seriesId ? (new Wpcb\Booking\BookingSeriesRepository())->members($seriesId, 0) : [];
     $wpdb->delete($wpdb->prefix . 'wpcb_payment_events', ['payment_id' => $paymentId]);
+    $wpdb->delete($wpdb->prefix . 'wpcb_payment_refunds', ['payment_id' => $paymentId]);
     $wpdb->delete($wpdb->prefix . 'wpcb_payments', ['id' => $paymentId]);
     foreach ($members as $member) {
         foreach (['wpcb_tokens','wpcb_booking_meta','wpcb_booking_status_log','wpcb_sync_jobs','wpcb_sync_log','wpcb_deliveries'] as $suffix) {
