@@ -14,15 +14,18 @@ final class PaymentService {
     private PaymentRepository $payments;
     private BookingRepository $bookings;
     private BookingTypeRepository $types;
+    private PaymentRefundRepository $refunds;
 
     public function __construct(
         ?PaymentRepository $payments = null,
         ?BookingRepository $bookings = null,
-        ?BookingTypeRepository $types = null
+        ?BookingTypeRepository $types = null,
+        ?PaymentRefundRepository $refunds = null
     ) {
         $this->payments = $payments ?: new PaymentRepository();
         $this->bookings = $bookings ?: new BookingRepository();
         $this->types = $types ?: new BookingTypeRepository();
+        $this->refunds = $refunds ?: new PaymentRefundRepository();
     }
 
     public function boot(): void {
@@ -94,6 +97,15 @@ final class PaymentService {
         return $this->payments->forBooking((int)$scope['owner']->id);
     }
 
+    public function latestRefundForPayment(int $paymentId): ?object {
+        return $paymentId > 0 ? $this->refunds->latestForPayment($paymentId) : null;
+    }
+
+    public function latestRefundForBooking(int $bookingId): ?object {
+        $payment = $this->paymentForBooking($bookingId);
+        return $payment ? $this->refunds->latestForPayment((int)$payment->id) : null;
+    }
+
     /**
      * Paid recurring bookings support single-occurrence and remaining-series
      * cancellation. Refund amounts are derived from the immutable payment snapshot.
@@ -123,6 +135,7 @@ final class PaymentService {
             (int)$payment->amount_minor
                 - (int)($payment->refunded_minor ?? 0)
                 - (int)($payment->refund_pending_minor ?? 0)
+                - (int)($payment->refund_inflight_minor ?? 0)
         );
         if ($available < 1) {
             return 0;
@@ -492,48 +505,214 @@ final class PaymentService {
         }
         try {
             $payment = $this->payments->find($paymentId);
-            $pendingAmount = $payment ? (int)($payment->refund_pending_minor ?? 0) : 0;
-            if (!$payment || (string)$payment->status !== PaymentStatus::REFUND_PENDING || $pendingAmount < 1) {
+            if (!$payment || (string)$payment->status !== PaymentStatus::REFUND_PENDING) {
                 return new \WP_Error('wpcb_payment_refund_invalid', 'Payment is not awaiting a refund.');
             }
-            if ((string)$payment->provider !== $adapter->code()) {
+            $provider = sanitize_key($adapter->code());
+            if ($provider === '' || (string)$payment->provider !== $provider) {
                 return new \WP_Error('wpcb_payment_provider_mismatch', 'Refund provider does not match the payment.');
+            }
+
+            $attempt = $this->refunds->activeForPayment($paymentId);
+            if (!$attempt) {
+                $queued = (int)($payment->refund_pending_minor ?? 0);
+                if ($queued < 1) {
+                    return new \WP_Error('wpcb_payment_refund_invalid', 'Payment has no queued refund allocation.');
+                }
+                $attempt = $this->refunds->beginAttempt($payment, $provider, $queued);
+                if (is_wp_error($attempt)) {
+                    return $attempt;
+                }
+                $payment = $this->payments->find($paymentId) ?: $payment;
+            }
+
+            if ((string)$attempt->provider !== $provider
+                || !hash_equals((string)$attempt->currency, (string)$payment->currency)
+                || (int)$attempt->amount_minor < 1
+            ) {
+                return new \WP_Error('wpcb_refund_attempt_mismatch', 'Stored refund attempt does not match the payment provider.');
             }
 
             $result = $adapter->refund([
                 'payment_id' => (int)$payment->id,
                 'payment_uuid' => (string)$payment->payment_uuid,
                 'provider_reference' => (string)$payment->provider_reference,
-                'amount_minor' => $pendingAmount,
-                'currency' => (string)$payment->currency,
-                'idempotency_key' => 'wpcb-refund-' . (int)$payment->id
-                    . '-' . (int)($payment->refunded_minor ?? 0)
-                    . '-' . $pendingAmount,
+                'refund_uuid' => (string)$attempt->refund_uuid,
+                'provider_refund_id' => (string)($attempt->provider_refund_id ?? ''),
+                'amount_minor' => (int)$attempt->amount_minor,
+                'currency' => (string)$attempt->currency,
+                'idempotency_key' => (string)$attempt->idempotency_key,
             ]);
+
             if (is_wp_error($result)) {
+                $data = $result->get_error_data();
+                $outcome = is_array($data) ? sanitize_key((string)($data['refund_outcome'] ?? '')) : '';
+                if ($outcome === 'uncertain') {
+                    $this->refunds->markUncertain((int)$attempt->id, $result->get_error_code());
+                    $this->logRefundAttempt($payment, PaymentRefundStatus::UNCERTAIN, (int)$attempt->amount_minor);
+                    return new \WP_Error(
+                        'wpcb_payment_refund_uncertain',
+                        __('Der Zahlungsanbieter hat keinen eindeutigen Erstattungsstatus geliefert. Ein erneuter Versuch prüft denselben Vorgang und erzeugt keine zweite Erstattung.', 'wordpress-calendar-booking')
+                    );
+                }
+
+                $rejected = $this->refunds->rejectSubmission(
+                    (int)$attempt->id,
+                    $result->get_error_code()
+                );
+                if (is_wp_error($rejected)) {
+                    return $rejected;
+                }
+                $this->logRefundAttempt($payment, PaymentRefundStatus::FAILED, (int)$attempt->amount_minor);
                 return $result;
             }
-            $eventId = sanitize_text_field((string)($result['provider_event_id'] ?? ''));
-            if ($eventId === '') {
-                return new \WP_Error('wpcb_payment_refund_event_missing', 'Refund provider did not return an event reference.');
-            }
-            if ($this->payments->eventExists($adapter->code(), $eventId)) {
-                return $this->payments->find($paymentId);
-            }
-            if (!$this->payments->completeRefund($paymentId, $pendingAmount)) {
-                return new \WP_Error('wpcb_payment_refund_race', 'Payment refund state changed while the provider response was processed.');
-            }
-            $this->payments->recordEvent($paymentId, $adapter->code(), $eventId, 'refunded');
-            $fresh = $this->payments->find($paymentId);
-            $owner = $this->bookings->find((int)$payment->booking_id);
-            if ($owner) {
-                $this->bookings->logEvent(
-                    (int)$owner->id,
-                    (string)$owner->status,
-                    'payment_refunded',
-                    'payment_provider',
-                    'Refund completed for ' . $pendingAmount . ' minor units'
+
+            $providerRefundId = sanitize_text_field((string)($result['provider_refund_id'] ?? ''));
+            $providerStatus = sanitize_key((string)($result['provider_status'] ?? ''));
+            $amount = (int)($result['amount_minor'] ?? 0);
+            $currency = strtoupper(sanitize_text_field((string)($result['currency'] ?? '')));
+            if ($providerRefundId === ''
+                || !in_array($providerStatus, PaymentRefundStatus::providerStatuses(), true)
+                || $amount !== (int)$attempt->amount_minor
+                || !hash_equals((string)$attempt->currency, $currency)
+            ) {
+                $this->refunds->markUncertain((int)$attempt->id, 'invalid_provider_response');
+                return new \WP_Error(
+                    'wpcb_payment_refund_uncertain',
+                    __('Der Zahlungsanbieter hat einen unvollständigen Erstattungsstatus geliefert. Die Erstattung wurde nicht als abgeschlossen verbucht.', 'wordpress-calendar-booking')
                 );
+            }
+
+            $applied = $this->refunds->applyProviderStatus(
+                (int)$attempt->id,
+                $providerRefundId,
+                $providerStatus,
+                sanitize_text_field((string)($result['failure_reason'] ?? '')),
+                max(0, (int)($result['provider_created_at'] ?? 0))
+            );
+            if (is_wp_error($applied)) {
+                return $applied;
+            }
+
+            $eventId = 'refund-object:' . $providerRefundId . ':' . $providerStatus;
+            $this->payments->recordEvent(
+                $paymentId,
+                $provider,
+                $eventId,
+                'refund_' . $providerStatus
+            );
+            if (!empty($applied['changed'])) {
+                $this->logRefundAttempt($applied['payment'] ?: $payment, $providerStatus, (int)$attempt->amount_minor);
+            }
+
+            $fresh = $applied['payment'] ?: $this->payments->find($paymentId);
+            if ($fresh) {
+                $fresh->refund_attempt_status = $providerStatus;
+                $fresh->refund_provider_id = $providerRefundId;
+            }
+            if (in_array($providerStatus, [PaymentRefundStatus::FAILED, PaymentRefundStatus::CANCELED], true)) {
+                return new \WP_Error(
+                    'wpcb_payment_refund_' . $providerStatus,
+                    $providerStatus === PaymentRefundStatus::FAILED
+                        ? __('Die Erstattung ist beim Zahlungsanbieter fehlgeschlagen und wurde erneut zur Bearbeitung vorgemerkt.', 'wordpress-calendar-booking')
+                        : __('Die Erstattung wurde beim Zahlungsanbieter abgebrochen und erneut zur Bearbeitung vorgemerkt.', 'wordpress-calendar-booking')
+                );
+            }
+            return $fresh;
+        } finally {
+            $this->releaseLock($lockName);
+        }
+    }
+
+    /**
+     * Apply one verified refund-object webhook. Event ordering and money movement
+     * are owned by PaymentRefundRepository, so delayed/duplicate callbacks cannot
+     * double-refund or revive terminal attempts.
+     */
+    public function applyRefundProviderEvent(
+        string $provider,
+        string $eventId,
+        string $providerRefundId,
+        string $refundUuid,
+        string $providerStatus,
+        int $amountMinor,
+        string $currency,
+        int $providerEventCreatedAt = 0,
+        string $failureReason = ''
+    ) {
+        $provider = sanitize_key($provider);
+        $eventId = sanitize_text_field($eventId);
+        $providerRefundId = sanitize_text_field($providerRefundId);
+        $refundUuid = sanitize_text_field($refundUuid);
+        $providerStatus = sanitize_key($providerStatus);
+        $currency = strtoupper(sanitize_text_field($currency));
+        if ($provider === '' || $eventId === ''
+            || ($providerRefundId === '' && $refundUuid === '')
+            || !in_array($providerStatus, PaymentRefundStatus::providerStatuses(), true)
+            || $amountMinor < 1 || !preg_match('/^[A-Z]{3}$/', $currency)
+        ) {
+            return new \WP_Error('wpcb_refund_event_invalid', 'Refund event is incomplete.');
+        }
+
+        $byProvider = $providerRefundId !== ''
+            ? $this->refunds->findByProviderRefund($provider, $providerRefundId)
+            : null;
+        $byUuid = $refundUuid !== '' ? $this->refunds->findByUuid($refundUuid) : null;
+        if ($byProvider && $byUuid && (int)$byProvider->id !== (int)$byUuid->id) {
+            return new \WP_Error('wpcb_refund_identity_mismatch', 'Refund event identities refer to different attempts.');
+        }
+        $attempt = $byProvider ?: $byUuid;
+        if (!$attempt || (string)$attempt->provider !== $provider) {
+            return new \WP_Error('wpcb_refund_attempt_unknown', 'Refund attempt is unknown.');
+        }
+
+        $paymentId = (int)$attempt->payment_id;
+        $lockName = 'wpcb_pay_refund_' . $paymentId;
+        if (!$this->acquireLock($lockName, 5)) {
+            return new \WP_Error('wpcb_payment_refund_busy', 'Payment refund is already being processed.');
+        }
+        try {
+            $payment = $this->payments->find($paymentId);
+            if (!$payment
+                || $amountMinor !== (int)$attempt->amount_minor
+                || !hash_equals((string)$attempt->currency, $currency)
+            ) {
+                return new \WP_Error('wpcb_payment_refund_mismatch', 'Refund amount or currency does not match the stored attempt.');
+            }
+            if ($this->payments->eventExists($provider, $eventId)) {
+                $payment->refund_attempt_status = (string)$attempt->status;
+                $payment->refund_provider_id = (string)($attempt->provider_refund_id ?? '');
+                return $payment;
+            }
+
+            $applied = $this->refunds->applyProviderStatus(
+                (int)$attempt->id,
+                $providerRefundId,
+                $providerStatus,
+                $failureReason,
+                $providerEventCreatedAt
+            );
+            if (is_wp_error($applied)) {
+                return $applied;
+            }
+            if (!$this->payments->recordEvent(
+                $paymentId,
+                $provider,
+                $eventId,
+                'refund_' . $providerStatus
+            )) {
+                $fresh = $this->payments->find($paymentId);
+                return $fresh ?: new \WP_Error('wpcb_payment_missing', 'Payment no longer exists.');
+            }
+            if (!empty($applied['changed']) && empty($applied['stale'])) {
+                $this->logRefundAttempt($applied['payment'] ?: $payment, $providerStatus, (int)$attempt->amount_minor);
+            }
+
+            $freshAttempt = $applied['attempt'] ?: $this->refunds->find((int)$attempt->id);
+            $fresh = $applied['payment'] ?: $this->payments->find($paymentId);
+            if ($fresh) {
+                $fresh->refund_attempt_status = $freshAttempt ? (string)$freshAttempt->status : $providerStatus;
+                $fresh->refund_provider_id = $freshAttempt ? (string)($freshAttempt->provider_refund_id ?? '') : $providerRefundId;
             }
             return $fresh;
         } finally {
@@ -563,37 +742,82 @@ final class PaymentService {
             if ($this->payments->eventExists($provider, $eventId)) {
                 return $fresh;
             }
+
             $currentRefunded = (int)($fresh->refunded_minor ?? 0);
-            $pending = (int)($fresh->refund_pending_minor ?? 0);
-            $delta = $eventType === 'refund_total'
-                ? $amountMinor - $currentRefunded
-                : $amountMinor;
-            if ($delta < 0 || $delta > $pending
-                || $currentRefunded + $delta > (int)$fresh->amount_minor
-            ) {
-                return new \WP_Error('wpcb_payment_refund_mismatch', 'Refund amount exceeds the queued refundable amount.');
+            if ($eventType === 'refunded') {
+                // Delta-only generic events are intentionally limited to money
+                // that has not yet been submitted to a provider. Submitted
+                // refunds require a provider refund identity/status event.
+                $queued = (int)($fresh->refund_pending_minor ?? 0);
+                if ($amountMinor < 0 || $amountMinor > $queued
+                    || $currentRefunded + $amountMinor > (int)$fresh->amount_minor
+                ) {
+                    return new \WP_Error('wpcb_payment_refund_mismatch', 'Refund amount exceeds the queued refundable amount.');
+                }
+                if ($amountMinor > 0 && !$this->payments->completeRefund((int)$fresh->id, $amountMinor)) {
+                    return new \WP_Error('wpcb_payment_refund_race', 'Payment refund state changed while the provider event was processed.');
+                }
+            } else {
+                $delta = $amountMinor - $currentRefunded;
+                if ($delta < 0) {
+                    // Older cumulative snapshots are harmless and should not
+                    // make a verified webhook retry forever.
+                    $this->payments->recordEvent((int)$fresh->id, $provider, $eventId, 'refund_total_stale');
+                    return $fresh;
+                }
+                if ($delta > 0) {
+                    $attempt = $this->refunds->activeForPayment((int)$fresh->id);
+                    if (!$attempt
+                        || (string)($attempt->provider_refund_id ?? '') === ''
+                        || (int)$attempt->amount_minor !== $delta
+                    ) {
+                        // A charge-level total cannot identify which refund
+                        // succeeded. Wait for refund.created/updated or an
+                        // explicit provider status re-check instead.
+                        $this->payments->recordEvent((int)$fresh->id, $provider, $eventId, 'refund_total_unmatched');
+                        return $fresh;
+                    }
+                    $applied = $this->refunds->applyProviderStatus(
+                        (int)$attempt->id,
+                        (string)$attempt->provider_refund_id,
+                        PaymentRefundStatus::SUCCEEDED
+                    );
+                    if (is_wp_error($applied)) {
+                        return $applied;
+                    }
+                    $fresh = $applied['payment'] ?: $this->payments->find((int)$fresh->id);
+                    if (!empty($applied['changed'])) {
+                        $this->logRefundAttempt($fresh ?: $payment, PaymentRefundStatus::SUCCEEDED, $delta);
+                    }
+                }
             }
 
-            if ($delta > 0 && !$this->payments->completeRefund((int)$fresh->id, $delta)) {
-                return new \WP_Error('wpcb_payment_refund_race', 'Payment refund state changed while the provider event was processed.');
-            }
-            if (!$this->payments->recordEvent((int)$fresh->id, $provider, $eventId, $eventType)) {
-                return $this->payments->find((int)$fresh->id);
-            }
-            $owner = $this->bookings->find((int)$fresh->booking_id);
-            if ($owner && $delta > 0) {
-                $this->bookings->logEvent(
-                    (int)$owner->id,
-                    (string)$owner->status,
-                    'payment_refunded',
-                    'payment_provider',
-                    'Refund completed for ' . $delta . ' minor units'
-                );
-            }
-            return $this->payments->find((int)$fresh->id);
+            $this->payments->recordEvent((int)$payment->id, $provider, $eventId, $eventType);
+            return $this->payments->find((int)$payment->id);
         } finally {
             $this->releaseLock($lockName);
         }
+    }
+
+    private function logRefundAttempt(object $payment, string $status, int $amountMinor): void {
+        $owner = $this->bookings->find((int)$payment->booking_id);
+        if (!$owner) {
+            return;
+        }
+        $context = match ($status) {
+            PaymentRefundStatus::SUCCEEDED => 'payment_refunded',
+            PaymentRefundStatus::FAILED => 'payment_refund_failed',
+            PaymentRefundStatus::CANCELED => 'payment_refund_canceled',
+            PaymentRefundStatus::REQUIRES_ACTION => 'payment_refund_requires_action',
+            PaymentRefundStatus::UNCERTAIN => 'payment_refund_uncertain',
+            default => 'payment_refund_processing',
+        };
+        $this->logScopeEvent(
+            $owner,
+            $context,
+            'Refund status ' . $status . ' for ' . $amountMinor . ' minor units',
+            'payment_provider'
+        );
     }
 
     /**
