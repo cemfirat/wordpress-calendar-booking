@@ -3,6 +3,7 @@ namespace Wpcb\WaitingList;
 
 use Wpcb\Payments\CheckoutHandoffService;
 use Wpcb\Payments\PaymentService;
+use Wpcb\Forms\FormRecovery;
 
 final class WaitingListController {
     public function boot(): void {
@@ -29,11 +30,17 @@ final class WaitingListController {
             'slot_start' => sanitize_text_field(wp_unslash($_POST['slot_start'] ?? '')),
             'slot_end' => sanitize_text_field(wp_unslash($_POST['slot_end'] ?? '')),
             'party_size' => absint($_POST['party_size'] ?? 1),
-            'full_name' => sanitize_text_field(wp_unslash($_POST['full_name'] ?? '')),
-            'email' => sanitize_email(wp_unslash($_POST['email'] ?? '')),
-            'phone' => sanitize_text_field(wp_unslash($_POST['phone'] ?? '')),
+            'form_values' => $_POST,
         ]);
         if (is_wp_error($result)) {
+            $errorData = $result->get_error_data();
+            if (is_array($errorData) && isset($errorData['values']) && is_array($errorData['values'])) {
+                (new FormRecovery())->redirect(
+                    'waiting_list',
+                    ['fields' => $errorData['values']],
+                    $result->get_error_message()
+                );
+            }
             wp_die(esc_html($result->get_error_message()), esc_html__('Waiting list', 'wordpress-calendar-booking'), ['response' => 400]);
         }
         wp_safe_redirect(add_query_arg('wpcb_notice', rawurlencode(__('Du stehst auf der Warteliste.', 'wordpress-calendar-booking')), wp_get_referer() ?: home_url('/')));
