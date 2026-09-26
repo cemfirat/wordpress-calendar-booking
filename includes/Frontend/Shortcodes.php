@@ -1,6 +1,8 @@
 <?php
 namespace Wpcb\Frontend;
 
+use Wpcb\Forms\FormRecovery;
+
 final class Shortcodes {
     private ComponentRenderer $renderer;
     private AssetManager $assets;
@@ -54,9 +56,15 @@ final class Shortcodes {
         echo '<input type="hidden" name="slot_end" value="' . esc_attr($end) . '">';
         echo '<input type="hidden" name="party_size" value="' . max(1, absint($atts['party_size'])) . '">';
         wp_nonce_field('wpcb_waitlist_join', 'wpcb_waitlist_nonce');
-        echo '<p><label>' . esc_html__('Name', 'wordpress-calendar-booking') . ' <input type="text" name="full_name" required></label></p>';
-        echo '<p><label>' . esc_html__('Email', 'wordpress-calendar-booking') . ' <input type="email" name="email" required></label></p>';
-        echo '<p><label>' . esc_html__('Phone', 'wordpress-calendar-booking') . ' <input type="text" name="phone"></label></p>';
+        $recovery = (new FormRecovery())->current('waiting_list');
+        $recoveryState = is_array($recovery) ? (array)($recovery['state'] ?? []) : [];
+        $recoveryFields = isset($recoveryState['fields']) && is_array($recoveryState['fields'])
+            ? $recoveryState['fields']
+            : [];
+        if (is_array($recovery) && !empty($recovery['message'])) {
+            echo '<p class="wpcb-form-error uk-alert-danger" role="alert">' . esc_html((string)$recovery['message']) . '</p>';
+        }
+        echo $this->renderer->formFieldsMarkup($recoveryFields, '_waitlist');
         echo '<button type="submit">' . esc_html__('Join waiting list', 'wordpress-calendar-booking') . '</button>';
         echo '</form>';
         return (string)ob_get_clean();
