@@ -1,6 +1,20 @@
 <?php
 if (!defined('ABSPATH')) { exit; }
 
+function wpcb_count_cron_hook(string $hook): int {
+    $count = 0;
+    $cron = _get_cron_array();
+    if (!is_array($cron)) {
+        return 0;
+    }
+    foreach ($cron as $events) {
+        if (isset($events[$hook]) && is_array($events[$hook])) {
+            $count += count($events[$hook]);
+        }
+    }
+    return $count;
+}
+
 function wpcb_health_assert($condition, string $message): void {
     if (!$condition) {
         fwrite(STDERR, "FAIL: {$message}\n");
@@ -89,6 +103,84 @@ $adminSource = file_get_contents(WPCB_DIR . 'includes/Admin/Admin.php');
 wpcb_health_assert(strpos($adminSource, "run_hourly_tasks") !== false, 'System health provides a manual hourly run action.');
 wpcb_health_assert(strpos($adminSource, "wp_nonce_field('wpcb_admin_action')") !== false, 'Manual scheduler actions use a WordPress nonce.');
 wpcb_health_assert(strpos($adminSource, "current_user_can('manage_options')") !== false, 'Manual scheduler actions require administrator capability.');
+
+$scopeError = Wpcb\Core\Activator::validateActivationScope(true);
+wpcb_health_assert(
+    is_wp_error($scopeError)
+    && $scopeError->get_error_code() === 'wpcb_network_activation_unsupported'
+    && str_contains($scopeError->get_error_message(), 'separately on each site'),
+    'Network-wide activation is rejected with a clear per-site activation instruction.'
+);
+wpcb_health_assert(
+    Wpcb\Core\Activator::validateActivationScope(false) === null,
+    'Ordinary per-site activation remains supported.'
+);
+
+$pluginCronHooks = [
+    'wpcb_sync_queue',
+    'wpcb_hourly_reminders',
+    'wpcb_privacy_retention',
+    'wpcb_portal_session_cleanup',
+];
+foreach ($pluginCronHooks as $hook) {
+    wpcb_health_assert(wpcb_count_cron_hook($hook) === 1, $hook . ' has exactly one recurring schedule before deactivation.');
+}
+wp_schedule_single_event(time() + 3600, 'wpcb_waitlist_send_offer', [987654]);
+wpcb_health_assert(
+    wpcb_count_cron_hook('wpcb_waitlist_send_offer') >= 1,
+    'Demand-driven waiting-list work is scheduled before deactivation.'
+);
+
+$persistedJobBeforeDeactivate = (int)$wpdb->get_var($wpdb->prepare(
+    "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_sync_jobs WHERE id IN (%d,%d,%d)",
+    $pending,
+    $running,
+    $failed
+));
+$persistedBookingBeforeDeactivate = (int)$wpdb->get_var($wpdb->prepare(
+    "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_bookings WHERE id=%d",
+    $bookingId
+));
+Wpcb\Core\Activator::deactivate();
+
+foreach (array_merge($pluginCronHooks, ['wpcb_waitlist_send_offer']) as $hook) {
+    wpcb_health_assert(
+        wpcb_count_cron_hook($hook) === 0,
+        $hook . ' is removed on plugin deactivation.'
+    );
+}
+wpcb_health_assert(
+    (int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_sync_jobs WHERE id IN (%d,%d,%d)",
+        $pending,
+        $running,
+        $failed
+    )) === $persistedJobBeforeDeactivate,
+    'Deactivation removes schedules without deleting durable queue intent.'
+);
+wpcb_health_assert(
+    (int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_bookings WHERE id=%d",
+        $bookingId
+    )) === $persistedBookingBeforeDeactivate,
+    'Deactivation removes schedules without deleting bookings.'
+);
+
+Wpcb\Core\Activator::activate(false);
+(new Wpcb\Sync\QueueService())->boot();
+(new Wpcb\Frontend\Actions())->boot();
+(new Wpcb\Privacy\PrivacyService())->boot();
+(new Wpcb\Portal\CustomerPortalController())->boot();
+foreach ($pluginCronHooks as $hook) {
+    wpcb_health_assert(
+        wpcb_count_cron_hook($hook) === 1,
+        $hook . ' is recreated exactly once after per-site reactivation and boot.'
+    );
+}
+wpcb_health_assert(
+    wpcb_count_cron_hook('wpcb_waitlist_send_offer') === 0,
+    'Demand-driven waiting-list work is not recreated without an active offer.'
+);
 
 foreach ([$pending, $running, $failed] as $id) {
     $wpdb->delete($wpdb->prefix . 'wpcb_sync_log', ['job_id' => $id]);
