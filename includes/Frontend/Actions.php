@@ -4,6 +4,8 @@ namespace Wpcb\Frontend;
 use Wpcb\Security\Guard;
 use Wpcb\Security\AvailabilityRequestGuard;
 use Wpcb\Forms\FieldRepository;
+use Wpcb\Forms\FieldValidator;
+use Wpcb\Forms\FormRecovery;
 use Wpcb\Booking\BookingRepository;
 use Wpcb\Booking\BookingStatus;
 use Wpcb\Booking\BookingStateMachine;
@@ -127,26 +129,48 @@ class Actions {
         $requiresPayment = !empty($paymentPreflight['required']);
 
         $fields = (new FieldRepository())->active();
-        $meta = [];
-        $email = '';
-        $phone = '';
-        foreach ($fields as $field) {
-            $key = $field->field_key;
-            $raw = $_POST[$key] ?? '';
-            $value = is_array($raw) ? array_map('sanitize_text_field', wp_unslash($raw)) : sanitize_text_field(wp_unslash($raw));
-            if ($field->field_type === 'email') $value = sanitize_email(wp_unslash($raw));
-            if ($field->is_required && (empty($value) || $value === '0')) wp_die(esc_html__('Bitte alle Pflichtfelder ausfüllen.', 'wordpress-calendar-booking'));
-            if ($field->field_type === 'checkbox' && $field->is_required && empty($value)) wp_die(esc_html__('Bitte alle Pflichtfelder bestätigen.', 'wordpress-calendar-booking'));
-            $meta[$key] = $value;
-            if ($key === 'email') $email = (string)$value;
-            if ($key === 'phone') $phone = (string)$value;
+        $validated = (new FieldValidator())->validateSubmission($fields, $_POST);
+        if (is_wp_error($validated)) {
+            $data = $validated->get_error_data();
+            $this->recoverBookingForm(
+                $validated->get_error_message(),
+                is_array($data) && isset($data['values']) && is_array($data['values']) ? $data['values'] : [],
+                $submittedTypeId,
+                $slotToken
+            );
         }
-        if (!is_email($email)) wp_die(esc_html__('Bitte eine gültige E-Mail-Adresse eingeben.', 'wordpress-calendar-booking'));
+        $meta = $validated;
+        $email = (string)($meta['email'] ?? '');
+        $phone = (string)($meta['phone'] ?? '');
+        if (!is_email($email)) {
+            $this->recoverBookingForm(
+                __('Für Buchungen ist ein aktives gültiges E-Mail-Feld erforderlich.', 'wordpress-calendar-booking'),
+                $meta,
+                $submittedTypeId,
+                $slotToken
+            );
+        }
 
         $settings = Settings::get();
         $meta['computed_location'] = $this->formatter->location(['booking_type_id' => $typeId], $meta, $settings);
         $fullName = $this->formatter->displayName([], $meta);
+        if ($this->textLength($fullName) > 190) {
+            $this->recoverBookingForm(
+                __('Der zusammengesetzte Name ist zu lang. Bitte kürze die Namensfelder.', 'wordpress-calendar-booking'),
+                $meta,
+                $submittedTypeId,
+                $slotToken
+            );
+        }
         if (!$phone && !empty($meta['who_calls']) && $meta['who_calls'] === 'Ich rufe an') $phone = (string)$settings['own_phone'];
+        if ($this->textLength($phone) > 100) {
+            $this->recoverBookingForm(
+                __('Die Telefonnummer ist zu lang.', 'wordpress-calendar-booking'),
+                $meta,
+                $submittedTypeId,
+                $slotToken
+            );
+        }
 
         $partySize = max(1, min(10000, absint($_POST['party_size'] ?? 1)));
 
@@ -201,6 +225,26 @@ class Actions {
 
         wp_safe_redirect(add_query_arg('wpcb_notice', rawurlencode(__('Bitte bestätige deine E-Mail über den Link in der Nachricht.', 'wordpress-calendar-booking')), wp_get_referer() ?: home_url('/')));
         exit;
+    }
+
+    private function recoverBookingForm(
+        string $message,
+        array $fields,
+        int $bookingTypeId,
+        string $slotToken
+    ): void {
+        (new FormRecovery())->redirect('booking', [
+            'booking_type_id' => (string)$bookingTypeId,
+            'party_size' => (string)max(1, min(10000, absint($_POST['party_size'] ?? 1))),
+            'recurrence_count' => (string)max(1, min(24, absint($_POST['recurrence_count'] ?? 1))),
+            'recurrence_interval' => (string)max(1, min(4, absint($_POST['recurrence_interval'] ?? 1))),
+            'slot_token' => $slotToken,
+            'fields' => $fields,
+        ], $message);
+    }
+
+    private function textLength(string $value): int {
+        return function_exists('mb_strlen') ? mb_strlen($value, 'UTF-8') : strlen($value);
     }
 
     /**
