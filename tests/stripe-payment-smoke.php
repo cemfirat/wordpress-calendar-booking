@@ -52,7 +52,13 @@ add_filter('pre_http_request', function ($pre, $args, $url) use (&$captured) {
     if ($url === 'https://api.stripe.com/v1/refunds' && ($args['method'] ?? '') === 'POST') {
         return [
             'headers' => [],
-            'body' => wp_json_encode(['id' => 're_test_wpcb_123', 'status' => 'succeeded']),
+            'body' => wp_json_encode([
+                'id' => 're_test_wpcb_123',
+                'status' => 'succeeded',
+                'amount' => 12900,
+                'currency' => 'eur',
+                'created' => time(),
+            ]),
             'response' => ['code' => 200, 'message' => 'OK'],
             'cookies' => [],
             'filename' => null,
@@ -223,6 +229,7 @@ wpcb_stripe_assert(count($captured) === 3, 'Stripe flow performs checkout, sessi
 $paymentIds = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$wpdb->prefix}wpcb_payments WHERE booking_id = %d", $bookingId));
 foreach ($paymentIds as $paymentId) {
     $wpdb->delete($wpdb->prefix . 'wpcb_payment_events', ['payment_id' => (int)$paymentId]);
+    $wpdb->delete($wpdb->prefix . 'wpcb_payment_refunds', ['payment_id' => (int)$paymentId]);
 }
 $wpdb->delete($wpdb->prefix . 'wpcb_payments', ['booking_id' => $bookingId]);
 $wpdb->delete($wpdb->prefix . 'wpcb_booking_status_log', ['booking_id' => $bookingId]);
