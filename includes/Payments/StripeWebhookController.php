@@ -33,6 +33,40 @@ final class StripeWebhookController {
         $eventId = sanitize_text_field((string)$event['id']);
         $type = (string)$event['type'];
         $object = $event['data']['object'];
+
+        if (in_array($type, ['refund.created', 'refund.updated', 'refund.failed', 'charge.refund.updated'], true)) {
+            $providerRefundId = sanitize_text_field((string)($object['id'] ?? ''));
+            $refundUuid = sanitize_text_field((string)($object['metadata']['refund_uuid'] ?? ''));
+            $status = sanitize_key((string)($object['status'] ?? ''));
+            if ($type === 'refund.failed' && $status === '') {
+                $status = PaymentRefundStatus::FAILED;
+            }
+            $amount = (int)($object['amount'] ?? 0);
+            $currency = strtoupper(sanitize_text_field((string)($object['currency'] ?? '')));
+            $failureReason = sanitize_key((string)($object['failure_reason'] ?? ''));
+            $result = (new PaymentService())->applyRefundProviderEvent(
+                'stripe',
+                $eventId,
+                $providerRefundId,
+                $refundUuid,
+                $status,
+                $amount,
+                $currency,
+                max(0, (int)($event['created'] ?? 0)),
+                $failureReason
+            );
+            if (is_wp_error($result)) {
+                // One Stripe endpoint can receive account-wide events. Refunds
+                // without this plugin's durable refund UUID/ID are unrelated,
+                // not webhook failures that Stripe should retry forever.
+                if ($result->get_error_code() === 'wpcb_refund_attempt_unknown') {
+                    return new \WP_REST_Response(['received' => true, 'ignored' => true], 200);
+                }
+                return new \WP_Error($result->get_error_code(), $result->get_error_message(), ['status' => 400]);
+            }
+            return new \WP_REST_Response(['received' => true], 200);
+        }
+
         $mapped = match ($type) {
             'checkout.session.completed' => (($object['payment_status'] ?? '') === 'paid' ? 'paid' : ''),
             'checkout.session.async_payment_succeeded' => 'paid',
