@@ -2,7 +2,7 @@
 Contributors: cemfirat
 Requires at least: 6.5
 Requires PHP: 8.0
-Stable tag: 3.19.9
+Stable tag: 3.19.10
 License: GPLv2 or later
 License URI: https://www.gnu.org/licenses/gpl-2.0.html
 
@@ -24,6 +24,15 @@ Shortcodes:
 Security and privacy controls include canonical signed slot tokens, atomic reservation, UTC/IANA timezone handling, scanner-safe POST-only booking actions, indexed one-time tokens, authenticated credential encryption, idempotent queue processing, privacy export/erase support and retention controls.
 
 == Changelog ==
+
+= 3.19.10 =
+* Validate all supported configured booking fields through one shared server-side contract before ordinary or waiting-list reservation writes.
+* Reject invalid shapes, stale options, bad email/checkbox values and length violations while preserving legitimate zero values.
+* Support min_length, max_length and must_be_checked rules; reject unsupported or storage-incompatible field rules.
+* Recover ordinary validation errors without losing valid input, the qualified form age or the signed slot selection.
+* Preserve validated waiting-list form data for offer recovery, booking metadata and privacy export/erasure.
+* Add the nullable waiting-list form_data_json schema column with a verified real upgrade from public 3.19.9.
+* Payment refund/late-checkout work and remaining product qualification stay tracked in GitHub issues #156, #157, #176 and #178.
 
 = 3.19.9 =
 * Fail closed when blocking calendar availability cannot be read completely instead of treating provider failures as free time.

@@ -1,4 +1,4 @@
-"""Real 3.19.8-to-candidate acceptance, confined to disposable GitHub CI storage.
+"""Real 3.19.9-to-candidate acceptance, confined to disposable GitHub CI storage.
 
 The published baseline is downloaded, not synthesized by changing a version header.
 The original fresh-install fixture is never downgraded or reused as the upgrade DB.
@@ -17,10 +17,10 @@ import tempfile
 import urllib.request
 import zipfile
 
-BASELINE_VERSION = '3.19.8'
-BASELINE_SHA256 = '0e48985415b613cab7db542aea3048506ec4735a3cd450e8971b0492b1960ad6'
+BASELINE_VERSION = '3.19.9'
+BASELINE_SHA256 = 'aa25b2b4e690514e86ed88a92fc5fe77fcc0e0703ebb87d7776f7a5cb69b9df9'
 BASELINE_URL = ('https://github.com/cemfirat/wordpress-calendar-booking/releases/'
-                'download/v3.19.8/wordpress-calendar-booking.zip')
+                'download/v3.19.9/wordpress-calendar-booking.zip')
 PLUGIN = 'wordpress-calendar-booking'
 MAX_ARCHIVE = 10 * 1024 * 1024
 
@@ -88,7 +88,7 @@ def wp(root: Path, *args: str, extra: dict[str, str] | None = None) -> str:
 def main(source: Path, expected_version: str) -> None:
     if not re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', expected_version):
         raise ValueError('Invalid expected candidate version')
-    if tuple(map(int, expected_version.split('.'))) <= (3, 19, 8):
+    if tuple(map(int, expected_version.split('.'))) <= (3, 19, 9):
         raise ValueError('The candidate must be newer than the published baseline')
     workspace = Path(os.environ.get('GITHUB_WORKSPACE', '')).resolve()
     temporary = Path(os.environ.get('RUNNER_TEMP', '')).resolve()
@@ -116,10 +116,10 @@ def main(source: Path, expected_version: str) -> None:
         with urllib.request.urlopen(request, timeout=60) as response:
             data = response.read(MAX_ARCHIVE + 1)
         if len(data) > MAX_ARCHIVE or hashlib.sha256(data).hexdigest() != BASELINE_SHA256:
-            raise ValueError('Published 3.19.8 baseline digest mismatch')
+            raise ValueError('Published 3.19.9 baseline digest mismatch')
         baseline.write_bytes(data)
         archive_files(baseline)
-        print('PASS: actual published 3.19.8 matches its pinned release digest', flush=True)
+        print('PASS: actual published 3.19.9 matches its pinned release digest', flush=True)
         root = work / 'wordpress'
         shutil.copytree(source, root, ignore=shutil.ignore_patterns('wp-content', '.git'))
         (root / 'wp-content' / 'plugins').mkdir(parents=True)
