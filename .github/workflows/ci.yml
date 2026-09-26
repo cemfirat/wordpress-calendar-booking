@@ -569,7 +569,7 @@ jobs:
           wp config create --path="$WP_ROOT" --dbname=wordpress --dbuser=root --dbpass=wordpress --dbhost=127.0.0.1:3306
           wp core multisite-install --path="$WP_ROOT" --url="$PRIMARY_URL" --title=WPCB-Multisite --admin_user=admin --admin_password=integration-only --admin_email=test@example.com --skip-email
           wp plugin install "$GITHUB_WORKSPACE/dist/wordpress-calendar-booking.zip" --path="$WP_ROOT"
-          wp site create --path="$WP_ROOT" --slug=second --title=Second --email=second@example.com >/dev/null
+          wp site create --path="$WP_ROOT" --url="$PRIMARY_URL" --slug=second --title=Second --email=second@example.com >/dev/null
 
           set +e
           network_output="$(wp plugin activate "$PLUGIN" --network --path="$WP_ROOT" 2>&1)"
@@ -591,7 +591,7 @@ jobs:
           wp eval 'echo "BOOTED";' --path="$WP_ROOT" --url="$PRIMARY_URL" >/dev/null
           wp eval 'echo "BOOTED";' --path="$WP_ROOT" --url="$SECOND_URL" >/dev/null
 
-          third_id="$(wp site create --path="$WP_ROOT" --slug=third --title=Third --email=third@example.com --porcelain)"
+          third_id="$(wp site create --path="$WP_ROOT" --url="$PRIMARY_URL" --slug=third --title=Third --email=third@example.com --porcelain)"
           test -n "$third_id"
           ! wp plugin is-active "$PLUGIN" --path="$WP_ROOT" --url="$THIRD_URL" >/dev/null 2>&1
           third_tables="$(wp eval 'global $wpdb; echo count($wpdb->get_col($wpdb->prepare("SHOW TABLES LIKE %s", $wpdb->esc_like($wpdb->prefix . "wpcb_") . "%")));' --path="$WP_ROOT" --url="$THIRD_URL")"
@@ -616,7 +616,7 @@ jobs:
             wp eval 'wp_schedule_single_event(time() + HOUR_IN_SECONDS, "wpcb_waitlist_send_offer", [123456]);' --path="$WP_ROOT" --url="$url"
           done
 
-          wp plugin uninstall "$PLUGIN" --path="$WP_ROOT"
+          wp plugin uninstall "$PLUGIN" --path="$WP_ROOT" --url="$PRIMARY_URL"
           WPCB_MULTISITE_PHASE=after_uninstall wp eval-file "$GITHUB_WORKSPACE/tests/multisite-lifecycle-smoke.php" --path="$WP_ROOT" --url="$PRIMARY_URL"
 
   browser_release:
