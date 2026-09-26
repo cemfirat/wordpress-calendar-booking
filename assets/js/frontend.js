@@ -295,7 +295,8 @@
     qa('[data-wpcb-booking-form]').forEach(function(form){
       updateConditional(form);
       var type = q('[data-wpcb-type-select]', form);
-      if(type && type.value) fillSlots(form, type.value, '');
+      var recoveredSlot = form.getAttribute('data-wpcb-recover-slot') || '';
+      if(type && type.value) fillSlots(form, type.value, recoveredSlot);
       else updateSubmit(form);
     });
   });
