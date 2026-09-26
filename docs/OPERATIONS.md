@@ -90,3 +90,10 @@ Use **Kalender & Buchungen → Sicherung & Wiederherstellung** to export a versi
 The export does not contain bookings, customer records, one-time tokens, customer sessions, payments/payment events, waiting-list records, audit/delivery/sync logs, provider credentials, OAuth tokens, Stripe secrets, webhook signing secrets or video-meeting credentials.
 
 Always run the no-write preview before applying a restore. The importer rejects unknown fields and broken references. Existing booking/customer history is not deleted or rewritten. Calendar descriptors restored into a site without an existing matching connection are created disabled with empty credentials and must be reconnected manually. Applied changes use a database transaction; a detected storage failure rolls back the import and restores the previous plugin options.
+
+
+## Multisite activation and deactivation
+
+WordPress Calendar Booking currently supports **per-site activation only** on WordPress Multisite. Network-wide activation is rejected with an administrator-facing message so the plugin cannot leave some sites in a partially initialized state. Activate the plugin separately on each site that should use booking features; each site keeps its own prefixed tables, settings and encrypted credentials.
+
+Deactivation is non-destructive. It removes every plugin-owned recurring WP-Cron hook (`wpcb_sync_queue`, `wpcb_hourly_reminders`, `wpcb_privacy_retention`, `wpcb_portal_session_cleanup`) and pending one-off waiting-list offer hooks (`wpcb_waitlist_send_offer`), but it does not delete bookings, queue intent, settings or credentials. On the next per-site activation/request, the normal boot path recreates the recurring schedules idempotently. Demand-driven waiting-list jobs are recreated only by an active promotion flow, not merely by reactivation.
