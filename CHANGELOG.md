@@ -1,5 +1,16 @@
 # Changelog
 
+## 3.19.10
+
+- Validate configured text, email, textarea, checkbox, select and radio fields through one shared server-side contract before ordinary or waiting-list reservation writes.
+- Reject non-scalar shapes, stale choice values, invalid email/checkbox input and configured/storage-backed length violations while preserving legitimate string zero values.
+- Support explicit `min_length`, `max_length` and `must_be_checked` rules and reject unknown or ineffective validation configuration before mutation.
+- Return recoverable ordinary booking forms on field errors while preserving valid submitted values, the already-qualified anti-bot timestamp and the signed selected slot; final reservation still revalidates the slot.
+- Persist validated waiting-list form snapshots for offer recovery, carry them into booking metadata on acceptance and include them in WordPress privacy export/erasure.
+- Upgrade the schema to add nullable waiting-list `form_data_json` without rewriting historical rows.
+- Verify a real upgrade from the immutable published 3.19.9 package before release.
+- Stripe refund-state and late-checkout reconciliation remain separately tracked in #156/#157; full product qualification remains #176/#178.
+
 ## 3.19.9
 
 - Fail closed when blocking calendar availability cannot be read completely instead of treating provider failures or malformed responses as free time.

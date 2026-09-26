@@ -6,9 +6,9 @@
 
 Privacy-conscious appointment booking for WordPress with configurable availability, Double Opt-In, optional admin approval, calendar blocking/write-back, ICS attachments, UIkit components and YOOtheme Pro integration.
 
-> **Stable release:** 3.19.9. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
+> **Stable release:** 3.19.10. The public release is built from CI-tested source, includes its runtime dependencies and local UIkit fallback, and supports WordPress 6.5+ with PHP 8.0+.
 
-> **Release qualification:** 3.19.9 makes blocking calendar availability fail closed when provider reads are incomplete and completes bounded Microsoft calendarView pagination on top of 3.19.8. It is not a declaration that every advertised integration is production-qualified. Live provider-account qualification and the remaining audit findings stay tracked in [issue #178](https://github.com/cemfirat/wordpress-calendar-booking/issues/178); see [release scope and upgrade checks](docs/RELEASE-3.19.9.md).
+> **Release qualification:** 3.19.10 adds one shared typed server-side field contract for ordinary booking and waiting-list entry/acceptance on top of 3.19.9, including recoverable validation errors and upgrade-safe waiting-list form snapshots. It is not a declaration that every advertised integration is production-qualified. Payment refund/late-checkout work and the remaining audit findings stay tracked in [issue #178](https://github.com/cemfirat/wordpress-calendar-booking/issues/178); see [release scope and upgrade checks](docs/RELEASE-3.19.10.md).
 
 ## Product principles
 
