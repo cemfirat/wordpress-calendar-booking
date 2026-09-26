@@ -9,7 +9,7 @@ final class SchemaMigration {
     private const OPTION = 'wpcb_schema_version';
     private const VERIFIED_OPTION = 'wpcb_schema_verified_version';
     private const ERROR_OPTION = 'wpcb_schema_migration_error';
-    private const VERSION = 15;
+    private const VERSION = 16;
     private const LOCK_SECONDS = 5;
 
     public static function maybeRun(): bool {

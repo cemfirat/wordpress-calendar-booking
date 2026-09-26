@@ -9,6 +9,18 @@ function wpcb_wait_assert($condition, string $message): void {
     echo "PASS: {$message}\n";
 }
 
+function wpcb_wait_form(string $email, string $phone = ''): array {
+    return [
+        'subject' => 'Waiting-list test',
+        'gender' => 'Divers',
+        'first_name' => 'Waiting',
+        'last_name' => 'Customer',
+        'email' => $email,
+        'phone' => $phone,
+        'privacy' => '1',
+    ];
+}
+
 global $wpdb;
 $now = Wpcb\Support\Time::formatUtc(Wpcb\Support\Time::nowUtc());
 $types = $wpdb->prefix . 'wpcb_booking_types';
@@ -48,22 +60,43 @@ $service=new Wpcb\WaitingList\WaitingListService();
 $first=$service->join([
     'booking_type_id'=>$typeId,'resource_id'=>$resourceId,'slot_start'=>$start,'slot_end'=>$end,
     'party_size'=>1,'full_name'=>'First Waiter','email'=>'first-waiter@example.com','phone'=>'111',
+    'form_data'=>wpcb_wait_form('first-waiter@example.com','111'),
 ]);
 $second=$service->join([
     'booking_type_id'=>$typeId,'resource_id'=>$resourceId,'slot_start'=>$start,'slot_end'=>$end,
     'party_size'=>1,'full_name'=>'Second Waiter','email'=>'second-waiter@example.com','phone'=>'222',
+    'form_data'=>wpcb_wait_form('second-waiter@example.com','222'),
 ]);
 wpcb_wait_assert(is_int($first) && is_int($second) && $first>0 && $second>$first,'Two customers join the full slot in FIFO order.');
 
 $duplicate=$service->join([
     'booking_type_id'=>$typeId,'resource_id'=>$resourceId,'slot_start'=>$start,'slot_end'=>$end,
-    'party_size'=>1,'full_name'=>'First Waiter','email'=>'first-waiter@example.com',
+    'party_size'=>1,'full_name'=>'First Waiter','email'=>'first-waiter@example.com','phone'=>'111',
+    'form_data'=>wpcb_wait_form('first-waiter@example.com','111'),
 ]);
 wpcb_wait_assert($duplicate===$first,'Duplicate waiting-list join is idempotent.');
+
+$missingConsentForm=wpcb_wait_form('missing-consent@example.com');
+unset($missingConsentForm['privacy']);
+$missingConsent=$service->join([
+    'booking_type_id'=>$typeId,'resource_id'=>$resourceId,'slot_start'=>$start,'slot_end'=>$end,
+    'party_size'=>1,'email'=>'missing-consent@example.com',
+    'form_data'=>$missingConsentForm,
+]);
+wpcb_wait_assert(
+    is_wp_error($missingConsent)
+    && $missingConsent->get_error_code()==='wpcb_field_required'
+    && (int)$wpdb->get_var($wpdb->prepare(
+        "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_waiting_list WHERE email=%s",
+        'missing-consent@example.com'
+    ))===0,
+    'Waiting-list orchestration cannot bypass configured required consent.'
+);
 
 $tooLarge=$service->join([
     'booking_type_id'=>$typeId,'resource_id'=>$resourceId,'slot_start'=>$start,'slot_end'=>$end,
     'party_size'=>2,'full_name'=>'Too Large','email'=>'too-large@example.com',
+    'form_data'=>wpcb_wait_form('too-large@example.com'),
 ]);
 wpcb_wait_assert(is_wp_error($tooLarge) && $tooLarge->get_error_code()==='wpcb_waitlist_invalid','Waiting-list join rejects a party larger than effective capacity.');
 
@@ -72,6 +105,7 @@ $pastEnd=Wpcb\Support\Time::formatUtc(Wpcb\Support\Time::nowUtc()->modify('-90 m
 $pastJoin=$service->join([
     'booking_type_id'=>$typeId,'resource_id'=>$resourceId,'slot_start'=>$pastStart,'slot_end'=>$pastEnd,
     'party_size'=>1,'full_name'=>'Past Waiter','email'=>'past-waiter@example.com',
+    'form_data'=>wpcb_wait_form('past-waiter@example.com'),
 ]);
 wpcb_wait_assert(is_wp_error($pastJoin) && $pastJoin->get_error_code()==='wpcb_waitlist_invalid','Waiting-list join rejects past intervals.');
 
@@ -79,6 +113,7 @@ $wpdb->update($types,['is_public'=>0],['id'=>$typeId]);
 $privateJoin=$service->join([
     'booking_type_id'=>$typeId,'resource_id'=>$resourceId,'slot_start'=>$start,'slot_end'=>$end,
     'party_size'=>1,'full_name'=>'Private Waiter','email'=>'private-waiter@example.com',
+    'form_data'=>wpcb_wait_form('private-waiter@example.com'),
 ]);
 wpcb_wait_assert(is_wp_error($privateJoin) && $privateJoin->get_error_code()==='wpcb_waitlist_invalid','Waiting-list join rejects inactive/non-public booking-type policy.');
 $wpdb->update($types,['is_public'=>1],['id'=>$typeId]);
@@ -103,6 +138,13 @@ $accepted=$service->accept($first,$token);
 wpcb_wait_assert(is_int($accepted) && $accepted>0,'Valid one-time promotion creates a reservation.');
 $acceptedRow=$waitRepo->find($first);
 wpcb_wait_assert($acceptedRow && $acceptedRow->status==='accepted' && (int)$acceptedRow->booking_id===$accepted,'Accepted offer links to the new booking and clears the hold token.');
+$acceptedMeta=(new Wpcb\Booking\BookingRepository())->getMeta($accepted);
+wpcb_wait_assert(
+    ($acceptedMeta['subject'] ?? '')==='Waiting-list test'
+    && ($acceptedMeta['privacy'] ?? '')==='1'
+    && (int)($acceptedMeta['waiting_list_entry_id'] ?? 0)===$first,
+    'Waiting-list acceptance carries the validated custom fields and consent into booking meta.'
+);
 $doiDelivery=(new Wpcb\Reliability\DeliveryRepository())->findByKey('mail:user:' . $accepted . ':doi');
 $doiTokenCount=(int)$wpdb->get_var($wpdb->prepare(
     "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_tokens WHERE booking_id=%d AND token_type='doi' AND used_at IS NULL",
@@ -277,6 +319,7 @@ $wpdb->insert($waitingTable,[
     'entry_uuid'=>wp_generate_uuid4(),'booking_type_id'=>$typeA,'resource_id'=>$advancedResourceId,
     'slot_start'=>$advancedStart,'slot_end'=>$advancedEnd,'party_size'=>1,
     'full_name'=>'Atomic Waiter','email'=>'atomic-waiter@example.com','phone'=>'',
+    'form_data_json'=>wp_json_encode(wpcb_wait_form('atomic-waiter@example.com')),
     'status'=>'offered','offer_selector'=>$selector,'offer_hash'=>hash('sha256',$verifier),
     'offer_secret_enc'=>$secret,'offer_expires_at'=>$futureExpiry,'offered_at'=>$now,
     'created_at'=>$now,'updated_at'=>$now,
@@ -319,6 +362,12 @@ $advancedBookingIds[]=$acceptedAdvanced;
 $privacy=new Wpcb\WaitingList\WaitingListPrivacy();
 $export=$privacy->exporter('second-waiter@example.com',1);
 wpcb_wait_assert(count($export['data'])===1,'Waiting-list data participates in WordPress privacy export.');
+$exportPairs=[];
+foreach($export['data'][0]['data'] as $item){ $exportPairs[(string)$item['name']] = (string)$item['value']; }
+wpcb_wait_assert(
+    in_array('Waiting-list test',$exportPairs,true) && in_array('1',$exportPairs,true),
+    'Waiting-list privacy export includes stored custom form data and consent.'
+);
 $erase=$privacy->eraser('second-waiter@example.com',1);
 wpcb_wait_assert(!empty($erase['items_removed']) && !$waitRepo->find($second),'Waiting-list data participates in WordPress privacy erasure.');
 

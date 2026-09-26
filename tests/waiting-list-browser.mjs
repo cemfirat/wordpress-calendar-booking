@@ -64,9 +64,19 @@ test('packaged paid waiting-list offer reaches DOI and final confirmation withou
 
         const form = page.locator('form');
         const action = await form.getAttribute('action');
-        const fields = await form.locator('input').evaluateAll((inputs) => Object.fromEntries(
-            inputs.map((input) => [input.name, input.value])
-        ));
+        const fields = await form.evaluate((element) => Object.fromEntries(new FormData(element).entries()));
+        expect(fields.privacy).toBe('1');
+        expect(fields.gender).toBe('Divers');
+
+        const invalid = await page.request.post(action, {
+            form: { ...fields, gender: 'stale-option' },
+            maxRedirects: 0,
+        });
+        expect(invalid.status()).toBe(400);
+        const recovery = await invalid.text();
+        expect(recovery).toContain('Eine Auswahl ist nicht mehr gültig');
+        expect(recovery).toContain('value="waitlist-browser@example.com"');
+
         const acceptance = await page.request.post(action, {
             form: fields,
             maxRedirects: 0,

@@ -29,18 +29,25 @@ final class WaitingListPrivacy {
         $rows = (new WaitingListRepository())->forEmail(sanitize_email($email), 50, ($page - 1) * 50);
         $data = [];
         foreach ($rows as $row) {
+            $itemData = [
+                ['name' => __('Status', 'wordpress-calendar-booking'), 'value' => (string)$row->status],
+                ['name' => __('Appointment start (UTC)', 'wordpress-calendar-booking'), 'value' => (string)$row->slot_start],
+                ['name' => __('Appointment end (UTC)', 'wordpress-calendar-booking'), 'value' => (string)$row->slot_end],
+                ['name' => __('Name', 'wordpress-calendar-booking'), 'value' => (string)$row->full_name],
+                ['name' => __('Email', 'wordpress-calendar-booking'), 'value' => (string)$row->email],
+                ['name' => __('Phone', 'wordpress-calendar-booking'), 'value' => (string)$row->phone],
+            ];
+            foreach ((new WaitingListRepository())->formData($row) as $key => $value) {
+                $itemData[] = [
+                    'name' => sprintf(__('Form field: %s', 'wordpress-calendar-booking'), $key),
+                    'value' => $value,
+                ];
+            }
             $data[] = [
                 'group_id' => 'wpcb-waiting-list',
                 'group_label' => __('Calendar Booking waiting list', 'wordpress-calendar-booking'),
                 'item_id' => 'waiting-list-' . (int)$row->id,
-                'data' => [
-                    ['name' => __('Status', 'wordpress-calendar-booking'), 'value' => (string)$row->status],
-                    ['name' => __('Appointment start (UTC)', 'wordpress-calendar-booking'), 'value' => (string)$row->slot_start],
-                    ['name' => __('Appointment end (UTC)', 'wordpress-calendar-booking'), 'value' => (string)$row->slot_end],
-                    ['name' => __('Name', 'wordpress-calendar-booking'), 'value' => (string)$row->full_name],
-                    ['name' => __('Email', 'wordpress-calendar-booking'), 'value' => (string)$row->email],
-                    ['name' => __('Phone', 'wordpress-calendar-booking'), 'value' => (string)$row->phone],
-                ],
+                'data' => $itemData,
             ];
         }
         return ['data' => $data, 'done' => count($rows) < 50];

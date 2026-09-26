@@ -295,8 +295,16 @@
     qa('[data-wpcb-booking-form]').forEach(function(form){
       updateConditional(form);
       var type = q('[data-wpcb-type-select]', form);
-      if(type && type.value) fillSlots(form, type.value, '');
-      else updateSubmit(form);
+      var slots = q('[data-wpcb-slot-select]', form);
+      if(type && type.value && slots && slots.hasAttribute('data-wpcb-recovered-slot') && slots.value){
+        form.__wpcbSlots = {context: slotContext(form), pending: false, controller: null};
+        slots.disabled = false;
+        updateSubmit(form);
+      } else if(type && type.value) {
+        fillSlots(form, type.value, '');
+      } else {
+        updateSubmit(form);
+      }
     });
   });
 })();

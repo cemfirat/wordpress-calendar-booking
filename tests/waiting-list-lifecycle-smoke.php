@@ -170,6 +170,15 @@ try {
         'full_name' => 'Paid Waiter',
         'email' => 'paid-waiter@example.invalid',
         'phone' => '+4312345',
+        'form_data' => [
+            'subject' => 'Paid waiting-list test',
+            'gender' => 'Divers',
+            'first_name' => 'Paid',
+            'last_name' => 'Waiter',
+            'email' => 'paid-waiter@example.invalid',
+            'phone' => '+4312345',
+            'privacy' => '1',
+        ],
     ]);
     wpcb_wait_lifecycle_assert(is_int($waitingId) && $waitingId > 0, 'Customer joins paid full slot.');
 
@@ -193,6 +202,13 @@ try {
     wpcb_wait_lifecycle_assert(is_int($bookingId) && $bookingId > 0, 'Paid waiting-list acceptance creates the reservation.');
 
     $accepted = $bookings->find($bookingId);
+    $acceptedMeta = $bookings->getMeta($bookingId);
+    wpcb_wait_lifecycle_assert(
+        ($acceptedMeta['subject'] ?? '') === 'Paid waiting-list test'
+        && ($acceptedMeta['privacy'] ?? '') === '1'
+        && (int)($acceptedMeta['waiting_list_entry_id'] ?? 0) === $waitingId,
+        'Paid waiting-list acceptance preserves validated custom fields and consent.'
+    );
     $paymentService = new Wpcb\Payments\PaymentService();
     $payment = $paymentService->paymentForBooking($bookingId);
     $doiDelivery = (new Wpcb\Reliability\DeliveryRepository())->findByKey('mail:user:' . $bookingId . ':doi');

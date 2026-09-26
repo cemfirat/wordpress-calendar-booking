@@ -1,13 +1,21 @@
 <?php
 namespace Wpcb\Frontend;
 
+use Wpcb\WaitingList\WaitingListFormRenderer;
+
 final class Shortcodes {
     private ComponentRenderer $renderer;
     private AssetManager $assets;
+    private WaitingListFormRenderer $waitingListRenderer;
 
-    public function __construct(?ComponentRenderer $renderer = null, ?AssetManager $assets = null) {
+    public function __construct(
+        ?ComponentRenderer $renderer = null,
+        ?AssetManager $assets = null,
+        ?WaitingListFormRenderer $waitingListRenderer = null
+    ) {
         $this->assets = $assets ?: new AssetManager();
         $this->renderer = $renderer ?: new ComponentRenderer($this->assets);
+        $this->waitingListRenderer = $waitingListRenderer ?: new WaitingListFormRenderer();
     }
 
     public function boot(): void {
@@ -45,21 +53,13 @@ final class Shortcodes {
         if ($typeId < 1 || $resourceId < 1 || !$start || !$end) {
             return '<p>' . esc_html__('Waiting-list form is not configured for a specific slot.', 'wordpress-calendar-booking') . '</p>';
         }
-        ob_start();
-        echo '<form method="post" action="' . esc_url(admin_url('admin-post.php')) . '" class="wpcb-waiting-list-form">';
-        echo '<input type="hidden" name="action" value="wpcb_waitlist_join">';
-        echo '<input type="hidden" name="booking_type_id" value="' . (int)$typeId . '">';
-        echo '<input type="hidden" name="resource_id" value="' . (int)$resourceId . '">';
-        echo '<input type="hidden" name="slot_start" value="' . esc_attr($start) . '">';
-        echo '<input type="hidden" name="slot_end" value="' . esc_attr($end) . '">';
-        echo '<input type="hidden" name="party_size" value="' . max(1, absint($atts['party_size'])) . '">';
-        wp_nonce_field('wpcb_waitlist_join', 'wpcb_waitlist_nonce');
-        echo '<p><label>' . esc_html__('Name', 'wordpress-calendar-booking') . ' <input type="text" name="full_name" required></label></p>';
-        echo '<p><label>' . esc_html__('Email', 'wordpress-calendar-booking') . ' <input type="email" name="email" required></label></p>';
-        echo '<p><label>' . esc_html__('Phone', 'wordpress-calendar-booking') . ' <input type="text" name="phone"></label></p>';
-        echo '<button type="submit">' . esc_html__('Join waiting list', 'wordpress-calendar-booking') . '</button>';
-        echo '</form>';
-        return (string)ob_get_clean();
+        return $this->waitingListRenderer->joinForm([
+            'booking_type_id' => $typeId,
+            'resource_id' => $resourceId,
+            'slot_start' => $start,
+            'slot_end' => $end,
+            'party_size' => max(1, absint($atts['party_size'])),
+        ]);
     }
 }
 

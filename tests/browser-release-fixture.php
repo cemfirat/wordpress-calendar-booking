@@ -277,6 +277,15 @@ if ($action === 'waitlist_setup') {
         'full_name' => 'Browser Waiter',
         'email' => $waitlistEmail,
         'phone' => '',
+        'form_data' => [
+            'subject' => 'Browser waiting-list test',
+            'gender' => 'Divers',
+            'first_name' => 'Browser',
+            'last_name' => 'Waiter',
+            'email' => $waitlistEmail,
+            'phone' => '',
+            'privacy' => '1',
+        ],
     ]);
     if (!is_int($entryId) || $entryId < 1) {
         throw new RuntimeException('Browser customer could not join the waiting list.');
