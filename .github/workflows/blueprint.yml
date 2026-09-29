@@ -1,0 +1,27 @@
+name: WordPress plugin blueprint
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  blueprint:
+    name: WordPress plugin blueprint
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Audit plugin against pinned blueprint
+        uses: cemfirat/repository-governance/blueprints/wordpress-plugin@618316d349c753bd7527e56183497aefde57f473
+        with:
+          plugin-root: .

@@ -1,0 +1,28 @@
+{
+  "$schema": "https://raw.githubusercontent.com/cemfirat/repository-governance/main/blueprints/wordpress-plugin/manifest.schema.json",
+  "schema_version": 1,
+  "blueprint": "wordpress-plugin",
+  "blueprint_version": "0.1.0",
+  "profile": "application",
+  "plugin": {
+    "slug": "wordpress-calendar-booking",
+    "name": "WordPress Calendar Booking",
+    "main_file": "wordpress-calendar-booking.php",
+    "version": "3.19.10",
+    "text_domain": "wordpress-calendar-booking",
+    "minimum_wordpress": "6.5",
+    "minimum_php": "8.0",
+    "author": "Cem Firat",
+    "license": "GPL-2.0-or-later",
+    "license_header": "GPL-2.0-or-later"
+  },
+  "distribution": {
+    "channel": "github-releases",
+    "updates": "github-release-updater",
+    "update_uri": "https://github.com/cemfirat/wordpress-calendar-booking"
+  },
+  "features": {
+    "block_plugin": false,
+    "playground_preview": false
+  }
+}
