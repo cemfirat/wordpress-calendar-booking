@@ -22,6 +22,6 @@ jobs:
           persist-credentials: false
 
       - name: Audit plugin against pinned blueprint
-        uses: cemfirat/repository-governance/blueprints/wordpress-plugin@618316d349c753bd7527e56183497aefde57f473
+        uses: cemfirat/repository-governance/blueprints/wordpress-plugin@8f3cb9d0ba9bfdb95d5a3510a5293950b523f10a
         with:
           plugin-root: .
