@@ -3,8 +3,6 @@ name: WordPress plugin blueprint
 on:
   pull_request:
   push:
-    branches:
-      - main
 
 permissions:
   contents: read
@@ -22,6 +20,6 @@ jobs:
           persist-credentials: false
 
       - name: Audit plugin against pinned blueprint
-        uses: cemfirat/repository-governance/blueprints/wordpress-plugin@8f3cb9d0ba9bfdb95d5a3510a5293950b523f10a
+        uses: cemfirat/repository-governance/blueprints/wordpress-plugin@161f21b0509419b73c451676893b578a7ef3db45
         with:
           plugin-root: .

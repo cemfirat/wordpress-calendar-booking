@@ -1,0 +1,50 @@
+name: Branch readiness
+
+on:
+  pull_request:
+  push:
+    branches-ignore:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  readiness:
+    name: Branch readiness
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.3'
+          tools: composer
+          coverage: none
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Run offline preflight and build-tool regressions
+        run: |
+          python3 -B scripts/preflight.py
+          python3 -B -m unittest discover -s .github/tests -p 'test_*.py' -v
+
+      - name: Validate dependency locks
+        run: |
+          set -euo pipefail
+          composer validate --no-check-publish
+          composer install --dry-run --no-interaction --prefer-dist --no-progress
+          npm ci --ignore-scripts --no-audit --no-fund
+          git diff --exit-code -- composer.lock package-lock.json
+
+      - name: Check PHP syntax on source
+        run: find . -name '*.php' -not -path './.git/*' -not -path './vendor/*' -not -path './node_modules/*' -print0 | xargs -0 -n1 php -l
