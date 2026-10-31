@@ -417,7 +417,9 @@ final class CustomerPortalController {
             $refundedMinor = (int)($payment->refunded_minor ?? 0);
             $refundPendingMinor = (int)($payment->refund_pending_minor ?? 0);
             $refundInflightMinor = (int)($payment->refund_inflight_minor ?? 0);
-            $refundAttempt = (new PaymentService())->latestRefundForPayment((int)$payment->id);
+            $refundService = new PaymentService();
+            $activeRefunds = $refundService->activeRefundsForPayment((int)$payment->id);
+            $refundAttempt = $activeRefunds[0] ?? $refundService->latestRefundForPayment((int)$payment->id);
             if ($refundedMinor > 0) {
                 $paymentSummary .= ' · ' . sprintf(
                     __('%s erstattet', 'wordpress-calendar-booking'),
@@ -439,6 +441,9 @@ final class CustomerPortalController {
                     number_format($refundInflightMinor / 100, 2, ',', '.') . ' ' . (string)$payment->currency,
                     $providerLabel
                 );
+                if (count($activeRefunds) > 1) {
+                    $paymentSummary .= ' · ' . sprintf(__('%d Erstattungen sind beim Zahlungsanbieter noch offen.', 'wordpress-calendar-booking'), count($activeRefunds));
+                }
             } elseif ($refundAttempt && in_array((string)$refundAttempt->status, [PaymentRefundStatus::FAILED, PaymentRefundStatus::CANCELED], true)) {
                 $paymentSummary .= ' · ' . PaymentRefundStatus::customerLabel((string)$refundAttempt->status);
             }

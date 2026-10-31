@@ -1,7 +1,7 @@
 <?php
 namespace Wpcb\Payments;
 
-final class StripeAdapter implements PaymentAdapterInterface {
+final class StripeAdapter implements PaymentAdapterInterface, RefundStatusProviderInterface {
     private StripeConfig $config;
     private string $apiBase;
 
@@ -108,16 +108,21 @@ final class StripeAdapter implements PaymentAdapterInterface {
         }
 
         if ($existingRefundId !== '') {
-            $refund = $this->request(
-                'GET',
-                '/v1/refunds/' . rawurlencode($existingRefundId),
-                [],
-                $secret
-            );
-            if (is_wp_error($refund)) {
-                return $this->refundRequestError($refund, true);
+            return $this->refundStatus($existingRefundId, $amount, $currency);
+        }
+
+        if (!empty($context['rechecking_attempt'])) {
+            $startedAt = (int)($context['attempt_created_at'] ?? 0);
+            $age = time() - $startedAt;
+            // Stripe API v1 may prune idempotency keys after 24 hours. Leave
+            // transport/clock margin and never replay an old unknown refund.
+            if ($startedAt < 1 || $age < 0 || $age >= 23 * 3600) {
+                return new \WP_Error(
+                    'wpcb_stripe_refund_reconciliation_required',
+                    'This refund needs provider reconciliation before another submission.',
+                    ['refund_outcome'=>'uncertain']
+                );
             }
-            return $this->refundResult($refund, $amount, $currency);
         }
 
         $sessionId = sanitize_text_field((string)($context['provider_reference'] ?? ''));
@@ -153,7 +158,50 @@ final class StripeAdapter implements PaymentAdapterInterface {
         if (is_wp_error($refund)) {
             return $this->refundRequestError($refund, false);
         }
-        return $this->refundResult($refund, $amount, $currency);
+        $result = $this->refundResult($refund, $amount, $currency);
+        if (is_wp_error($result) || empty($context['rechecking_attempt'])) {
+            return $result;
+        }
+        // A replayed POST can return Stripe's cached original response. Once
+        // its ID is known, only a current GET may establish its present state.
+        $current = $this->refundStatus($result['provider_refund_id'], $amount, $currency);
+        if (is_wp_error($current)) {
+            return new \WP_Error($current->get_error_code(), $current->get_error_message(), [
+                'refund_outcome'=>'uncertain',
+                'provider_refund_id'=>$result['provider_refund_id'],
+                'amount_minor'=>$amount,
+                'currency'=>$currency,
+            ]);
+        }
+        return $current;
+    }
+
+    public function refundStatus(string $providerRefundId, int $amountMinor, string $currency) {
+        $secret = $this->config->secretKey();
+        $providerRefundId = sanitize_text_field($providerRefundId);
+        $currency = strtoupper(sanitize_text_field($currency));
+        if ($secret === '' || $providerRefundId === '' || $amountMinor < 1
+            || !preg_match('/^[A-Z]{3}$/', $currency)
+        ) {
+            return new \WP_Error(
+                'wpcb_stripe_refund_lookup_invalid',
+                'An existing refund and configured provider are required for a status check.',
+                ['refund_outcome'=>'uncertain']
+            );
+        }
+        $refund = $this->request('GET', '/v1/refunds/' . rawurlencode($providerRefundId), [], $secret);
+        if (is_wp_error($refund)) {
+            return $this->refundRequestError($refund, true);
+        }
+        $result = $this->refundResult($refund, $amountMinor, $currency);
+        if (!is_wp_error($result) && !hash_equals($providerRefundId, $result['provider_refund_id'])) {
+            return new \WP_Error(
+                'wpcb_stripe_refund_identity_mismatch',
+                'Stripe returned a different refund identity.',
+                ['refund_outcome'=>'uncertain']
+            );
+        }
+        return $result;
     }
 
     private function refundResult(array $refund, int $expectedAmount, string $expectedCurrency) {
@@ -176,6 +224,7 @@ final class StripeAdapter implements PaymentAdapterInterface {
             'amount_minor' => $amount,
             'currency' => $currency,
             'failure_reason' => sanitize_key((string)($refund['failure_reason'] ?? '')),
+            // Object creation time is not the time of its latest status change.
             'provider_created_at' => max(0, (int)($refund['created'] ?? 0)),
         ];
     }
@@ -185,6 +234,7 @@ final class StripeAdapter implements PaymentAdapterInterface {
         $status = is_array($data) ? (int)($data['http_status'] ?? 0) : 0;
         $uncertain = $checkingExisting
             || $error->get_error_code() === 'wpcb_stripe_http'
+            || $status < 400
             || $status >= 500;
         return new \WP_Error(
             $error->get_error_code(),

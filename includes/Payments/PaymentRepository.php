@@ -163,8 +163,9 @@ final class PaymentRepository {
         }
         $refunded = (int)($payment->refunded_minor ?? 0);
         $pending = (int)($payment->refund_pending_minor ?? 0);
+        $inflight = (int)($payment->refund_inflight_minor ?? 0);
         $total = (int)$payment->amount_minor;
-        if ($pending < $amountMinor || $refunded + $amountMinor > $total) {
+        if ($pending < $amountMinor || $refunded + $pending + $inflight > $total) {
             return false;
         }
 
@@ -172,7 +173,7 @@ final class PaymentRepository {
         $nextPending = $pending - $amountMinor;
         $nextStatus = $nextRefunded >= $total
             ? PaymentStatus::REFUNDED
-            : ($nextPending > 0 ? PaymentStatus::REFUND_PENDING : PaymentStatus::PAID);
+            : ($nextPending + $inflight > 0 ? PaymentStatus::REFUND_PENDING : PaymentStatus::PAID);
         $now = Time::formatUtc(Time::nowUtc());
         $fields = [
             'refunded_minor' => $nextRefunded,
@@ -191,6 +192,7 @@ final class PaymentRepository {
                 'status' => PaymentStatus::REFUND_PENDING,
                 'refunded_minor' => $refunded,
                 'refund_pending_minor' => $pending,
+                'refund_inflight_minor' => $inflight,
             ]
         );
     }

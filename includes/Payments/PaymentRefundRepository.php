@@ -46,15 +46,27 @@ final class PaymentRefundRepository {
 
     public function activeForPayment(int $paymentId): ?object {
         global $wpdb;
+        return $wpdb->get_row($this->activeQuery($paymentId) . ' LIMIT 1') ?: null;
+    }
+
+    public function activeForPaymentList(int $paymentId): array {
+        global $wpdb;
+        return $wpdb->get_results($this->activeQuery($paymentId)) ?: [];
+    }
+
+    private function activeQuery(int $paymentId): string {
+        global $wpdb;
         $statuses = PaymentRefundStatus::activeStatuses();
         $placeholders = implode(',', array_fill(0, count($statuses), '%s'));
-        return $wpdb->get_row($wpdb->prepare(
+        return $wpdb->prepare(
             "SELECT * FROM {$this->table}
              WHERE payment_id = %d AND status IN ({$placeholders})
-             ORDER BY id DESC LIMIT 1",
+             ORDER BY CASE status
+                 WHEN 'requires_action' THEN 0 WHEN 'uncertain' THEN 1
+                 WHEN 'submitting' THEN 2 ELSE 3 END, id ASC",
             $paymentId,
             ...$statuses
-        )) ?: null;
+        );
     }
 
     public function latestForPayment(int $paymentId): ?object {
@@ -153,17 +165,23 @@ final class PaymentRefundRepository {
         }
     }
 
-    public function markUncertain(int $attemptId, string $reason = ''): bool {
+    public function markUncertain(int $attemptId, string $reason = '', string $providerRefundId = ''): bool {
         global $wpdb;
         $attempt = $this->find($attemptId);
         if (!$attempt || !in_array((string)$attempt->status, PaymentRefundStatus::activeStatuses(), true)) {
             return false;
         }
         $reason = sanitize_text_field($reason);
+        $providerRefundId = sanitize_text_field($providerRefundId);
+        $existingId = (string)($attempt->provider_refund_id ?? '');
+        if ($existingId !== '' && $providerRefundId !== '' && !hash_equals($existingId, $providerRefundId)) {
+            return false;
+        }
         return false !== $wpdb->update(
             $this->table,
             [
                 'status' => PaymentRefundStatus::UNCERTAIN,
+                'provider_refund_id' => $existingId !== '' ? $existingId : ($providerRefundId !== '' ? $providerRefundId : null),
                 'failure_reason' => $reason !== '' ? substr($reason, 0, 190) : null,
                 'updated_at' => Time::formatUtc(Time::nowUtc()),
             ],
@@ -181,7 +199,8 @@ final class PaymentRefundRepository {
         string $providerRefundId,
         string $status,
         string $failureReason = '',
-        int $providerEventCreatedAt = 0
+        int $providerEventCreatedAt = 0,
+        bool $currentSnapshot = false
     ) {
         global $wpdb;
         $providerRefundId = sanitize_text_field($providerRefundId);
@@ -205,7 +224,9 @@ final class PaymentRefundRepository {
         }
 
         $lastEvent = (int)($attempt->last_provider_event_created_at ?? 0);
-        if ($providerEventCreatedAt > 0 && $lastEvent > $providerEventCreatedAt) {
+        // A current GET was read under the payment lock. Its triggering event
+        // can be old; event creation time is not the refund object's version.
+        if (!$currentSnapshot && $providerEventCreatedAt > 0 && $lastEvent > $providerEventCreatedAt) {
             $payment = $wpdb->get_row($wpdb->prepare(
                 "SELECT * FROM {$this->paymentsTable} WHERE id = %d LIMIT 1",
                 (int)$attempt->payment_id
@@ -214,6 +235,15 @@ final class PaymentRefundRepository {
         }
 
         $currentStatus = (string)$attempt->status;
+        if ($currentStatus === PaymentRefundStatus::SUCCEEDED && $status !== $currentStatus
+            && !$currentSnapshot && $providerEventCreatedAt <= $lastEvent
+        ) {
+            $payment = $wpdb->get_row($wpdb->prepare(
+                "SELECT * FROM {$this->paymentsTable} WHERE id = %d LIMIT 1",
+                (int)$attempt->payment_id
+            ));
+            return ['attempt'=>$attempt, 'payment'=>$payment, 'changed'=>false, 'stale'=>true];
+        }
         if (in_array($currentStatus, PaymentRefundStatus::terminalStatuses(), true)) {
             $payment = $wpdb->get_row($wpdb->prepare(
                 "SELECT * FROM {$this->paymentsTable} WHERE id = %d LIMIT 1",
@@ -255,33 +285,34 @@ final class PaymentRefundRepository {
             $nextInflight = $inflight;
             $nextPaymentStatus = (string)$payment->status;
 
-            if ($status === PaymentRefundStatus::SUCCEEDED) {
-                if ($inflight < $amount || $refunded + $amount > (int)$payment->amount_minor) {
-                    $wpdb->query('ROLLBACK');
-                    $transaction = false;
-                    return new \WP_Error('wpcb_refund_amount_mismatch', 'Successful refund exceeds the provider-inflight allocation.');
-                }
-                $nextRefunded += $amount;
-                $nextInflight -= $amount;
-                $nextPaymentStatus = $nextRefunded >= (int)$payment->amount_minor
-                    ? PaymentStatus::REFUNDED
-                    : (($nextQueued + $nextInflight) > 0 ? PaymentStatus::REFUND_PENDING : PaymentStatus::PAID);
-            } elseif (in_array($status, [PaymentRefundStatus::FAILED, PaymentRefundStatus::CANCELED], true)) {
-                if ($inflight < $amount) {
-                    $wpdb->query('ROLLBACK');
-                    $transaction = false;
-                    return new \WP_Error('wpcb_refund_amount_mismatch', 'Failed refund exceeds the provider-inflight allocation.');
-                }
-                $nextInflight -= $amount;
-                $nextQueued += $amount;
-                $nextPaymentStatus = PaymentStatus::REFUND_PENDING;
+            $oldBucket = $currentStatus === PaymentRefundStatus::SUCCEEDED ? 'completed' : 'inflight';
+            $newBucket = $status === PaymentRefundStatus::SUCCEEDED
+                ? 'completed'
+                : (in_array($status, PaymentRefundStatus::terminalStatuses(), true) ? 'queued' : 'inflight');
+            if ($oldBucket !== $newBucket) {
+                if ($oldBucket === 'completed') $nextRefunded -= $amount;
+                else $nextInflight -= $amount;
+                if ($newBucket === 'completed') $nextRefunded += $amount;
+                elseif ($newBucket === 'queued') $nextQueued += $amount;
+                else $nextInflight += $amount;
             }
+            if ($amount < 1 || min($nextRefunded, $nextQueued, $nextInflight) < 0
+                || $nextRefunded + $nextQueued + $nextInflight > (int)$payment->amount_minor
+            ) {
+                $wpdb->query('ROLLBACK');
+                $transaction = false;
+                return new \WP_Error('wpcb_refund_amount_mismatch', 'Provider refund does not match its reserved allocation.');
+            }
+            $nextPaymentStatus = $nextRefunded >= (int)$payment->amount_minor
+                ? PaymentStatus::REFUNDED
+                : (($nextQueued + $nextInflight) > 0 ? PaymentStatus::REFUND_PENDING : PaymentStatus::PAID);
 
             if ($nextRefunded !== $refunded || $nextQueued !== $queued || $nextInflight !== $inflight
                 || $nextPaymentStatus !== (string)$payment->status
             ) {
                 $now = Time::formatUtc(Time::nowUtc());
-                $refundedAtSql = $nextPaymentStatus === PaymentStatus::REFUNDED ? ', refunded_at = %s' : '';
+                $refundedAtSql = $nextPaymentStatus === PaymentStatus::REFUNDED
+                    ? ', refunded_at = %s' : ', refunded_at = NULL';
                 $args = [
                     $nextRefunded,
                     $nextQueued,
@@ -322,21 +353,24 @@ final class PaymentRefundRepository {
             }
 
             $now = Time::formatUtc(Time::nowUtc());
-            $terminal = in_array($status, PaymentRefundStatus::terminalStatuses(), true);
+            $complete = $status === PaymentRefundStatus::SUCCEEDED
+                || in_array($status, PaymentRefundStatus::terminalStatuses(), true);
             $attemptFields = [
                 'provider_refund_id' => $providerRefundId !== '' ? $providerRefundId : null,
                 'status' => $status,
                 'failure_reason' => $failureReason !== '' ? substr($failureReason, 0, 190) : null,
                 'last_provider_event_created_at' => max($lastEvent, $providerEventCreatedAt),
                 'updated_at' => $now,
-                'completed_at' => $terminal ? $now : null,
+                'completed_at' => $complete
+                    ? ($currentStatus === $status ? ($attempt->completed_at ?? $now) : $now)
+                    : null,
             ];
             $updatedAttempt = $wpdb->update(
                 $this->table,
                 $attemptFields,
                 ['id'=>$attemptId, 'status'=>$currentStatus]
             );
-            if ($updatedAttempt === false) {
+            if ($updatedAttempt === false || ($currentStatus !== $status && $updatedAttempt !== 1)) {
                 $wpdb->query('ROLLBACK');
                 $transaction = false;
                 return new \WP_Error('wpcb_refund_status_storage', 'Refund provider status could not be stored.');

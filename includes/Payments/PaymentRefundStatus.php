@@ -42,7 +42,8 @@ final class PaymentRefundStatus {
     }
 
     public static function terminalStatuses(): array {
-        return [self::SUCCEEDED, self::FAILED, self::CANCELED];
+        // A completed refund can still be returned by the recipient's bank.
+        return [self::FAILED, self::CANCELED];
     }
 
     public static function customerLabel(string $status): string {

@@ -53,7 +53,8 @@ final class StripeWebhookController {
                 $amount,
                 $currency,
                 max(0, (int)($event['created'] ?? 0)),
-                $failureReason
+                $failureReason,
+                new StripeAdapter($config)
             );
             if (is_wp_error($result)) {
                 // One Stripe endpoint can receive account-wide events. Refunds
@@ -62,7 +63,9 @@ final class StripeWebhookController {
                 if ($result->get_error_code() === 'wpcb_refund_attempt_unknown') {
                     return new \WP_REST_Response(['received' => true, 'ignored' => true], 200);
                 }
-                return new \WP_Error($result->get_error_code(), $result->get_error_message(), ['status' => 400]);
+                return new \WP_Error($result->get_error_code(), $result->get_error_message(), [
+                    'status' => $result->get_error_code() === 'wpcb_refund_verification_unavailable' ? 503 : 400,
+                ]);
             }
             return new \WP_REST_Response(['received' => true], 200);
         }

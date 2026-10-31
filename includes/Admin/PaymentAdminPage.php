@@ -36,14 +36,14 @@ final class PaymentAdminPage {
     public function refundStripe(): void {
         $this->requireAdmin();
         $paymentId = absint($_POST['payment_id'] ?? 0);
+        $attemptId = absint($_POST['refund_attempt_id'] ?? 0);
         check_admin_referer('wpcb_stripe_refund_' . $paymentId);
         $service = new PaymentService();
-        $result = $service->refund($paymentId, new StripeAdapter());
+        $result = $service->refund($paymentId, new StripeAdapter(), $attemptId);
         if (is_wp_error($result)) {
             $notice = $result->get_error_message();
         } else {
-            $attempt = $service->latestRefundForPayment($paymentId);
-            $status = $attempt ? (string)$attempt->status : '';
+            $status = (string)($result->refund_attempt_status ?? '');
             $notice = $status === PaymentRefundStatus::SUCCEEDED
                 ? __('Stripe hat die Rückerstattung bestätigt.', 'wordpress-calendar-booking')
                 : ($status !== ''
@@ -107,7 +107,8 @@ final class PaymentAdminPage {
             $refunded = number_format(((int)($row->refunded_minor ?? 0)) / 100, 2, ',', '.');
             $pendingRefund = number_format(((int)($row->refund_pending_minor ?? 0)) / 100, 2, ',', '.');
             $inflightRefund = number_format(((int)($row->refund_inflight_minor ?? 0)) / 100, 2, ',', '.');
-            $refundAttempt = $paymentService->latestRefundForPayment((int)$row->id);
+            $activeRefunds = $paymentService->activeRefundsForPayment((int)$row->id);
+            $refundAttempt = $activeRefunds[0] ?? $paymentService->latestRefundForPayment((int)$row->id);
             echo '<tr><td>#' . (int)$row->id . '</td><td>#' . (int)$row->booking_id . '</td>';
             echo '<td>' . esc_html((string)$row->provider ?: '—') . '</td>';
             echo '<td>' . esc_html($amount . ' ' . (string)$row->currency);
@@ -133,6 +134,9 @@ final class PaymentAdminPage {
                     echo '<br><small>' . esc_html(sprintf(__('Hinweis: %s', 'wordpress-calendar-booking'), (string)$refundAttempt->failure_reason)) . '</small>';
                 }
             }
+            if (count($activeRefunds) > 1) {
+                echo '<br><small>' . esc_html(sprintf(__('%d offene Erstattungen', 'wordpress-calendar-booking'), count($activeRefunds))) . '</small>';
+            }
             echo '</td>';
             echo '<td>' . esc_html((string)$row->updated_at) . '</td><td>';
             if ((string)$row->provider === 'stripe' && (string)$row->status === PaymentStatus::REFUND_PENDING) {
@@ -140,10 +144,24 @@ final class PaymentAdminPage {
                 echo '<input type="hidden" name="action" value="wpcb_stripe_refund">';
                 echo '<input type="hidden" name="payment_id" value="' . (int)$row->id . '">';
                 wp_nonce_field('wpcb_stripe_refund_' . (int)$row->id);
-                $activeAttempt = $refundAttempt
-                    && in_array((string)$refundAttempt->status, PaymentRefundStatus::activeStatuses(), true);
+                $activeAttempt = !empty($activeRefunds);
                 if ($activeAttempt) {
                     $refundLabel = __('Stripe-Status erneut prüfen', 'wordpress-calendar-booking');
+                    if (count($activeRefunds) > 1) {
+                        echo '<p><label>' . esc_html__('Offene Erstattung', 'wordpress-calendar-booking') . '<br><select name="refund_attempt_id">';
+                        foreach ($activeRefunds as $activeRefund) {
+                            echo '<option value="' . (int)$activeRefund->id . '">' . esc_html(sprintf(
+                                __('%1$s · %2$s %3$s · %4$s', 'wordpress-calendar-booking'),
+                                (string)($activeRefund->provider_refund_id ?: '#' . (int)$activeRefund->id),
+                                number_format(((int)$activeRefund->amount_minor) / 100, 2, ',', '.'),
+                                (string)$activeRefund->currency,
+                                PaymentRefundStatus::customerLabel((string)$activeRefund->status)
+                            )) . '</option>';
+                        }
+                        echo '</select></label></p>';
+                    } else {
+                        echo '<input type="hidden" name="refund_attempt_id" value="' . (int)$refundAttempt->id . '">';
+                    }
                 } else {
                     $refundLabel = sprintf(
                         __('%s %s erstatten', 'wordpress-calendar-booking'),

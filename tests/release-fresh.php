@@ -34,7 +34,7 @@ foreach ([
     'form_fields', 'availability_rules', 'exceptions', 'tokens', 'booking_status_log',
     'sync_jobs', 'deliveries', 'calendar_connections', 'booking_type_calendar_connections',
     'resource_calendar_connections', 'sync_log', 'api_idempotency', 'webhook_endpoints', 'webhook_deliveries',
-    'customer_sessions', 'payments', 'payment_events', 'waiting_list',
+    'customer_sessions', 'payments', 'payment_events', 'payment_refunds', 'waiting_list',
     'video_connections', 'booking_type_video_connections', 'video_meetings',
 ] as $suffix) {
     $table = $wpdb->prefix . 'wpcb_' . $suffix;

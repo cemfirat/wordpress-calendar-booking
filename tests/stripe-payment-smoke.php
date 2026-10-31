@@ -22,7 +22,10 @@ wpcb_stripe_assert(strpos($encodedConfig, 'sk_test_super_secret') === false, 'St
 wpcb_stripe_assert(strpos($encodedConfig, 'whsec_test_super_secret') === false, 'Stripe webhook secret is not stored in plaintext.');
 
 $captured = [];
-add_filter('pre_http_request', function ($pre, $args, $url) use (&$captured) {
+$refundSnapshot = ['id'=>'re_test_wpcb_123', 'status'=>'pending', 'amount'=>12900, 'currency'=>'eur', 'created'=>time() - 3600];
+$truncateRefundReply = false;
+$sessionLookupFails = false;
+add_filter('pre_http_request', function ($pre, $args, $url) use (&$captured, &$refundSnapshot, &$truncateRefundReply, &$sessionLookupFails) {
     if (strpos($url, 'https://api.stripe.com/') !== 0) {
         return $pre;
     }
@@ -41,6 +44,7 @@ add_filter('pre_http_request', function ($pre, $args, $url) use (&$captured) {
         ];
     }
     if ($url === 'https://api.stripe.com/v1/checkout/sessions/cs_test_wpcb_123' && ($args['method'] ?? '') === 'GET') {
+        if ($sessionLookupFails) return new WP_Error('synthetic_lookup_timeout', 'Synthetic lookup timeout.');
         return [
             'headers' => [],
             'body' => wp_json_encode(['id' => 'cs_test_wpcb_123', 'payment_intent' => 'pi_test_wpcb_123']),
@@ -52,17 +56,15 @@ add_filter('pre_http_request', function ($pre, $args, $url) use (&$captured) {
     if ($url === 'https://api.stripe.com/v1/refunds' && ($args['method'] ?? '') === 'POST') {
         return [
             'headers' => [],
-            'body' => wp_json_encode([
-                'id' => 're_test_wpcb_123',
-                'status' => 'succeeded',
-                'amount' => 12900,
-                'currency' => 'eur',
-                'created' => time(),
-            ]),
+            'body' => $truncateRefundReply ? '{"id":' : wp_json_encode($refundSnapshot),
             'response' => ['code' => 200, 'message' => 'OK'],
             'cookies' => [],
             'filename' => null,
         ];
+    }
+    if ($url === 'https://api.stripe.com/v1/refunds/' . $refundSnapshot['id'] && ($args['method'] ?? '') === 'GET') {
+        return ['headers'=>[], 'body'=>wp_json_encode($refundSnapshot),
+            'response'=>['code'=>200, 'message'=>'OK'], 'cookies'=>[], 'filename'=>null];
     }
     return new WP_Error('unexpected_stripe_request', 'Unexpected Stripe request: ' . $url);
 }, 10, 3);
@@ -222,9 +224,83 @@ wpcb_stripe_assert(is_array($cancelled) && !empty($cancelled['changed']), 'Paid 
 $refundPending = (new Wpcb\Payments\PaymentRepository())->forBooking($bookingId);
 wpcb_stripe_assert($refundPending && $refundPending->status === 'refund_pending', 'Cancellation moves Stripe payment to refund pending.');
 
+$submitted = $service->refund((int)$refundPending->id, new Wpcb\Payments\StripeAdapter($config));
+$assertRefundAmounts = static function (int $completed, int $queued, int $inflight) use ($bookingId): void {
+    $current = (new Wpcb\Payments\PaymentRepository())->forBooking($bookingId);
+    wpcb_stripe_assert($current && [(int)$current->refunded_minor, (int)$current->refund_pending_minor, (int)$current->refund_inflight_minor]
+        === [$completed, $queued, $inflight], 'MySQL preserves completed/queued/inflight refund amounts exactly.');
+};
+wpcb_stripe_assert(!is_wp_error($submitted) && $submitted->status === 'refund_pending', 'Provider-pending refund is not presented as completed.');
+$assertRefundAmounts(0, 0, 12900);
+$refunds = new Wpcb\Payments\PaymentRefundRepository();
+$attempt = $refunds->latestForPayment((int)$refundPending->id);
+wpcb_stripe_assert($attempt && $attempt->provider_refund_id === $refundSnapshot['id'] && $attempt->status === 'pending', 'Real database stores pending refund identity.');
+$sendRefundEvent = static function (string $eventId, string $eventStatus, int $created) use (&$refundSnapshot, $refunds, $refundPending): void {
+    $attempt = $refunds->latestForPayment((int)$refundPending->id);
+    $object = $refundSnapshot;
+    $object['status'] = $eventStatus;
+    $object['metadata'] = ['refund_uuid'=>(string)$attempt->refund_uuid];
+    $body = wp_json_encode(['id'=>$eventId, 'type'=>'refund.updated', 'created'=>$created, 'data'=>['object'=>$object]]);
+    $timestamp = time();
+    $request = new WP_REST_Request('POST', '/wpcb/v1/payments/stripe/webhook');
+    $request->set_body($body);
+    $request->set_header('stripe-signature', 't=' . $timestamp . ',v1=' . hash_hmac('sha256', $timestamp . '.' . $body, 'whsec_test_super_secret'));
+    $response = (new Wpcb\Payments\StripeWebhookController())->handle($request);
+    wpcb_stripe_assert($response instanceof WP_REST_Response && $response->get_status() === 200, 'Verified refund event reconciles the current object.');
+};
+$eventTime = time();
+$sendRefundEvent('evt_refund_pending', 'pending', $eventTime);
+$refundSnapshot['status'] = 'succeeded';
 $refunded = $service->refund((int)$refundPending->id, new Wpcb\Payments\StripeAdapter($config));
-wpcb_stripe_assert(is_object($refunded) && $refunded->status === 'refunded', 'Stripe refund reaches refunded state.');
-wpcb_stripe_assert(count($captured) === 3, 'Stripe flow performs checkout, session lookup and refund requests only.');
+wpcb_stripe_assert(!is_wp_error($refunded) && $refunded->status === 'refunded', 'Current GET confirms success even though refund.created predates the pending event.');
+$assertRefundAmounts(12900, 0, 0);
+$sendRefundEvent('evt_refund_success', 'succeeded', $eventTime + 10);
+$sendRefundEvent('evt_refund_success', 'succeeded', $eventTime + 10);
+$sendRefundEvent('evt_refund_old_pending', 'pending', $eventTime - 10);
+$assertRefundAmounts(12900, 0, 0);
+
+$refundSnapshot['status'] = 'requires_action';
+$sendRefundEvent('evt_refund_bank_return', 'requires_action', $eventTime + 20);
+$sendRefundEvent('evt_refund_bank_return', 'requires_action', $eventTime + 20);
+$assertRefundAmounts(0, 0, 12900);
+wpcb_stripe_assert((new Wpcb\Payments\PaymentRepository())->forBooking($bookingId)->refunded_at === null, 'Bank return clears the completion timestamp.');
+$refundSnapshot['status'] = 'succeeded';
+$sendRefundEvent('evt_refund_recovered', 'succeeded', $eventTime + 30);
+$assertRefundAmounts(12900, 0, 0);
+$refundSnapshot['status'] = 'failed';
+$sendRefundEvent('evt_refund_failed', 'failed', $eventTime + 40);
+$sendRefundEvent('evt_refund_failed', 'failed', $eventTime + 40);
+$assertRefundAmounts(0, 12900, 0);
+
+// Simulate a new POST that succeeds remotely but whose HTTP 200 body is cut off.
+$oldUuid = (string)$refunds->latestForPayment((int)$refundPending->id)->refund_uuid;
+$refundSnapshot['id'] = 're_test_wpcb_456';
+$refundSnapshot['status'] = 'pending';
+$truncateRefundReply = true;
+$uncertain = $service->refund((int)$refundPending->id, new Wpcb\Payments\StripeAdapter($config));
+wpcb_stripe_assert(is_wp_error($uncertain) && $uncertain->get_error_code() === 'wpcb_payment_refund_uncertain', 'Truncated successful POST remains uncertain.');
+$uncertainAttempt = $refunds->latestForPayment((int)$refundPending->id);
+wpcb_stripe_assert($uncertainAttempt->refund_uuid !== $oldUuid && empty($uncertainAttempt->provider_refund_id), 'Only confirmed prior failure allowed the new durable attempt.');
+$assertRefundAmounts(0, 0, 12900);
+$sessionLookupFails = true;
+$retry = $service->refund((int)$refundPending->id, new Wpcb\Payments\StripeAdapter($config));
+wpcb_stripe_assert(is_wp_error($retry) && $retry->get_error_code() === 'wpcb_payment_refund_uncertain'
+    && $refunds->latestForPayment((int)$refundPending->id)->refund_uuid === $uncertainAttempt->refund_uuid,
+    'A retry prerequisite failure preserves the prior uncertain attempt.');
+$assertRefundAmounts(0, 0, 12900);
+$wpdb->update($wpdb->prefix . 'wpcb_payment_refunds', ['created_at'=>gmdate('Y-m-d H:i:s', time() - 24 * 3600)], ['id'=>(int)$uncertainAttempt->id]);
+$requestCount = count($captured);
+$oldRetry = $service->refund((int)$refundPending->id, new Wpcb\Payments\StripeAdapter($config));
+wpcb_stripe_assert(is_wp_error($oldRetry) && count($captured) === $requestCount, 'Old unknown refund is blocked before another provider request.');
+$refundSnapshot['status'] = 'succeeded';
+$sendRefundEvent('evt_unknown_reconciled', 'succeeded', $eventTime + 50);
+$assertRefundAmounts(12900, 0, 0);
+$refundSnapshot['status'] = 'canceled';
+$sendRefundEvent('evt_refund_canceled', 'canceled', $eventTime + 60);
+$sendRefundEvent('evt_refund_canceled', 'canceled', $eventTime + 60);
+$assertRefundAmounts(0, 12900, 0);
+$refundPosts = array_filter($captured, static fn($call)=>$call['url'] === 'https://api.stripe.com/v1/refunds' && $call['args']['method'] === 'POST');
+wpcb_stripe_assert(count($refundPosts) === 2, 'All reconciliation and retries created only the two intended refund POSTs.');
 
 $paymentIds = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$wpdb->prefix}wpcb_payments WHERE booking_id = %d", $bookingId));
 foreach ($paymentIds as $paymentId) {

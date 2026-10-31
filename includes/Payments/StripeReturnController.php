@@ -67,14 +67,17 @@ final class StripeReturnController {
             ];
         }
         if ($status === PaymentStatus::REFUND_PENDING) {
-            $attempt = (new PaymentRefundRepository())->latestForPayment((int)$payment->id);
+            $service = new PaymentService();
+            $active = $service->activeRefundsForPayment((int)$payment->id);
+            $attempt = $active[0] ?? $service->latestRefundForPayment((int)$payment->id);
             $queued = (int)($payment->refund_pending_minor ?? 0);
             $inflight = (int)($payment->refund_inflight_minor ?? 0);
             if ($attempt && $inflight > 0) {
                 return [
                     'state' => 'refund_' . sanitize_key((string)$attempt->status),
                     'title' => __('Rückerstattung wird verarbeitet', 'wordpress-calendar-booking'),
-                    'message' => PaymentRefundStatus::customerLabel((string)$attempt->status),
+                    'message' => PaymentRefundStatus::customerLabel((string)$attempt->status)
+                        . (count($active) > 1 ? ' · ' . sprintf(__('%d Erstattungen sind beim Zahlungsanbieter noch offen.', 'wordpress-calendar-booking'), count($active)) : ''),
                 ];
             }
             if ($attempt && in_array((string)$attempt->status, [PaymentRefundStatus::FAILED, PaymentRefundStatus::CANCELED], true)) {
