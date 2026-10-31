@@ -5,7 +5,7 @@
 This continues the existing `fix/refund-provider-status` implementation from
 `7ae873a34eec1f8a2600008d4fafa9f0260df7aa`; the missing Main governance changes
 through `ebb3f18ae2a805829dc8406a161561e2cda3aee8` are included without changing
-the release workflow. [#156](https://github.com/cemfirat/wordpress-calendar-booking/issues/156)
+the release job. [#156](https://github.com/cemfirat/wordpress-calendar-booking/issues/156)
 owns this work; [#178](https://github.com/cemfirat/wordpress-calendar-booking/issues/178)
 owns the broader release qualification. The separate #158/#160/#162 candidates
 and the late-checkout work remain separate.
