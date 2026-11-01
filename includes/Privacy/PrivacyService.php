@@ -73,7 +73,11 @@ final class PrivacyService {
 
             foreach ($meta as $key => $value) {
                 $items[] = [
-                    'name' => sprintf(__('Form field: %s', 'wordpress-calendar-booking'), $key),
+                    'name' => sprintf(
+                        /* translators: %s: form field key. */
+                        __('Form field: %s', 'wordpress-calendar-booking'),
+                        $key
+                    ),
                     'value' => is_scalar($value) ? (string)$value : wp_json_encode($value),
                 ];
             }

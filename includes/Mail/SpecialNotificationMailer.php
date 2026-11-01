@@ -44,6 +44,7 @@ final class SpecialNotificationMailer {
             $email,
             __('Kundenportal – Anmeldelink', 'wordpress-calendar-booking'),
             sprintf(
+                /* translators: %s: one-time customer portal login URL. */
                 __("Öffnen Sie Ihr Kundenportal über diesen Link:\n\n%s\n\nDer Link ist 30 Minuten gültig und kann nur einmal verwendet werden.", 'wordpress-calendar-booking'),
                 $url
             )
@@ -83,11 +84,11 @@ final class SpecialNotificationMailer {
             $email,
             __('Neue E-Mail-Adresse bestätigen', 'wordpress-calendar-booking'),
             sprintf(
+                /* translators: %s: one-time email-change confirmation URL. */
                 __("Bestätigen Sie Ihre neue E-Mail-Adresse über diesen Link:\n\n%s\n\nDer Link ist 60 Minuten gültig und kann nur einmal verwendet werden.", 'wordpress-calendar-booking'),
                 $url
             )
         );
-
         if ($state === 'failed') {
             return (new EmailRetryJobRunner())->enqueuePortalEmailChange(
                 $bookingId,
@@ -124,7 +125,8 @@ final class SpecialNotificationMailer {
             $email,
             __('A booking slot is available', 'wordpress-calendar-booking'),
             sprintf(
-                __("Hello %s,\n\na place became available for your requested appointment. Confirm within 30 minutes:\n%s", 'wordpress-calendar-booking'),
+                /* translators: 1: recipient name, 2: waiting-list confirmation URL. */
+                __("Hello %1\$s,\n\na place became available for your requested appointment. Confirm within 30 minutes:\n%2\$s", 'wordpress-calendar-booking'),
                 (string)$entry->full_name,
                 $url
             )
@@ -208,6 +210,7 @@ final class SpecialNotificationMailer {
             $email,
             __('Kundenportal – Anmeldelink', 'wordpress-calendar-booking'),
             sprintf(
+                /* translators: %s: one-time customer portal login URL. */
                 __("Öffnen Sie Ihr Kundenportal über diesen Link:\n\n%s\n\nDer Link ist 30 Minuten gültig und kann nur einmal verwendet werden.", 'wordpress-calendar-booking'),
                 $url
             )
@@ -238,6 +241,7 @@ final class SpecialNotificationMailer {
             $email,
             __('Neue E-Mail-Adresse bestätigen', 'wordpress-calendar-booking'),
             sprintf(
+                /* translators: %s: one-time email-change confirmation URL. */
                 __("Bestätigen Sie Ihre neue E-Mail-Adresse über diesen Link:\n\n%s\n\nDer Link ist 60 Minuten gültig und kann nur einmal verwendet werden.", 'wordpress-calendar-booking'),
                 $url
             )
@@ -289,7 +293,8 @@ final class SpecialNotificationMailer {
             $email,
             __('A booking slot is available', 'wordpress-calendar-booking'),
             sprintf(
-                __("Hello %s,\n\na place became available for your requested appointment. Confirm within 30 minutes:\n%s", 'wordpress-calendar-booking'),
+                /* translators: 1: recipient name, 2: waiting-list confirmation URL. */
+                __("Hello %1\$s,\n\na place became available for your requested appointment. Confirm within 30 minutes:\n%2\$s", 'wordpress-calendar-booking'),
                 (string)$entry->full_name,
                 $url
             )
@@ -426,7 +431,8 @@ final class SpecialNotificationMailer {
                 'to' => $to,
                 'subject' => __('Video meeting ready', 'wordpress-calendar-booking'),
                 'body' => sprintf(
-                    __("Video meeting for booking #%d is ready.\n\n%s", 'wordpress-calendar-booking'),
+                    /* translators: 1: booking ID, 2: video meeting join URL. */
+                    __("Video meeting for booking #%1\$d is ready.\n\n%2\$s", 'wordpress-calendar-booking'),
                     $bookingId,
                     $joinUrl
                 ),
@@ -442,6 +448,7 @@ final class SpecialNotificationMailer {
             'to' => $email,
             'subject' => __('Your video meeting is ready', 'wordpress-calendar-booking'),
             'body' => sprintf(
+                /* translators: %s: video meeting join URL. */
                 __("Your video meeting link is ready:\n\n%s", 'wordpress-calendar-booking'),
                 $joinUrl
             ),

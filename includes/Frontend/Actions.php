@@ -586,7 +586,11 @@ class Actions {
             return __('Die E-Mail ist bereits bestätigt und der Termin ist bestätigt.', 'wordpress-calendar-booking');
         }
         if ($action === 'update') {
-            return sprintf(__('Dieser Änderungslink wurde bereits verwendet. Aktueller Termin: %s.', 'wordpress-calendar-booking'), $when);
+            return sprintf(
+                /* translators: %s: current appointment date and time. */
+                __('Dieser Änderungslink wurde bereits verwendet. Aktueller Termin: %s.', 'wordpress-calendar-booking'),
+                $when
+            );
         }
         return __('Dieser Link wurde bereits verwendet. Es wurde keine weitere Änderung vorgenommen.', 'wordpress-calendar-booking');
     }

@@ -39,7 +39,11 @@ final class WaitingListPrivacy {
             ];
             foreach ((new WaitingListRepository())->formData($row) as $key => $value) {
                 $itemData[] = [
-                    'name' => sprintf(__('Form field: %s', 'wordpress-calendar-booking'), $key),
+                    'name' => sprintf(
+                        /* translators: %s: form field key. */
+                        __('Form field: %s', 'wordpress-calendar-booking'),
+                        $key
+                    ),
                     'value' => $value,
                 ];
             }

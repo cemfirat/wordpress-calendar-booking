@@ -47,7 +47,11 @@ final class PaymentAdminPage {
             $notice = $status === PaymentRefundStatus::SUCCEEDED
                 ? __('Stripe hat die Rückerstattung bestätigt.', 'wordpress-calendar-booking')
                 : ($status !== ''
-                    ? sprintf(__('Stripe-Erstattungsstatus: %s', 'wordpress-calendar-booking'), PaymentRefundStatus::customerLabel($status))
+                    ? sprintf(
+                        /* translators: %s: customer-facing refund status. */
+                        __('Stripe-Erstattungsstatus: %s', 'wordpress-calendar-booking'),
+                        PaymentRefundStatus::customerLabel($status)
+                    )
                     : __('Stripe-Erstattungsstatus wurde geprüft.', 'wordpress-calendar-booking'));
         }
         wp_safe_redirect(add_query_arg(['page' => 'wpcb_payments', 'wpcb_notice' => rawurlencode($notice)], admin_url('admin.php')));
@@ -113,13 +117,28 @@ final class PaymentAdminPage {
             echo '<td>' . esc_html((string)$row->provider ?: '—') . '</td>';
             echo '<td>' . esc_html($amount . ' ' . (string)$row->currency);
             if ((int)($row->refunded_minor ?? 0) > 0) {
-                echo '<br><small>' . esc_html(sprintf(__('Erstattet: %s %s', 'wordpress-calendar-booking'), $refunded, (string)$row->currency)) . '</small>';
+                echo '<br><small>' . esc_html(sprintf(
+                    /* translators: 1: refunded amount, 2: currency code. */
+                    __('Erstattet: %1$s %2$s', 'wordpress-calendar-booking'),
+                    $refunded,
+                    (string)$row->currency
+                )) . '</small>';
             }
             if ((int)($row->refund_pending_minor ?? 0) > 0) {
-                echo '<br><small>' . esc_html(sprintf(__('Noch nicht übermittelt: %s %s', 'wordpress-calendar-booking'), $pendingRefund, (string)$row->currency)) . '</small>';
+                echo '<br><small>' . esc_html(sprintf(
+                    /* translators: 1: queued refund amount, 2: currency code. */
+                    __('Noch nicht übermittelt: %1$s %2$s', 'wordpress-calendar-booking'),
+                    $pendingRefund,
+                    (string)$row->currency
+                )) . '</small>';
             }
             if ((int)($row->refund_inflight_minor ?? 0) > 0) {
-                echo '<br><small>' . esc_html(sprintf(__('Beim Zahlungsanbieter: %s %s', 'wordpress-calendar-booking'), $inflightRefund, (string)$row->currency)) . '</small>';
+                echo '<br><small>' . esc_html(sprintf(
+                    /* translators: 1: in-flight refund amount, 2: currency code. */
+                    __('Beim Zahlungsanbieter: %1$s %2$s', 'wordpress-calendar-booking'),
+                    $inflightRefund,
+                    (string)$row->currency
+                )) . '</small>';
             }
             echo '</td>';
             echo '<td><code>' . esc_html((string)$row->status) . '</code>';
@@ -137,11 +156,19 @@ final class PaymentAdminPage {
                 if (!empty($refundAttempt->failure_reason)
                     && in_array((string)$refundAttempt->status, [PaymentRefundStatus::FAILED, PaymentRefundStatus::CANCELED, PaymentRefundStatus::UNCERTAIN], true)
                 ) {
-                    echo '<br><small>' . esc_html(sprintf(__('Hinweis: %s', 'wordpress-calendar-booking'), (string)$refundAttempt->failure_reason)) . '</small>';
+                    echo '<br><small>' . esc_html(sprintf(
+                        /* translators: %s: provider failure reason. */
+                        __('Hinweis: %s', 'wordpress-calendar-booking'),
+                        (string)$refundAttempt->failure_reason
+                    )) . '</small>';
                 }
             }
             if (count($activeRefunds) > 1) {
-                echo '<br><small>' . esc_html(sprintf(__('%d offene Erstattungen', 'wordpress-calendar-booking'), count($activeRefunds))) . '</small>';
+                echo '<br><small>' . esc_html(sprintf(
+                    /* translators: %d: number of open refunds. */
+                    __('%d offene Erstattungen', 'wordpress-calendar-booking'),
+                    count($activeRefunds)
+                )) . '</small>';
             }
             echo '</td>';
             echo '<td>' . esc_html((string)$row->updated_at) . '</td><td>';
@@ -157,6 +184,7 @@ final class PaymentAdminPage {
                         echo '<p><label>' . esc_html__('Offene Erstattung', 'wordpress-calendar-booking') . '<br><select name="refund_attempt_id">';
                         foreach ($activeRefunds as $activeRefund) {
                             echo '<option value="' . (int)$activeRefund->id . '">' . esc_html(sprintf(
+                                /* translators: 1: refund reference, 2: amount, 3: currency code, 4: refund status. */
                                 __('%1$s · %2$s %3$s · %4$s', 'wordpress-calendar-booking'),
                                 (string)($activeRefund->provider_refund_id ?: '#' . (int)$activeRefund->id),
                                 number_format(((int)$activeRefund->amount_minor) / 100, 2, ',', '.'),
@@ -170,7 +198,8 @@ final class PaymentAdminPage {
                     }
                 } else {
                     $refundLabel = sprintf(
-                        __('%s %s erstatten', 'wordpress-calendar-booking'),
+                        /* translators: 1: refund amount, 2: currency code. */
+                        __('%1$s %2$s erstatten', 'wordpress-calendar-booking'),
                         $pendingRefund,
                         (string)$row->currency
                     );

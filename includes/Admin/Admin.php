@@ -304,6 +304,7 @@ class Admin {
         $secret_description = __('Noch kein Passwort gespeichert.', 'wordpress-calendar-booking');
         if ($secret_status['state'] === 'stored') {
             $secret_description = sprintf(
+                /* translators: %s: stored secret format label. */
                 __('Authentifiziert verschlüsselt gespeichert (%s). Das Passwort wird nie im HTML ausgegeben.', 'wordpress-calendar-booking'),
                 (string)$secret_status['format']
             );
@@ -350,6 +351,7 @@ class Admin {
             || (string)($item->channel ?? 'review') === 'review'));
         if ($reviewCount > 0) {
             echo '<div class="notice notice-warning"><p>' . esc_html(sprintf(
+                /* translators: %d: number of booking types with an unresolved channel. */
                 __('%d Terminart(en) haben einen ungeklärten Kanal und verwenden vorerst allgemeines Formularverhalten. Prüfe jede Terminart und wähle den passenden Kanal.', 'wordpress-calendar-booking'),
                 $reviewCount
             )) . '</p></div>';
@@ -461,6 +463,7 @@ class Admin {
         ];
         echo '<p><a class="button button-primary" href="' . esc_url(add_query_arg($exportArgs, admin_url('admin-post.php'))) . '">' . esc_html__('CSV exportieren', 'wordpress-calendar-booking') . '</a></p>';
         echo '<p class="description">' . esc_html(sprintf(
+            /* translators: %s: formatted number of bookings. */
             _n('%s Buchung', '%s Buchungen', $total, 'wordpress-calendar-booking'),
             number_format_i18n($total)
         )) . '</p>';
@@ -685,6 +688,7 @@ class Admin {
             if ($retry) {
                 if ((string)$retry->status === 'pending') {
                     $retryLabel = sprintf(
+                        /* translators: %s: UTC timestamp when the retry becomes available. */
                         __('pending · %s UTC', 'wordpress-calendar-booking'),
                         (string)$retry->available_at
                     );

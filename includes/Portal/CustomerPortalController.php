@@ -391,7 +391,11 @@ final class CustomerPortalController {
             $type = $types->find((int)$booking->booking_type_id);
             $url = add_query_arg('wpcb_booking', (int)$booking->id, $returnUrl);
             $html .= '<div><a class="uk-card uk-card-default uk-card-body uk-display-block" href="' . esc_url($url) . '">';
-            $html .= '<strong>' . esc_html($type ? (string)$type->name : sprintf(__('Buchung #%d', 'wordpress-calendar-booking'), (int)$booking->id)) . '</strong>';
+            $html .= '<strong>' . esc_html($type ? (string)$type->name : sprintf(
+                /* translators: %d: booking ID. */
+                __('Buchung #%d', 'wordpress-calendar-booking'),
+                (int)$booking->id
+            )) . '</strong>';
             $html .= '<div>' . esc_html(Time::display((string)$booking->slot_start, 'd.m.Y H:i')) . '</div>';
             $html .= '<div class="uk-text-meta">' . esc_html((string)$booking->status) . ' · ' . max(1, (int)$booking->party_size) . ' ' . esc_html__('Person(en)', 'wordpress-calendar-booking') . '</div>';
             $html .= '</a></div>';
@@ -404,7 +408,11 @@ final class CustomerPortalController {
         $back = remove_query_arg('wpcb_booking', $returnUrl);
         $html = '<p><a href="' . esc_url($back) . '">← ' . esc_html__('Alle Buchungen', 'wordpress-calendar-booking') . '</a></p>';
         $html .= '<div class="uk-card uk-card-default uk-card-body">';
-        $html .= '<h3>' . esc_html($type ? (string)$type->name : sprintf(__('Buchung #%d', 'wordpress-calendar-booking'), (int)$booking->id)) . '</h3>';
+        $html .= '<h3>' . esc_html($type ? (string)$type->name : sprintf(
+            /* translators: %d: booking ID. */
+            __('Buchung #%d', 'wordpress-calendar-booking'),
+            (int)$booking->id
+        )) . '</h3>';
         $html .= '<dl class="uk-description-list">';
         $html .= '<dt>' . esc_html__('Termin', 'wordpress-calendar-booking') . '</dt><dd>' . esc_html(Time::display((string)$booking->slot_start, 'd.m.Y H:i')) . ' – ' . esc_html(Time::display((string)$booking->slot_end, 'H:i')) . '</dd>';
         $html .= '<dt>' . esc_html__('Status', 'wordpress-calendar-booking') . '</dt><dd>' . esc_html((string)$booking->status) . '</dd>';
@@ -422,12 +430,14 @@ final class CustomerPortalController {
             $refundAttempt = $activeRefunds[0] ?? $refundService->latestRefundForPayment((int)$payment->id);
             if ($refundedMinor > 0) {
                 $paymentSummary .= ' · ' . sprintf(
+                    /* translators: %s: refunded amount with currency. */
                     __('%s erstattet', 'wordpress-calendar-booking'),
                     number_format($refundedMinor / 100, 2, ',', '.') . ' ' . (string)$payment->currency
                 );
             }
             if ($refundPendingMinor > 0) {
                 $paymentSummary .= ' · ' . sprintf(
+                    /* translators: %s: queued refund amount with currency. */
                     __('%s zur Erstattung vorgemerkt', 'wordpress-calendar-booking'),
                     number_format($refundPendingMinor / 100, 2, ',', '.') . ' ' . (string)$payment->currency
                 );
@@ -437,12 +447,17 @@ final class CustomerPortalController {
                     ? PaymentRefundStatus::customerLabel((string)$refundAttempt->status)
                     : __('Erstattungsstatus wird geprüft', 'wordpress-calendar-booking');
                 $paymentSummary .= ' · ' . sprintf(
-                    __('%s beim Zahlungsanbieter · %s', 'wordpress-calendar-booking'),
+                    /* translators: 1: in-flight refund amount with currency, 2: provider refund status. */
+                    __('%1$s beim Zahlungsanbieter · %2$s', 'wordpress-calendar-booking'),
                     number_format($refundInflightMinor / 100, 2, ',', '.') . ' ' . (string)$payment->currency,
                     $providerLabel
                 );
                 if (count($activeRefunds) > 1) {
-                    $paymentSummary .= ' · ' . sprintf(__('%d Erstattungen sind beim Zahlungsanbieter noch offen.', 'wordpress-calendar-booking'), count($activeRefunds));
+                    $paymentSummary .= ' · ' . sprintf(
+                        /* translators: %d: number of open refunds. */
+                        __('%d Erstattungen sind beim Zahlungsanbieter noch offen.', 'wordpress-calendar-booking'),
+                        count($activeRefunds)
+                    );
                 }
             } elseif ($refundAttempt && in_array((string)$refundAttempt->status, [PaymentRefundStatus::FAILED, PaymentRefundStatus::CANCELED], true)) {
                 $paymentSummary .= ' · ' . PaymentRefundStatus::customerLabel((string)$refundAttempt->status);
@@ -494,6 +509,7 @@ final class CustomerPortalController {
                 $singleLabel = __('Nur diesen Termin stornieren', 'wordpress-calendar-booking');
                 if ($singleRefund > 0) {
                     $singleLabel .= ' · ' . sprintf(
+                        /* translators: %s: refund amount with currency. */
                         __('Erstattung %s', 'wordpress-calendar-booking'),
                         number_format($singleRefund / 100, 2, ',', '.') . ' ' . $currency
                     );
@@ -509,6 +525,7 @@ final class CustomerPortalController {
                     $remainingLabel = __('Diesen und alle folgenden Termine stornieren', 'wordpress-calendar-booking');
                     if ($remainingRefund > 0) {
                         $remainingLabel .= ' · ' . sprintf(
+                            /* translators: %s: refund amount with currency. */
                             __('Erstattung %s', 'wordpress-calendar-booking'),
                             number_format($remainingRefund / 100, 2, ',', '.') . ' ' . $currency
                         );
