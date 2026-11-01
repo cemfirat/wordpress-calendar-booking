@@ -80,10 +80,10 @@ wpcb_video_assert($decrypted && ($decrypted->credentials['access_token'] ?? '') 
 
 $connections->setForBookingType($typeId, [[
     'connection_id'=>$connectionId,
-    'is_required'=>true,
+    'is_required'=>false,
 ]]);
 $mapped = $connections->forBookingType($typeId);
-wpcb_video_assert(count($mapped) === 1 && (int)$mapped[0]->is_required === 1, 'Booking type requires the configured video meeting connection.');
+wpcb_video_assert(count($mapped) === 1 && (int)$mapped[0]->is_required === 0, 'Optional meeting mapping is preserved without claiming it blocks booking confirmation.');
 
 $bookings = new Wpcb\Booking\BookingRepository();
 $bookingId = $bookings->create([
@@ -102,7 +102,7 @@ $service->onTransition([
 
 $meetings = new Wpcb\VideoMeetings\VideoMeetingRepository();
 $meeting = $meetings->find($bookingId, $connectionId);
-wpcb_video_assert($meeting && $meeting->status === 'active', 'Confirmation creates the provider meeting through the retry queue.');
+wpcb_video_assert($meeting && $meeting->status === 'active', 'Confirmation queues an optional mapped meeting asynchronously.');
 wpcb_video_assert((string)$meeting->join_url === 'https://meet.example.test/join/' . $bookingId, 'Provider join URL is stored with the meeting record.');
 wpcb_video_assert(WpcbVideoFakeProvider::$creates === 1, 'Provider create runs once.');
 
