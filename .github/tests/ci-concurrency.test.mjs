@@ -110,5 +110,5 @@ test('the release job retains its independent non-cancelling policy', () => {
   const release = source.match(/^  release:\n([\s\S]*?)(?=^  [A-Za-z_]+:|(?![\s\S]))/m);
   assert.ok(release, 'Release job must exist');
   assert.match(release[1], /    concurrency:\n      group: calendar-booking-release\n      cancel-in-progress: false\n/);
-  assert.match(release[1], /    if: github\.ref == 'refs\/heads\/main' && github\.event_name != 'pull_request'/);
+  assert.match(release[1], /    if: github\.ref == 'refs\/heads\/main' && github\.event_name == 'workflow_dispatch' && inputs\.release == true/);
 });
