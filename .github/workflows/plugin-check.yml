@@ -1,0 +1,52 @@
+name: WordPress Plugin Check
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  plugin-check:
+    name: WordPress Plugin Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Check out plugin
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@f3e473d116dcccaddc5834248c87452386958240 # v2
+        with:
+          php-version: '8.3'
+          tools: composer
+          coverage: none
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build deterministic installable package
+        run: |
+          set -euo pipefail
+          npm ci --omit=dev --no-audit --no-fund
+          npm run build:assets
+          composer install --no-interaction --prefer-dist --no-progress --no-dev --optimize-autoloader
+          python3 scripts/package.py "$RUNNER_TEMP/wordpress-calendar-booking.zip"
+          mkdir -p "$RUNNER_TEMP/plugin"
+          unzip -q "$RUNNER_TEMP/wordpress-calendar-booking.zip" -d "$RUNNER_TEMP/plugin"
+          test -f "$RUNNER_TEMP/plugin/wordpress-calendar-booking/wordpress-calendar-booking.php"
+
+      - name: Run distribution-aware WordPress Plugin Check
+        uses: cemfirat/repository-governance/blueprints/wordpress-plugin/plugin-check@161f21b0509419b73c451676893b578a7ef3db45
+        with:
+          build-dir: ${{ runner.temp }}/plugin/wordpress-calendar-booking
+          repository-root: .
