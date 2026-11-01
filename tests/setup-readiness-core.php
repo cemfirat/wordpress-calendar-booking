@@ -132,6 +132,24 @@ $readySettings['timezone'] = 'Europe/Vienna';
 update_option('wpcb_settings', $readySettings);
 wpcb_readiness_assert(wpcb_readiness_item($service->snapshot(), 'settings')['ready'] === true, 'Valid sender/timezone settings satisfy readiness.');
 
+$offsetSettings = $readySettings;
+$offsetSettings['timezone'] = '+00:00';
+update_option('wpcb_settings', $offsetSettings);
+wpcb_readiness_assert(wpcb_readiness_item($service->snapshot(), 'settings')['ready'] === true, 'A zero UTC offset is accepted by readiness.');
+$offsetSettings['timezone'] = '+05:00';
+update_option('wpcb_settings', $offsetSettings);
+wpcb_readiness_assert(wpcb_readiness_item($service->snapshot(), 'settings')['ready'] === false, 'A non-zero fixed offset is not silently accepted or rewritten.');
+wpcb_readiness_assert(Wpcb\Admin\Settings::get()['timezone'] === '+05:00', 'Stored non-zero offsets are preserved.');
+$origTzString = get_option('timezone_string');
+$origGmt = get_option('gmt_offset');
+update_option('timezone_string', '');
+update_option('gmt_offset', 0);
+delete_option('wpcb_settings');
+wpcb_readiness_assert(Wpcb\Admin\Settings::get()['timezone'] === 'UTC', 'Untouched WordPress UTC offset seeds canonical UTC.');
+update_option('timezone_string', $origTzString);
+update_option('gmt_offset', $origGmt);
+update_option('wpcb_settings', $readySettings);
+
 $queueOption = Wpcb\Reliability\SchedulerHealth::QUEUE_LAST_RUN_OPTION;
 $reminderOption = Wpcb\Reliability\SchedulerHealth::REMINDER_LAST_RUN_OPTION;
 $oldQueueRun = get_option($queueOption, '__wpcb_missing__');

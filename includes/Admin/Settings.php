@@ -10,7 +10,7 @@ class Settings {
             'mode' => 'automatic',
             'sender_name' => get_bloginfo('name'),
             'sender_email' => get_option('admin_email'),
-            'timezone' => wp_timezone_string() ?: 'Europe/Vienna',
+            'timezone' => self::siteTimezone() ?: 'Europe/Vienna',
             'date_format' => 'd.m.Y',
             'time_format' => 'H:i',
             'notifications_enabled' => 1,
@@ -119,6 +119,12 @@ class Settings {
         return true;
     }
 
+    /** WordPress returns an IANA zone or a fixed offset; a zero offset is canonical UTC. */
+    public static function siteTimezone(): string {
+        $site = trim((string)wp_timezone_string());
+        return preg_match('/^[+-]00:?(00)?$/', $site) ? 'UTC' : $site;
+    }
+
     public static function normalizeTimezone(string $timezone): string {
         $timezone = trim($timezone);
         $valid = \DateTimeZone::listIdentifiers();
@@ -126,7 +132,7 @@ class Settings {
             return $timezone;
         }
 
-        $site = wp_timezone_string();
+        $site = self::siteTimezone();
         if ($site === 'UTC' || in_array($site, $valid, true)) {
             return $site;
         }
