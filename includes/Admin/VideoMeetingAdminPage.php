@@ -43,7 +43,7 @@ final class VideoMeetingAdminPage {
                 if (!is_array($flags) || empty($flags['enabled'])) continue;
                 $selections[] = [
                     'connection_id' => absint($connectionId),
-                    'is_required' => !empty($flags['required']),
+                    'is_required' => false,
                 ];
             }
             $repo->setForBookingType(absint($_POST['booking_type_id'] ?? 0), $selections);
@@ -84,7 +84,7 @@ final class VideoMeetingAdminPage {
         foreach ($types as $type) {
             $selected = [];
             foreach ($repo->forBookingType((int)$type->id) as $mapped) {
-                $selected[(int)$mapped->id] = (bool)$mapped->is_required;
+                $selected[(int)$mapped->id] = true;
             }
             echo '<form method="post" style="margin:12px 0;padding:12px;background:#fff;border:1px solid #ccd0d4">';
             wp_nonce_field('wpcb_video_action');
@@ -96,11 +96,10 @@ final class VideoMeetingAdminPage {
             }
             foreach ($connections as $connection) {
                 $id=(int)$connection->id;
-                echo '<p><label><input type="checkbox" name="connections['.$id.'][enabled]" value="1" ' . checked(array_key_exists($id,$selected),true,false) . '> ';
-                echo esc_html((string)$connection->name . ' (' . (string)$connection->provider . ')') . '</label> ';
-                echo '<label><input type="checkbox" name="connections['.$id.'][required]" value="1" ' . checked($selected[$id] ?? false,true,false) . '> ' . esc_html__('erforderlich', 'wordpress-calendar-booking') . '</label></p>';
+                echo '<p><label><input type="checkbox" name="connections['.$id.'][enabled]" value="1" ' . checked(isset($selected[$id]),true,false) . '> ';
+                echo esc_html((string)$connection->name . ' (' . (string)$connection->provider . ')') . '</label></p>';
             }
-            echo '<p class="description">' . esc_html__('„Erforderlich“ bedeutet: Für bestätigte Buchungen wird das Meeting zuverlässig über die Retry-Queue erzeugt. Ein temporärer Provider-Ausfall setzt die Buchung nicht zurück.', 'wordpress-calendar-booking') . '</p>';
+            echo '<p class="description">' . esc_html__('Für bestätigte Buchungen wird das Meeting asynchron über die Retry-Queue erzeugt. Ein Provider-Ausfall setzt die Buchung nicht zurück; Status und Fehler erscheinen unten.', 'wordpress-calendar-booking') . '</p>';
             echo '<p><button class="button button-primary">' . esc_html__('Zuordnung speichern', 'wordpress-calendar-booking') . '</button></p></form>';
         }
 

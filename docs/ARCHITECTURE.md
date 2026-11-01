@@ -168,6 +168,8 @@ Video meeting providers implement a shared capability contract. Current adapters
 
 Lifecycle effects enqueue meeting creation/update/deletion idempotently. Credentials use the shared encrypted-secret infrastructure. Join URLs are treated as access credentials: they are included only in appropriate customer/admin communication, excluded from public availability, and removed locally during privacy erasure.
 
+Mapped meetings are asynchronous external effects: a provider outage does not roll back booking confirmation. The former per-mapping `is_required` flag had no distinct effect and is no longer exposed in the admin UI; the legacy database column remains for compatibility. Administrators can review provider status and errors in the video-meeting page.
+
 ### Google Meet
 
 The adapter calls `POST https://meet.googleapis.com/v2/spaces` with a JSON `Space` object (`{}`) and requires `name` and `meetingUri` in the response; rejections, malformed bodies and missing URIs fail without storing a remote reference. The access token stored for the connection must carry the OAuth scope `https://www.googleapis.com/auth/meetings.space.created`. Update and delete are no-ops because a Space has no scheduled event state. Contract tests use an HTTP double (`tests/provider-create-idempotency-smoke.php`); an opt-in real-account create/join smoke test has not been run, so the adapter is not advertised as production-ready.
