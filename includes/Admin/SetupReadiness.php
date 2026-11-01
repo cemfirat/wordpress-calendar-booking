@@ -109,7 +109,7 @@ final class SetupReadiness {
     }
 
     private function validTimezone(string $timezone): bool {
-        if ($timezone === 'UTC') {
+        if ($timezone === 'UTC' || preg_match('/^[+-]00:?(00)?$/', $timezone)) {
             return true;
         }
         return in_array($timezone, \DateTimeZone::listIdentifiers(), true);
