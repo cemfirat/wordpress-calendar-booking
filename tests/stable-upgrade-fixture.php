@@ -45,6 +45,12 @@ if (!defined('ABSPATH') || getenv('GITHUB_ACTIONS') !== 'true'
                 }
                 unset($row);
             }
+            if ($upgraded && $table === $wpdb->prefix . 'wpcb_booking_types') {
+                foreach ($rows as &$row) {
+                    unset($row['channel']);
+                }
+                unset($row);
+            }
             // Mapping tables use composite keys, not an id column.
             $encoded = array_map('serialize', $rows);
             sort($encoded, SORT_STRING);
@@ -77,6 +83,15 @@ if (!defined('ABSPATH') || getenv('GITHUB_ACTIONS') !== 'true'
         $assert($stripe->save(['enabled' => 0, 'secret_key' => 'synthetic-stripe-key', 'webhook_secret' => 'synthetic-webhook-key']) === true, 'Disabled synthetic payment credentials are stored by the old release.');
         $types = (new Wpcb\Booking\BookingTypeRepository())->all(true);
         $assert(count($types) > 0, 'Old installation has seeded booking configuration.');
+        $customTypeId = (new Wpcb\Admin\ConfigurationService())->saveBookingType([
+            'name' => 'Telefonische Sonderberatung',
+            'slug' => 'upgrade-phone-named-custom',
+            'duration_minutes' => 30,
+            'capacity' => 1,
+            'is_active' => 1,
+            'is_public' => 1,
+        ]);
+        $assert($customTypeId > 0, 'Old release stores a custom type whose editable name contains a channel word.');
         $resource = (int)get_option('wpcb_default_resource_id');
         $now = Wpcb\Support\Time::nowUtc();
         $stamp = Wpcb\Support\Time::formatUtc($now);
@@ -110,6 +125,21 @@ if (!defined('ABSPATH') || getenv('GITHUB_ACTIONS') !== 'true'
     } elseif ($phase === 'assert') {
         $assert(WPCB_VERSION === getenv('WPCB_UPGRADE_VERSION'), 'New PHP process boots the exact candidate version.');
         $assert(Wpcb\Database\SchemaMigration::isReady(), 'Upgraded schema verification is complete.');
+        foreach ([
+            'telefon' => 'phone',
+            'online-meeting' => 'online',
+            'mich-besuchen' => 'in_person',
+            'upgrade-phone-named-custom' => 'review',
+        ] as $slug => $expectedChannel) {
+            $actualChannel = (string)$wpdb->get_var($wpdb->prepare(
+                "SELECT channel FROM {$wpdb->prefix}wpcb_booking_types WHERE slug=%s",
+                $slug
+            ));
+            $assert(
+                $actualChannel === $expectedChannel,
+                'Schema upgrade classifies ' . $slug . ' as ' . $expectedChannel . '.'
+            );
+        }
         $assert(
             $wpdb->get_var("SHOW COLUMNS FROM {$wpdb->prefix}wpcb_waiting_list LIKE 'form_data_json'") === 'form_data_json',
             'Upgrade adds the nullable waiting-list form-data column without rewriting historical rows.'
