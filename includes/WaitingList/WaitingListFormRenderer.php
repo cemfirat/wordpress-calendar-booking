@@ -60,7 +60,7 @@ final class WaitingListFormRenderer {
                 echo ' *';
             }
             echo '</label><br>';
-            echo $this->inputs->render($field, $id, $value);
+            echo $this->inputs->render($field, $id, $value); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- FieldInputRenderer escapes all attributes and values.
             echo '</p>';
         }
     }

@@ -199,7 +199,7 @@ final class ResourceAdminPage {
         echo '<form method="post" style="display:grid;grid-template-columns:1fr 1fr 1fr auto auto auto;gap:8px;align-items:end">';
         wp_nonce_field('wpcb_resource_action');
         echo '<input type="hidden" name="wpcb_resource_action" value="save_resource">';
-        echo '<input type="hidden" name="resource_id" value="' . $id . '">';
+        echo '<input type="hidden" name="resource_id" value="' . absint($id) . '">';
         echo '<label>' . esc_html__('Name', 'wordpress-calendar-booking') . '<br><input class="regular-text" type="text" name="name" required value="' . esc_attr((string)($resource->name ?? '')) . '"></label>';
         echo '<label>' . esc_html__('Slug', 'wordpress-calendar-booking') . '<br><input class="regular-text" type="text" name="slug" required value="' . esc_attr((string)($resource->slug ?? '')) . '"></label>';
         echo '<label>' . esc_html__('Öffentliches Label', 'wordpress-calendar-booking') . '<br><input class="regular-text" type="text" name="public_label" value="' . esc_attr((string)($resource->public_label ?? '')) . '"></label>';
@@ -218,7 +218,7 @@ final class ResourceAdminPage {
             echo '<form method="post" style="margin-top:6px">';
             wp_nonce_field('wpcb_resource_action');
             echo '<input type="hidden" name="wpcb_resource_action" value="delete_resource">';
-            echo '<input type="hidden" name="resource_id" value="' . $id . '">';
+            echo '<input type="hidden" name="resource_id" value="' . absint($id) . '">';
             echo '<button class="button button-link-delete" type="submit">' . esc_html__('Ressource löschen', 'wordpress-calendar-booking') . '</button></form>';
         }
     }
