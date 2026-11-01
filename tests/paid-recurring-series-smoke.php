@@ -8,6 +8,7 @@ use Wpcb\Booking\BookingStatus;
 use Wpcb\Booking\BookingTransitionService;
 use Wpcb\Booking\BookingTypeRepository;
 use Wpcb\Booking\RecurringBookingService;
+use Wpcb\Frontend\ComponentRenderer;
 use Wpcb\Payments\PaymentAdapterInterface;
 use Wpcb\Payments\PaymentRepository;
 use Wpcb\Payments\PaymentService;
@@ -89,6 +90,12 @@ final class WpcbPaidSeriesAdapter implements PaymentAdapterInterface {
 }
 
 global $wpdb;
+$bookingForm = (new ComponentRenderer())->bookingForm();
+wpcb_paid_series_assert(
+    strpos($bookingForm, 'Bei Zahlungspflicht werden die ausgewählten Termine gemeinsam berechnet.') !== false
+        && strpos($bookingForm, 'Serien sind derzeit für Terminarten ohne Zahlung verfügbar.') === false,
+    'Booking form accurately explains that paid series are supported and charged as one total.'
+);
 $type = null;
 foreach ((new BookingTypeRepository())->all(true) as $candidate) {
     if ((string)($candidate->payment_mode ?? 'free') === 'free') {

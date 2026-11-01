@@ -106,7 +106,7 @@ class ComponentRenderer {
                         <option value="4" <?php echo selected((int)($values['recurrence_interval'] ?? 1), 4, false); ?>><?php esc_html_e('Alle 4 Wochen', 'wordpress-calendar-booking'); ?></option>
                     </select>
                 </div>
-                <p class="uk-text-meta"><?php esc_html_e('Serien sind derzeit für Terminarten ohne Zahlung verfügbar.', 'wordpress-calendar-booking'); ?></p>
+                <p class="uk-text-meta"><?php esc_html_e('Bei Zahlungspflicht werden die ausgewählten Termine gemeinsam berechnet.', 'wordpress-calendar-booking'); ?></p>
             </div>
 
             <div class="wpcb-field uk-margin">
