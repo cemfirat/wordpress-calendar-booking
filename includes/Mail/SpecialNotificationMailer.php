@@ -171,6 +171,52 @@ final class SpecialNotificationMailer {
         return $this->acceptedState($state);
     }
 
+    /** Tells the customer that a payment could not be fulfilled and is being refunded in full. */
+    public function sendLatePaymentRefund(int $bookingId, int $paymentId): bool {
+        $message = $this->latePaymentMessage($bookingId, $paymentId);
+        if (!$message) {
+            return true;
+        }
+        $deliveryKey = 'mail:user:' . $bookingId . ':late-payment-refund:' . $paymentId;
+        $state = $this->attempt($bookingId, $deliveryKey, 'late_payment_refund', 'customer', $message['to'], $message['subject'], $message['body']);
+        if ($state === 'failed') {
+            return (new EmailRetryJobRunner())->enqueueLatePaymentRefund($bookingId, $deliveryKey, $paymentId) > 0;
+        }
+        return $this->acceptedState($state);
+    }
+
+    private function retryLatePaymentRefund(int $bookingId, string $deliveryKey, array $payload): array {
+        $message = $this->latePaymentMessage($bookingId, absint($payload['payment_id'] ?? 0));
+        if (!$message) {
+            return $this->obsolete($deliveryKey, 'Late payment notification is no longer applicable.');
+        }
+        return $this->retryAttempt($bookingId, $deliveryKey, 'late_payment_refund', 'customer', $message['to'], $message['subject'], $message['body']);
+    }
+
+    private function latePaymentMessage(int $bookingId, int $paymentId): ?array {
+        global $wpdb;
+        $booking = $this->bookings->find($bookingId);
+        $email = $booking ? sanitize_email((string)$booking->email) : '';
+        $payment = $wpdb->get_row($wpdb->prepare(
+            "SELECT amount_minor, currency FROM {$wpdb->prefix}wpcb_payments WHERE id = %d AND booking_id = %d",
+            $paymentId,
+            $bookingId
+        ));
+        if (!$booking || !$payment || !is_email($email)) {
+            return null;
+        }
+        return [
+            'to' => $email,
+            'subject' => __('Ihre Zahlung wird zurückerstattet', 'wordpress-calendar-booking'),
+            'body' => sprintf(
+                /* translators: 1: amount, 2: currency code. */
+                __("Ihre Zahlung (%1\$s %2\$s) ist eingegangen, nachdem die Reservierung nicht mehr bestätigt werden konnte. Der Termin wurde deshalb nicht gebucht. Der volle Betrag wird automatisch zurückerstattet; die Gutschrift kann je nach Bank einige Tage dauern. Sie können den Status im Kundenportal einsehen oder einen neuen Termin buchen.", 'wordpress-calendar-booking'),
+                number_format(((int)$payment->amount_minor) / 100, 2, ',', '.'),
+                (string)$payment->currency
+            ),
+        ];
+    }
+
     public function runRetry(array $payload, int $bookingId): array {
         $kind = sanitize_key((string)($payload['kind'] ?? ''));
         $deliveryKey = (string)($payload['delivery_key'] ?? '');
@@ -186,6 +232,9 @@ final class SpecialNotificationMailer {
         }
         if ($kind === 'video_ready') {
             return $this->retryVideoReady($bookingId, $deliveryKey, $payload);
+        }
+        if ($kind === 'late_payment_refund') {
+            return $this->retryLatePaymentRefund($bookingId, $deliveryKey, $payload);
         }
 
         return ['ok' => false, 'message' => 'Unsupported special email notification descriptor.'];

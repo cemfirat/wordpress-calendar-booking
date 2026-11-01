@@ -388,6 +388,7 @@ final class PaymentService {
             }
             $this->payments->recordEvent((int)$payment->id, 'internal', 'latepay_' . substr(hash('sha256', $provider . '|' . $eventId), 0, 40), 'late_payment_refund');
             if ($booking) {
+                (new \Wpcb\Mail\SpecialNotificationMailer())->sendLatePaymentRefund((int)$booking->id, (int)$payment->id);
                 $this->logScopeEvent($booking, 'payment_late_refund_pending', 'Payment arrived after the booking could be confirmed; full refund queued', 'payment_provider');
             }
         }
