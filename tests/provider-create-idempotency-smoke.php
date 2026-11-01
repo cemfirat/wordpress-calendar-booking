@@ -161,6 +161,7 @@ $httpFilter = static function ($pre, $args, $url) use (
     if ($url === 'https://meet.googleapis.com/v2/spaces' && $method === 'POST') {
         $meetRequests[] = [
             'method' => $method,
+            'url' => $url,
             'content_type' => (string)($args['headers']['Content-Type'] ?? ''),
             'body' => (string)($args['body'] ?? ''),
         ];
@@ -343,6 +344,7 @@ wpcb_idempotency_assert(
     && ($meetOk['remote_id'] ?? '') === 'spaces/ci-space'
     && ($meetOk['join_url'] ?? '') === 'https://meet.google.com/abc-defg-hij'
     && ($lastMeetRequest['method'] ?? '') === 'POST'
+    && ($lastMeetRequest['url'] ?? '') === 'https://meet.googleapis.com/v2/spaces'
     && ($lastMeetRequest['content_type'] ?? '') === 'application/json'
     && is_object($decodedMeetBody)
     && get_object_vars($decodedMeetBody) === [],
