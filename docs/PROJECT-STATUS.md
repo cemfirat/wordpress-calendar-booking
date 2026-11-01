@@ -78,10 +78,16 @@ warnings, 326 no-caching warnings, 11 slow-query warnings, one schema-change
 warning and five external-redirect warnings. Counts are finding totals and
 categories can overlap. The external redirects are to Stripe checkout after
 Stripe-host validation or to fixed Google/Microsoft OAuth endpoints; the
-uninstall queries remove plugin-owned data. No findings were suppressed. On 2026-11-01 the Owner explicitly authorized
-adding `WordPress Plugin Check` to the existing `main protection` ruleset. The
-GitHub readback verified all 12 required contexts, strict main-only
-enforcement, no bypass actors, and no changes to the other rules. This status
-update's PR is the first PR evaluated under the expanded ruleset. Issue #219
-remains open for reviewing warnings; no version, release, installation, or
-deployment change was made.
+uninstall queries remove plugin-owned data. All 75 remaining
+`UnescapedDBParameter` warnings were individually reviewed: values are bound,
+and dynamic identifiers come from the WordPress prefix or fixed internal
+allow-lists; no request-derived SQL was found. Other direct-query, caching, and
+slow-query notices remain as visible advisories, without blanket suppression.
+On 2026-11-01 the Owner explicitly authorized adding `WordPress Plugin Check`
+to the existing `main protection` ruleset. GitHub readback verified all 12
+required contexts, strict main-only enforcement, no bypass actors, and no
+changes to the other rules. The first PR evaluated under the expanded ruleset
+passed in [PR #241](https://github.com/cemfirat/wordpress-calendar-booking/pull/241).
+The initial Plugin Check errors are resolved; the latest official report has
+zero errors and the required check is green. No version, release,
+installation, or deployment change was made.
