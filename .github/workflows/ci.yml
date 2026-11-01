@@ -331,6 +331,8 @@ jobs:
         run: wp eval-file "$GITHUB_WORKSPACE/tests/stripe-payment-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run Stripe Checkout resume smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/stripe-resume-smoke.php" --path="$RUNNER_TEMP/wordpress"
+      - name: Run Stripe Checkout lifecycle smoke test
+        run: wp eval-file "$GITHUB_WORKSPACE/tests/stripe-checkout-lifecycle-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run waiting list smoke test
         run: wp eval-file "$GITHUB_WORKSPACE/tests/waiting-list-smoke.php" --path="$RUNNER_TEMP/wordpress"
       - name: Run waiting-list DOI and paid handoff smoke test
