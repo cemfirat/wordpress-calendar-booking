@@ -83,7 +83,7 @@ final class CalendarConnectionRepository {
         $sql .= ' ORDER BY name ASC, id ASC';
         return array_map(
             static fn(object $row): CalendarConnection => CalendarConnection::fromRow($row),
-            $wpdb->get_results($sql)
+            $wpdb->get_results($sql) // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Static SQL fragments and prefixed table names only; no user input.
         );
     }
 
@@ -224,7 +224,7 @@ final class CalendarConnectionRepository {
         }
         $sql .= ' ORDER BY c.name ASC, c.id ASC';
 
-        $rows = $wpdb->get_results($wpdb->prepare($sql, $bookingTypeId));
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $bookingTypeId)); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Static SQL fragments and prefixed tables; the value is bound via %d.
         $out = [];
         foreach ($rows as $row) {
             $out[] = [
@@ -305,7 +305,7 @@ final class CalendarConnectionRepository {
         }
         $sql .= ' ORDER BY c.name ASC, c.id ASC';
 
-        $rows = $wpdb->get_results($wpdb->prepare($sql, $resourceId));
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $resourceId)); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Static SQL fragments and prefixed tables; the value is bound via %d.
         $out = [];
         foreach ($rows as $row) {
             $out[] = [

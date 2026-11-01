@@ -90,7 +90,7 @@ final class TimeMigration {
         }
 
         $select = array_merge([$primaryKey], $columns);
-        $rows = $wpdb->get_results('SELECT ' . implode(', ', $select) . ' FROM ' . $table);
+        $rows = $wpdb->get_results('SELECT ' . implode(', ', $select) . ' FROM ' . $table); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Identifiers are hard-coded by internal callers (prefixed tables, fixed columns).
         if (!is_array($rows)) {
             return false;
         }

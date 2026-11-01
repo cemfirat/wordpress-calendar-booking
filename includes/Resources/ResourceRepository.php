@@ -20,7 +20,7 @@ final class ResourceRepository {
             $sql .= ' WHERE is_active = 1';
         }
         $sql .= ' ORDER BY sort_order ASC, name ASC, id ASC';
-        return $wpdb->get_results($sql);
+        return $wpdb->get_results($sql); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Static SQL fragments and prefixed table name only; no user input.
     }
 
     public function find(int $resourceId): ?object {
@@ -193,7 +193,7 @@ final class ResourceRepository {
             $sql .= ' AND r.is_active = 1';
         }
         $sql .= ' ORDER BY r.sort_order ASC, r.name ASC, r.id ASC';
-        $rows = $wpdb->get_results($wpdb->prepare($sql, $bookingTypeId));
+        $rows = $wpdb->get_results($wpdb->prepare($sql, $bookingTypeId)); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Static SQL fragments and prefixed tables; the value is bound via %d.
 
         if (!$rows) {
             $defaultId = $this->ensureDefault();

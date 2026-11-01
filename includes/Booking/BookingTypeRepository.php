@@ -14,7 +14,7 @@ class BookingTypeRepository {
             $sql .= ' AND is_public = 1';
         }
         $sql .= ' ORDER BY sort_order ASC, name ASC';
-        return $wpdb->get_results($sql);
+        return $wpdb->get_results($sql); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Static SQL fragments and prefixed table name only; no user input.
     }
     public function find(int $id) {
         global $wpdb;

@@ -375,7 +375,7 @@ class JobRepository {
             "SELECT * FROM {$this->logTable} ORDER BY id DESC LIMIT %d",
             max(1, $limit)
         );
-        return $wpdb->get_results($sql);
+        return $wpdb->get_results($sql); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- $sql is the output of $wpdb->prepare() above.
     }
 
     public function log(int $jobId, int $bookingId, string $level, string $message): void {

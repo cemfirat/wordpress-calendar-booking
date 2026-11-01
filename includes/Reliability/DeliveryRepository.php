@@ -149,7 +149,7 @@ final class DeliveryRepository {
         }
         $sql .= ' ORDER BY id DESC LIMIT %d';
         $params[] = max(1, min(500, $limit));
-        return $wpdb->get_results($wpdb->prepare($sql, ...$params));
+        return $wpdb->get_results($wpdb->prepare($sql, ...$params)); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Conditions are fixed fragments; all values are bound.
     }
 
     public function effectTypes(): array {

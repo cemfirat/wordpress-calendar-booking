@@ -172,7 +172,7 @@ final class SetupReadiness {
                 ORDER BY m.booking_type_id ASC, m.resource_id ASC
                 LIMIT 1";
 
-        return (bool)$wpdb->get_var($sql);
+        return (bool)$wpdb->get_var($sql); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Static SQL with prefixed table names only; no user input.
     }
 
     private function hasPublicBookingSurface(): bool {
@@ -200,6 +200,6 @@ final class SetupReadiness {
                 ORDER BY ID ASC
                 LIMIT 1";
 
-        return (bool)$wpdb->get_var($wpdb->prepare($sql, ...$params));
+        return (bool)$wpdb->get_var($wpdb->prepare($sql, ...$params)); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- LIKE conditions are fixed; needles are bound via esc_like() and %s.
     }
 }

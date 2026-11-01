@@ -62,7 +62,7 @@ final class BookingSeriesRepository {
             $params[] = max(0, $fromOccurrence);
         }
         $sql .= ' ORDER BY series_occurrence ASC, id ASC';
-        return $wpdb->get_results($wpdb->prepare($sql, ...$params));
+        return $wpdb->get_results($wpdb->prepare($sql, ...$params)); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Static SQL fragments and prefixed table; all values are bound.
     }
 
     public function markStatus(int $seriesId, string $status): void {
