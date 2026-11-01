@@ -148,6 +148,48 @@ $newMeeting=(new Wpcb\VideoMeetings\VideoMeetingRepository())->find($bookingId,(
 wpcb_stale_assert($oldMeeting && $oldMeeting->status==='deleted','Old video destination is marked deleted.');
 wpcb_stale_assert($newMeeting && $newMeeting->status==='active','New video destination is active.');
 
+// A second DB connection models a worker already holding the destination lock.
+$calendarRepo->setForResource($resourceId,[
+    ['connection_id'=>$calendarA,'receives_bookings'=>1,'blocks_availability'=>0],
+    ['connection_id'=>$calendarB,'receives_bookings'=>1,'blocks_availability'=>0],
+]);
+$lockBooking=$bookings->find($bookingId);
+$lockConnectionA=$calendarRepo->find((int)$calendarA);
+$lockConnectionB=$calendarRepo->find((int)$calendarB);
+$destinationLock='wpcb_caljob_' . substr(hash('sha256',$bookingId . '|' . (int)$calendarB),0,48);
+$lockDb=new \wpdb(DB_USER,DB_PASSWORD,DB_NAME,DB_HOST);
+$lockAcquired=(int)$lockDb->get_var($lockDb->prepare('SELECT GET_LOCK(%s, %d)',$destinationLock,0));
+wpcb_stale_assert($lockAcquired===1,'A separate worker holds the calendar destination lock.');
+try {
+    $calendarRunner=new Wpcb\Calendar\ProviderSyncService();
+    $sameDestination=$calendarRunner->run(
+        'update',
+        $bookingId,
+        (int)$calendarB,
+        Wpcb\Calendar\ProviderSyncService::desiredVersion($lockBooking,$lockConnectionB)
+    );
+    wpcb_stale_assert(
+        empty($sameDestination['ok']) && strpos((string)($sameDestination['message']??''),'busy')!==false,
+        'A concurrent worker cannot execute the same booking/destination operation.'
+    );
+
+    $createsBeforeIndependent=(int)$GLOBALS['wpcb_stale_calendar_creates'];
+    $independentDestination=$calendarRunner->run(
+        'create',
+        $bookingId,
+        (int)$calendarA,
+        Wpcb\Calendar\ProviderSyncService::desiredVersion($lockBooking,$lockConnectionA)
+    );
+    wpcb_stale_assert(
+        !empty($independentDestination['ok'])
+            && (int)$GLOBALS['wpcb_stale_calendar_creates']===$createsBeforeIndependent+1,
+        'A different destination progresses while the first destination is locked.'
+    );
+} finally {
+    $lockDb->get_var($lockDb->prepare('SELECT RELEASE_LOCK(%s)',$destinationLock));
+    $lockDb->close();
+}
+
 $logs=$jobs->recentLogs(200);
 $obsolete=array_filter($logs,static fn($row):bool => (int)$row->booking_id===$bookingId && stripos((string)$row->message,'Obsolete')!==false);
 wpcb_stale_assert(count($obsolete)>=2,'Diagnostics distinguish obsolete queue work from provider success.');
