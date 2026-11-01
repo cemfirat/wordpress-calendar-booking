@@ -211,6 +211,9 @@ final class PaymentService {
                 'currency' => (string)$payment->currency,
                 'expires_at' => (string)$payment->expires_at,
                 'provider_reference' => (string)($payment->provider_reference ?? ''),
+                // Stable per replaced predecessor, so a lost response can be retried safely.
+                'attempt_started_at' => (string)($payment->updated_at ?? $payment->created_at ?? ''),
+                'attempt_key' => hash('sha256', (string)$payment->payment_uuid . '|' . (string)($payment->provider_reference ?? '')),
             ]);
             if (is_wp_error($result)) {
                 return $result;
@@ -236,6 +239,7 @@ final class PaymentService {
             if (!$storedReference) {
                 return new \WP_Error('wpcb_payment_provider_reference', 'Payment provider reference could not be stored.');
             }
+            $this->payments->recordAttempt((int)$payment->id, $provider, $reference);
             $stored = $this->payments->find((int)$payment->id);
             if ($stored && !empty($result['checkout_url'])) {
                 $stored->checkout_url = esc_url_raw((string)$result['checkout_url']);
@@ -257,7 +261,8 @@ final class PaymentService {
         string $providerReference,
         string $eventType,
         int $amountMinor,
-        string $currency
+        string $currency,
+        string $paymentUuid = ''
     ) {
         $provider = sanitize_key($provider);
         $eventId = sanitize_text_field($eventId);
@@ -269,8 +274,32 @@ final class PaymentService {
             return new \WP_Error('wpcb_payment_event_invalid', 'Payment event identity is incomplete.');
         }
         $payment = $this->payments->findByProviderReference($provider, $providerReference);
+        $superseded = false;
+        if (!$payment) {
+            $payment = $this->payments->findByAttempt($provider, $providerReference);
+            $superseded = (bool)$payment;
+        }
+        $paymentUuid = sanitize_text_field($paymentUuid);
+        if (!$payment && $paymentUuid !== '') {
+            // The creation response may have been lost after the provider
+            // committed it; the signed payment UUID still identifies the owner.
+            $candidate = $this->payments->findByUuid($paymentUuid);
+            $unbound = $candidate && (string)$candidate->provider === '' && (string)$candidate->provider_reference === '';
+            if ($candidate && ((string)$candidate->provider === $provider || $unbound)) {
+                if ($unbound && !$this->payments->attachProvider((int)$candidate->id, $provider, $providerReference)) {
+                    return new \WP_Error('wpcb_payment_provider_reference', 'Payment provider reference could not be stored.');
+                }
+                $candidate = $this->payments->find((int)$candidate->id) ?: $candidate;
+                $payment = $candidate;
+                $superseded = true;
+                $this->payments->recordAttempt((int)$payment->id, $provider, $providerReference);
+            }
+        }
         if (!$payment) {
             return new \WP_Error('wpcb_payment_reference_unknown', 'Payment reference is unknown.');
+        }
+        if ($superseded && (string)$payment->provider_reference === $providerReference) {
+            $superseded = false;
         }
         if (!hash_equals((string)$payment->currency, $currency)) {
             return new \WP_Error('wpcb_payment_amount_mismatch', 'Payment amount or currency does not match the booking.');
@@ -296,12 +325,49 @@ final class PaymentService {
         }
 
         $current = (string)$payment->status;
+        if ($superseded && $target === PaymentStatus::FAILED) {
+            // An older attempt ending must not fail the live attempt.
+            $this->payments->recordEvent((int)$payment->id, $provider, $eventId, 'superseded_' . $eventType);
+            return $this->payments->find((int)$payment->id);
+        }
+        if ($target === PaymentStatus::PAID && $superseded && in_array($current, [
+            PaymentStatus::PAID,
+            PaymentStatus::REFUND_PENDING,
+            PaymentStatus::REFUNDED,
+        ], true)) {
+            // A second provider session was paid: needs a human decision.
+            $this->payments->recordEvent((int)$payment->id, $provider, $eventId, 'duplicate_payment_review');
+            $booking = $this->bookings->find((int)$payment->booking_id);
+            if ($booking) {
+                $this->logScopeEvent($booking, 'payment_duplicate_review', 'A second provider checkout was paid and needs manual review', 'payment_provider');
+            }
+            return $this->payments->find((int)$payment->id);
+        }
+        if ($target === PaymentStatus::PAID && $superseded && in_array($current, [
+            PaymentStatus::PENDING,
+            PaymentStatus::EXPIRED,
+            PaymentStatus::FAILED,
+        ], true)) {
+            // Refunds resolve the charge through the paid session, so it must
+            // become the payment's reference before the status changes.
+            if (!$this->payments->replaceProviderReference(
+                (int)$payment->id,
+                $provider,
+                (string)$payment->provider_reference,
+                $providerReference,
+                [$current]
+            )) {
+                return new \WP_Error('wpcb_payment_transition_race', 'Payment changed while the event was processed.');
+            }
+        }
+        $lateOrigin = in_array($current, [PaymentStatus::EXPIRED, PaymentStatus::FAILED], true)
+            && $target === PaymentStatus::PAID;
         $allowed = [
             PaymentStatus::PENDING => [PaymentStatus::PAID, PaymentStatus::FAILED],
             PaymentStatus::REFUND_PENDING => [],
             PaymentStatus::PAID => [],
-            PaymentStatus::FAILED => [],
-            PaymentStatus::EXPIRED => [],
+            PaymentStatus::FAILED => [PaymentStatus::PAID],
+            PaymentStatus::EXPIRED => [PaymentStatus::PAID],
             PaymentStatus::REFUNDED => [],
         ];
         if ($target !== $current && !in_array($target, $allowed[$current] ?? [], true)) {
@@ -311,15 +377,51 @@ final class PaymentService {
         if ($target !== $current && !$this->payments->setStatus((int)$payment->id, $current, $target)) {
             return new \WP_Error('wpcb_payment_transition_race', 'Payment changed while the event was processed.');
         }
+        $booking = $this->bookings->find((int)$payment->booking_id);
+        if ($target === PaymentStatus::PAID && $this->shouldRefundSettledPayment($payment, $booking, $lateOrigin)) {
+            // Verified money for a hold that can no longer be confirmed must
+            // never stay unresolved. Queue before the idempotency marker so a
+            // retried event repeats the (idempotent) step after a crash.
+            $fresh = $this->payments->find((int)$payment->id);
+            if (!$fresh || !$this->payments->queueRefund((int)$fresh->id, (int)$fresh->amount_minor)) {
+                return new \WP_Error('wpcb_payment_late_refund_failed', 'Late payment refund could not be queued.');
+            }
+            $this->payments->recordEvent((int)$payment->id, 'internal', 'latepay_' . substr(hash('sha256', $provider . '|' . $eventId), 0, 40), 'late_payment_refund');
+            if ($booking) {
+                $this->logScopeEvent($booking, 'payment_late_refund_pending', 'Payment arrived after the booking could be confirmed; full refund queued', 'payment_provider');
+            }
+        }
         if (!$this->payments->recordEvent((int)$payment->id, $provider, $eventId, $eventType)) {
             return $this->payments->find((int)$payment->id);
         }
 
-        $booking = $this->bookings->find((int)$payment->booking_id);
         if ($booking) {
             $this->logScopeEvent($booking, 'payment_' . $target, 'Payment lifecycle updated', 'payment_provider');
         }
         return $this->payments->find((int)$payment->id);
+    }
+
+    /**
+     * A paid session is unfulfillable when its booking cannot be confirmed any
+     * more: terminal booking, an elapsed hold, or payment on an expired/failed
+     * attempt. Nothing may already be refunded or queued.
+     */
+    private function shouldRefundSettledPayment(object $payment, ?object $booking, bool $lateOrigin): bool {
+        $fresh = $this->payments->find((int)$payment->id);
+        if (!$fresh || (string)$fresh->status !== PaymentStatus::PAID
+            || (int)$fresh->refunded_minor + (int)$fresh->refund_pending_minor + (int)$fresh->refund_inflight_minor > 0
+        ) {
+            return false;
+        }
+        if ($lateOrigin || !$booking) {
+            return true;
+        }
+        $status = (string)$booking->status;
+        if (in_array($status, BookingStatus::terminalStatuses(), true)) {
+            return true;
+        }
+        $deadline = Time::parseUtc((string)($booking->reserved_until ?? ''));
+        return $status === BookingStatus::RESERVED_UNCONFIRMED && $deadline && $deadline <= Time::nowUtc();
     }
 
     public function canConfirm(int $bookingId): bool {
@@ -335,12 +437,13 @@ final class PaymentService {
         return $payment && (string)$payment->status === PaymentStatus::PAID;
     }
 
-    public function expirePending(int $limit = 100): int {
+    public function expirePending(int $limit = 100, ?PaymentAdapterInterface $adapter = null): int {
         $count = 0;
         foreach ($this->payments->expiredPending($limit) as $payment) {
             if (!$this->payments->setStatus((int)$payment->id, PaymentStatus::PENDING, PaymentStatus::EXPIRED)) {
                 continue;
             }
+            $this->expireProviderCheckout($payment, $adapter);
             $booking = $this->bookings->find((int)$payment->booking_id);
             if ($booking && (string)$booking->status === BookingStatus::RESERVED_UNCONFIRMED) {
                 if (!empty($booking->series_id)) {
@@ -364,10 +467,23 @@ final class PaymentService {
         return $count;
     }
 
+    private function expireProviderCheckout(object $payment, ?PaymentAdapterInterface $adapter): void {
+        $reference = sanitize_text_field((string)($payment->provider_reference ?? ''));
+        if ($reference === '' || (string)$payment->provider !== 'stripe') {
+            return;
+        }
+        $adapter = $adapter ?: new StripeAdapter();
+        if (!$adapter instanceof CheckoutExpiryInterface || sanitize_key($adapter->code()) !== (string)$payment->provider) {
+            return;
+        }
+        // Best effort: an already completed session is reconciled by its event.
+        $adapter->expireCheckout($reference);
+    }
+
     public function onBookingTransition(array $event, $booking): void {
         if (!$booking || empty($event['changed']) || !in_array(
             (string)($event['to'] ?? ''),
-            [BookingStatus::CANCELLED, BookingStatus::REJECTED],
+            [BookingStatus::CANCELLED, BookingStatus::REJECTED, BookingStatus::EXPIRED],
             true
         )) {
             return;
@@ -426,7 +542,11 @@ final class PaymentService {
                 return;
             }
 
-            $amount = $this->refundAllocationForBookingObject($booking, $fresh);
+            $amount = min(
+                $this->refundAllocationForBookingObject($booking, $fresh),
+                max(0, (int)$fresh->amount_minor - (int)$fresh->refunded_minor
+                    - (int)$fresh->refund_pending_minor - (int)$fresh->refund_inflight_minor)
+            );
             if ($amount < 1) {
                 if ($wpdb->query('COMMIT') === false) {
                     throw new \RuntimeException('Payment refund intent could not be committed.');

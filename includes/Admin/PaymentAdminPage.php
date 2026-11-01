@@ -123,6 +123,12 @@ final class PaymentAdminPage {
             }
             echo '</td>';
             echo '<td><code>' . esc_html((string)$row->status) . '</code>';
+            if ($repo->hasEventType((int)$row->id, 'late_payment_refund')) {
+                echo '<br><small><strong>' . esc_html__('Verspätete Zahlung: Buchung nicht mehr bestätigbar, volle Erstattung erforderlich.', 'wordpress-calendar-booking') . '</strong></small>';
+            }
+            if ($repo->hasEventType((int)$row->id, 'duplicate_payment_review')) {
+                echo '<br><small><strong>' . esc_html__('Zweite Stripe-Zahlung erkannt: bitte manuell prüfen und im Stripe-Dashboard erstatten.', 'wordpress-calendar-booking') . '</strong></small>';
+            }
             if ($refundAttempt) {
                 echo '<br><small>' . esc_html(PaymentRefundStatus::customerLabel((string)$refundAttempt->status)) . '</small>';
                 if (!empty($refundAttempt->provider_refund_id)) {

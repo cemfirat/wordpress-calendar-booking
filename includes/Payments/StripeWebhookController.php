@@ -96,7 +96,10 @@ final class StripeWebhookController {
 
         $amount = (int)($object['amount_total'] ?? $object['amount_refunded'] ?? 0);
         $currency = strtoupper(sanitize_text_field((string)($object['currency'] ?? '')));
-        $result = (new PaymentService())->applyProviderEvent('stripe', $eventId, $reference, $mapped, $amount, $currency);
+        $eventPaymentUuid = str_starts_with($type, 'checkout.session.')
+            ? sanitize_text_field((string)($object['metadata']['payment_uuid'] ?? $object['client_reference_id'] ?? ''))
+            : '';
+        $result = (new PaymentService())->applyProviderEvent('stripe', $eventId, $reference, $mapped, $amount, $currency, $eventPaymentUuid);
         if (is_wp_error($result)) {
             return new \WP_Error($result->get_error_code(), $result->get_error_message(), ['status' => 400]);
         }

@@ -1,7 +1,7 @@
 <?php
 namespace Wpcb\Payments;
 
-final class StripeAdapter implements PaymentAdapterInterface, RefundStatusProviderInterface {
+final class StripeAdapter implements PaymentAdapterInterface, RefundStatusProviderInterface, CheckoutExpiryInterface {
     private StripeConfig $config;
     private string $apiBase;
 
@@ -54,8 +54,33 @@ final class StripeAdapter implements PaymentAdapterInterface, RefundStatusProvid
             }
         }
 
+        // Stripe accepts 30 minutes to 24 hours. A shorter local hold cannot be
+        // mirrored, so the session may outlive it; the service expires it
+        // explicitly and reconciles any payment that still arrives.
+        $now = time();
+        $local = \Wpcb\Support\Time::parseUtc((string)($context['expires_at'] ?? ''));
+        $step = 300;
+        // Anchor the minimum to the attempt start so that a retry of the same
+        // attempt sends an identical body (and key) across bucket boundaries.
+        $anchor = \Wpcb\Support\Time::parseUtc((string)($context['attempt_started_at'] ?? ''));
+        $base = $anchor ? $anchor->getTimestamp() : $now;
+        if ($now - $base > 480) {
+            $base = $now;
+        }
+        $minimum = (int)(ceil(($base + 1800 + 600) / $step) * $step);
+        $maximum = (int)(floor(($now + 86400 - 300) / $step) * $step);
+        $expiresAt = (int)(ceil(max($local ? $local->getTimestamp() : 0, $minimum) / $step) * $step);
+        $expiresAt = min($expiresAt, $maximum);
+        $attemptKey = sanitize_text_field((string)($context['attempt_key'] ?? ''));
+        if ($attemptKey === '') {
+            $attemptKey = $paymentUuid . '|' . $existingReference;
+        }
+        // The expiry is part of the request body, so it must be part of the key.
+        $idempotencyKey = 'wpcb_co_' . substr(hash('sha256', $attemptKey . '|' . $expiresAt), 0, 48);
+
         $body = [
             'mode' => 'payment',
+            'expires_at' => (string)$expiresAt,
             'client_reference_id' => $paymentUuid,
             'line_items[0][price_data][currency]' => $currency,
             'line_items[0][price_data][product_data][name]' => 'WordPress Calendar Booking',
@@ -73,7 +98,7 @@ final class StripeAdapter implements PaymentAdapterInterface, RefundStatusProvid
             ], home_url('/')),
         ];
 
-        $result = $this->request('POST', '/v1/checkout/sessions', $body, $secret);
+        $result = $this->request('POST', '/v1/checkout/sessions', $body, $secret, ['Idempotency-Key' => $idempotencyKey]);
         if (is_wp_error($result)) {
             return $result;
         }
@@ -87,6 +112,26 @@ final class StripeAdapter implements PaymentAdapterInterface, RefundStatusProvid
             'provider_reference' => $reference,
             'checkout_url' => $url,
         ];
+    }
+
+    public function expireCheckout(string $providerReference) {
+        $secret = $this->config->secretKey();
+        $providerReference = sanitize_text_field($providerReference);
+        if ($secret === '' || $providerReference === '') {
+            return new \WP_Error('wpcb_stripe_not_configured', 'Stripe is not configured.');
+        }
+        $result = $this->request(
+            'POST',
+            '/v1/checkout/sessions/' . rawurlencode($providerReference) . '/expire',
+            [],
+            $secret
+        );
+        if (is_wp_error($result)) {
+            return $result;
+        }
+        return sanitize_key((string)($result['status'] ?? '')) === 'expired'
+            ? true
+            : new \WP_Error('wpcb_stripe_checkout_not_expired', 'Stripe checkout was not expired.');
     }
 
     public function refund(array $context) {

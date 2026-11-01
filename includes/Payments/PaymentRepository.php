@@ -100,29 +100,36 @@ final class PaymentRepository {
         return $updated === 1 || ($updated === 0 && ($p = $this->find($paymentId)) && (string)$p->provider === $provider && (string)$p->provider_reference === $reference);
     }
 
-    public function replaceProviderReference(int $paymentId, string $provider, string $expectedReference, string $newReference): bool {
+    public function replaceProviderReference(
+        int $paymentId,
+        string $provider,
+        string $expectedReference,
+        string $newReference,
+        array $statuses = [PaymentStatus::PENDING]
+    ): bool {
         global $wpdb;
         $provider = sanitize_key($provider);
         $expectedReference = sanitize_text_field($expectedReference);
         $newReference = sanitize_text_field($newReference);
-        if ($paymentId < 1 || $provider === '' || $expectedReference === '' || $newReference === '') {
+        $statuses = array_values(array_intersect($statuses, PaymentStatus::all()));
+        if ($paymentId < 1 || $provider === '' || $expectedReference === '' || $newReference === '' || !$statuses) {
             return false;
         }
+        $placeholders = implode(',', array_fill(0, count($statuses), '%s'));
         $updated = $wpdb->query($wpdb->prepare(
             "UPDATE {$this->table}
              SET provider_reference = %s, updated_at = %s
-             WHERE id = %d AND status = %s AND provider = %s AND provider_reference = %s",
-            $newReference,
-            Time::formatUtc(Time::nowUtc()),
-            $paymentId,
-            PaymentStatus::PENDING,
-            $provider,
-            $expectedReference
+             WHERE id = %d AND status IN ($placeholders) AND provider = %s AND provider_reference = %s",
+            array_merge([
+                $newReference,
+                Time::formatUtc(Time::nowUtc()),
+                $paymentId,
+            ], $statuses, [$provider, $expectedReference])
         ));
         return $updated === 1 || (
             $updated === 0
             && ($payment = $this->find($paymentId))
-            && (string)$payment->status === PaymentStatus::PENDING
+            && in_array((string)$payment->status, $statuses, true)
             && (string)$payment->provider === $provider
             && (string)$payment->provider_reference === $newReference
         );
@@ -257,6 +264,39 @@ final class PaymentRepository {
             Time::formatUtc(Time::nowUtc())
         ));
         return $inserted === 1;
+    }
+
+    /**
+     * Checkout attempts are kept in the idempotent event ledger so a delayed
+     * event from a superseded provider session still resolves to its payment.
+     */
+    public function recordAttempt(int $paymentId, string $provider, string $reference): bool {
+        $reference = sanitize_text_field($reference);
+        if ($paymentId < 1 || $reference === '') {
+            return false;
+        }
+        $this->recordEvent($paymentId, $provider, 'attempt:' . $reference, 'checkout_attempt');
+        return $this->eventExists($provider, 'attempt:' . $reference);
+    }
+
+    public function findByAttempt(string $provider, string $reference): ?object {
+        global $wpdb;
+        $paymentId = (int)$wpdb->get_var($wpdb->prepare(
+            "SELECT payment_id FROM {$this->eventsTable}
+             WHERE provider = %s AND provider_event_id = %s AND event_type = 'checkout_attempt' LIMIT 1",
+            sanitize_key($provider),
+            'attempt:' . sanitize_text_field($reference)
+        ));
+        return $paymentId > 0 ? $this->find($paymentId) : null;
+    }
+
+    public function hasEventType(int $paymentId, string $eventType): bool {
+        global $wpdb;
+        return (bool)$wpdb->get_var($wpdb->prepare(
+            "SELECT id FROM {$this->eventsTable} WHERE payment_id = %d AND event_type = %s LIMIT 1",
+            $paymentId,
+            sanitize_key($eventType)
+        ));
     }
 
     public function eventExists(string $provider, string $eventId): bool {
