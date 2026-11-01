@@ -1,4 +1,7 @@
 <?php
+if (!defined('ABSPATH')) {
+    exit;
+}
 return [
     'name' => 'wpcb_booking_calendar',
     'title' => 'Calendar Booking Availability',

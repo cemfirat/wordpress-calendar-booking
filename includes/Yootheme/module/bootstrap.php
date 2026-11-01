@@ -1,4 +1,7 @@
 <?php
+if (!defined('ABSPATH')) {
+    exit;
+}
 
 use YOOtheme\Builder;
 use YOOtheme\Path;
