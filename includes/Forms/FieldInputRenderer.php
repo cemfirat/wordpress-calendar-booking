@@ -36,8 +36,9 @@ final class FieldInputRenderer {
         if ($type === 'select') {
             $html = '<select class="uk-select" id="' . esc_attr($id) . '" name="' . esc_attr($name) . '"' . $requiredAttr . '>'
                 . '<option value="">' . esc_html__('Bitte wählen', 'wordpress-calendar-booking') . '</option>';
-            foreach ($definition['options'] as $option) {
-                $html .= '<option value="' . esc_attr($option) . '"' . selected($value, $option, false) . '>'
+            foreach ($definition['options'] as $index => $option) {
+                $optionValue = (string)($definition['option_values'][$index] ?? $option);
+                $html .= '<option value="' . esc_attr($optionValue) . '"' . selected($value, $optionValue, false) . '>'
                     . esc_html($option) . '</option>';
             }
             return $html . '</select>';
@@ -45,9 +46,10 @@ final class FieldInputRenderer {
         if ($type === 'radio') {
             $html = '';
             foreach ($definition['options'] as $index => $option) {
+                $optionValue = (string)($definition['option_values'][$index] ?? $option);
                 $html .= '<label class="uk-margin-small-right"><input class="uk-radio" type="radio" id="'
-                    . esc_attr($id . '_' . $index) . '" name="' . esc_attr($name) . '" value="' . esc_attr($option) . '"'
-                    . checked($value, $option, false) . $requiredAttr . '> ' . esc_html($option) . '</label>';
+                    . esc_attr($id . '_' . $index) . '" name="' . esc_attr($name) . '" value="' . esc_attr($optionValue) . '"'
+                    . checked($value, $optionValue, false) . $requiredAttr . '> ' . esc_html($option) . '</label>';
             }
             return $html;
         }

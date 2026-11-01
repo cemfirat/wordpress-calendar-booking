@@ -47,7 +47,7 @@ final class ConfigurationBackupService {
         }
 
         $types = $wpdb->get_results(
-            "SELECT name, slug, description, duration_minutes, buffer_before_minutes, buffer_after_minutes,
+            "SELECT name, slug, description, channel, duration_minutes, buffer_before_minutes, buffer_after_minutes,
                     capacity, show_remaining_capacity, payment_mode, price_minor, currency, is_active, is_public, sort_order
              FROM {$wpdb->prefix}wpcb_booking_types ORDER BY id ASC",
             ARRAY_A
@@ -188,8 +188,9 @@ final class ConfigurationBackupService {
                 return new \WP_Error('wpcb_backup_section_limit', __('Ein Konfigurationsabschnitt enthält zu viele Datensätze.', 'wordpress-calendar-booking'));
             }
             foreach ($data[$section] as $row) {
+                $optionalKeys = $section === 'booking_types' ? ['channel'] : [];
                 if (!is_array($row)
-                    || array_diff(array_keys($row), $allowedKeys)
+                    || array_diff(array_keys($row), array_merge($allowedKeys, $optionalKeys))
                     || array_diff($allowedKeys, array_keys($row))) {
                     return new \WP_Error('wpcb_backup_row_fields', __('Die Sicherung enthält fehlende oder unbekannte Konfigurationsfelder.', 'wordpress-calendar-booking'));
                 }
@@ -308,11 +309,24 @@ final class ConfigurationBackupService {
         if ($snapshot['calendar_connections']) {
             $plan['warnings'][] = __('Kalenderverbindungen werden ohne Zugangsdaten importiert und bleiben bis zur erneuten Verbindung deaktiviert.', 'wordpress-calendar-booking');
         }
+        foreach ($snapshot['booking_types'] as $row) {
+            if (!array_key_exists('channel', $row)) {
+                $plan['warnings'][] = __('Eine ältere Sicherung enthält keinen expliziten Termin-Kanal. Betroffene Terminarten werden auf „Zu prüfen“ gesetzt und verwenden allgemeines Verhalten.', 'wordpress-calendar-booking');
+                break;
+            }
+        }
+        foreach ($snapshot['form_fields'] as $row) {
+            $definition = FieldContract::definition($row);
+            if (!is_wp_error($definition) && !empty($definition['options_need_review'])) {
+                $plan['warnings'][] = __('Mindestens ein Auswahlfeld „Wer ruft an?“ enthält nicht eindeutig zuordenbare Optionen. Prüfe die Reihenfolge im Feld-Editor vor der Verwendung.', 'wordpress-calendar-booking');
+                break;
+            }
+        }
 
         foreach ($snapshot['booking_types'] as $row) {
             $slug = sanitize_title((string)$row['slug']);
             $matches = $wpdb->get_results($wpdb->prepare(
-                "SELECT name, slug, description, duration_minutes, buffer_before_minutes, buffer_after_minutes,
+                "SELECT name, slug, description, channel, duration_minutes, buffer_before_minutes, buffer_after_minutes,
                         capacity, show_remaining_capacity, payment_mode, price_minor, currency, is_active, is_public, sort_order
                  FROM {$wpdb->prefix}wpcb_booking_types WHERE slug=%s",
                 $slug
@@ -323,7 +337,7 @@ final class ConfigurationBackupService {
             if ($matches) {
                 $plan['update']['booking_types']++;
                 $this->recordConflict($plan, 'booking_types', $slug, $matches[0], $row, [
-                    'name','description','duration_minutes','buffer_before_minutes','buffer_after_minutes',
+                    'name','description','channel','duration_minutes','buffer_before_minutes','buffer_after_minutes',
                     'capacity','show_remaining_capacity','payment_mode','price_minor','currency','is_active','is_public','sort_order'
                 ]);
             } else {
@@ -477,9 +491,7 @@ final class ConfigurationBackupService {
                     "SELECT id FROM {$wpdb->prefix}wpcb_form_fields WHERE field_key=%s LIMIT 1",
                     $fieldKey
                 ));
-                $options = json_decode((string)($row['options_json'] ?? ''), true);
                 $input = $row;
-                $input['options_raw'] = is_array($options) ? implode("\n", array_map('strval', $options)) : '';
                 $input['validation_rules_json'] = $row['validation_rules_json'] ?? null;
                 $id = $configuration->saveField($input, $existing);
                 if (is_wp_error($id) || (int)$id < 1) {
@@ -659,9 +671,12 @@ final class ConfigurationBackupService {
         }
 
         foreach ($data['booking_types'] as $row) {
+            $channel = $row['channel'] ?? 'review';
             if (!$this->validString($row['name'], 190, false)
                 || !$this->validSlug($row['slug'])
                 || !$this->validNullableString($row['description'], 10000)
+                || !is_string($channel)
+                || !in_array($channel, ['phone', 'online', 'in_person', 'custom', 'review'], true)
                 || !$this->validInteger($row['duration_minutes'], 1, 1440)
                 || !$this->validInteger($row['buffer_before_minutes'], 0, 1440)
                 || !$this->validInteger($row['buffer_after_minutes'], 0, 1440)

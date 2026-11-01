@@ -5,13 +5,13 @@
   function msg(key, fallback){
     return (window.wpcbFrontend && wpcbFrontend.i18n && wpcbFrontend.i18n[key]) || fallback;
   }
-  function isPhoneType(text){ text=(text||'').toLowerCase(); return text.indexOf('telefon')!==-1; }
-  function isVisitType(text){ text=(text||'').toLowerCase(); return text.indexOf('besuch')!==-1 || text.indexOf('vor ort')!==-1; }
-
   function updateConditional(form){
     if(!form) return;
     var typeSelect = q('[data-wpcb-type-select]', form);
-    var typeText = typeSelect && typeSelect.selectedIndex >= 0 ? typeSelect.options[typeSelect.selectedIndex].text : '';
+    var selectedType = typeSelect && typeSelect.selectedIndex >= 0 ? typeSelect.options[typeSelect.selectedIndex] : null;
+    var channel = selectedType ? selectedType.getAttribute('data-channel') : 'review';
+    var isPhone = channel === 'phone';
+    var isVisit = channel === 'in_person';
     var whoCalls = q('[name="who_calls"]', form);
     var phoneField = closest(q('[name="phone"]', form), '.wpcb-field');
     var locationField = closest(q('[name="location"]', form), '.wpcb-field');
@@ -20,7 +20,7 @@
     var visitAddress = q('[name="visit_address_value"]', form) ? q('[name="visit_address_value"]', form).value : '';
 
     if(locationField){
-      if(isVisitType(typeText)){
+      if(isVisit){
         locationField.style.display='';
         if(location){ location.value = visitAddress; location.readOnly = true; }
       } else {
@@ -31,15 +31,17 @@
     }
     if(whoCalls){
       var wrapper = closest(whoCalls, '.wpcb-field');
-      if(wrapper) wrapper.style.display = isPhoneType(typeText) ? '' : 'none';
+      if(wrapper) wrapper.style.display = isPhone ? '' : 'none';
     }
     if(phoneField){
-      if(isPhoneType(typeText)){
+      if(isPhone){
         phoneField.style.display='';
         var phoneInput = q('[name="phone"]', form);
-        var callsVal = whoCalls ? whoCalls.value : '';
+        var checkedCaller = whoCalls && whoCalls.type === 'radio'
+          ? q('[name="who_calls"]:checked', form) : null;
+        var callsVal = checkedCaller ? checkedCaller.value : (whoCalls ? whoCalls.value : '');
         if(phoneInput){
-          if(callsVal === 'Ich rufe an'){
+          if(callsVal === 'business_calls'){
             phoneInput.value = ownPhone;
             phoneInput.readOnly = true;
           } else {

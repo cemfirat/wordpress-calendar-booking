@@ -163,9 +163,9 @@ final class DefaultSeedMigration {
         global $wpdb;
         $table = $wpdb->prefix . 'wpcb_booking_types';
         $types = [
-            ['Telefon', 'telefon', 'Telefontermin', 30, 0, 15, 1],
-            ['Online-Meeting', 'online-meeting', 'Videotermin', 60, 0, 15, 2],
-            ['Mich besuchen', 'mich-besuchen', 'Vor-Ort-Termin', 60, 0, 15, 3],
+            ['Telefon', 'telefon', 'Telefontermin', 'phone', 30, 0, 15, 1],
+            ['Online-Meeting', 'online-meeting', 'Videotermin', 'online', 60, 0, 15, 2],
+            ['Mich besuchen', 'mich-besuchen', 'Vor-Ort-Termin', 'in_person', 60, 0, 15, 3],
         ];
 
         foreach ($types as $type) {
@@ -181,12 +181,13 @@ final class DefaultSeedMigration {
                 'name' => $type[0],
                 'slug' => $type[1],
                 'description' => $type[2],
-                'duration_minutes' => $type[3],
-                'buffer_before_minutes' => $type[4],
-                'buffer_after_minutes' => $type[5],
+                'channel' => $type[3],
+                'duration_minutes' => $type[4],
+                'buffer_before_minutes' => $type[5],
+                'buffer_after_minutes' => $type[6],
                 'is_active' => 1,
                 'is_public' => 1,
-                'sort_order' => $type[6],
+                'sort_order' => $type[7],
                 'created_at' => $now,
                 'updated_at' => $now,
             ]) === false) {
@@ -208,7 +209,10 @@ final class DefaultSeedMigration {
             ['company', 'Firma', 'text', 0, 1, null, null, 6],
             ['department', 'Position / Abteilung', 'text', 0, 1, null, null, 7],
             ['location', 'Ort', 'text', 0, 1, null, null, 8],
-            ['who_calls', 'Wer ruft an?', 'select', 0, 1, wp_json_encode(['Ich rufe an', 'Die Kundin ruft an']), null, 9],
+            ['who_calls', 'Wer ruft an?', 'select', 0, 1, wp_json_encode([
+                ['value' => 'business_calls', 'label' => 'Ich rufe an'],
+                ['value' => 'customer_calls', 'label' => 'Die Kundin ruft an'],
+            ]), null, 9],
             ['phone', 'Telefonnummer', 'text', 0, 1, null, null, 10],
             ['message', 'Nachricht', 'textarea', 0, 1, null, null, 11],
             ['privacy', 'Ich stimme der Verarbeitung meiner Daten zu.', 'checkbox', 1, 1, null, wp_json_encode(['must_be_checked' => true]), 12],

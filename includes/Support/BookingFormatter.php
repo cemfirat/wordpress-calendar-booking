@@ -27,17 +27,17 @@ class BookingFormatter {
             return (string)$meta['computed_location'];
         }
         $type = (new BookingTypeRepository())->find((int)($booking['booking_type_id'] ?? 0));
-        $typeName = strtolower((string)($type->name ?? ''));
-        if (strpos($typeName, 'telefon') !== false) {
+        $channel = (string)($type->channel ?? 'review');
+        if ($channel === 'phone') {
             $whoCalls = (string)($meta['who_calls'] ?? '');
-            if ($whoCalls === 'Ich rufe an') {
+            if ($whoCalls === 'business_calls') {
                 return (string)($settings['own_phone'] ?? '');
             }
-            if ($whoCalls === 'Die Kundin ruft an') {
+            if ($whoCalls === 'customer_calls') {
                 return (string)($meta['phone'] ?? '');
             }
         }
-        if (strpos($typeName, 'besuch') !== false || strpos($typeName, 'vor ort') !== false) {
+        if ($channel === 'in_person') {
             return (string)($settings['visit_address'] ?? '');
         }
         return (string)($meta['location'] ?? '');

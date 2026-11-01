@@ -20,3 +20,19 @@ The issue remains open: refund/payment amounts are not included in the message,
 and DST-boundary plus calendar-client import interoperability acceptance is
 still outstanding. No version, release, installation, or product acceptance
 change was made.
+
+## Issue #173 — booking-channel behavior
+
+The implementation adds an explicit persisted channel, stable caller-direction
+values, conservative legacy migration, administrator review notices, compatible
+backup/restore, and server-side computed locations. Renamed/custom type names
+and translated caller labels no longer determine phone or in-person behavior.
+Focused WordPress smoke tests, offline preflight, 61 Python regressions, and 10
+CI-concurrency tests passed locally. Branch readiness and full CI both passed
+on `e7dd0bd0bed8530fb257d47677e7ab17a50db126`:
+[branch readiness](https://github.com/cemfirat/wordpress-calendar-booking/actions/runs/41309112349),
+[full CI](https://github.com/cemfirat/wordpress-calendar-booking/actions/runs/41309126488).
+The branch is based on `main` at
+`4f5cbe8397f658f7f6312a3b0035a29026159989`. PR review/CI, merge, and a
+post-merge tree readback remain outstanding. No version, release, installation,
+or product acceptance change was made.

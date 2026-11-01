@@ -90,6 +90,7 @@ class Schema {
             name varchar(190) NOT NULL,
             slug varchar(190) NOT NULL,
             description text DEFAULT NULL,
+            channel varchar(30) NOT NULL DEFAULT 'review',
             duration_minutes int NOT NULL,
             buffer_before_minutes int NOT NULL DEFAULT 0,
             buffer_after_minutes int NOT NULL DEFAULT 0,

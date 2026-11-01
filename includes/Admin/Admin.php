@@ -345,6 +345,15 @@ class Admin {
 
         $this->formStart();
         echo '<h1>' . esc_html__('Terminarten', 'wordpress-calendar-booking') . '</h1>';
+        $validChannels = ['phone', 'online', 'in_person', 'custom', 'review'];
+        $reviewCount = count(array_filter($items, static fn($item): bool => !in_array((string)($item->channel ?? 'review'), $validChannels, true)
+            || (string)($item->channel ?? 'review') === 'review'));
+        if ($reviewCount > 0) {
+            echo '<div class="notice notice-warning"><p>' . esc_html(sprintf(
+                __('%d Terminart(en) haben einen ungeklärten Kanal und verwenden vorerst allgemeines Formularverhalten. Prüfe jede Terminart und wähle den passenden Kanal.', 'wordpress-calendar-booking'),
+                $reviewCount
+            )) . '</p></div>';
+        }
         $this->renderTypesTable($items);
         $this->renderTypeForm($editing);
         $this->formEnd();
@@ -361,6 +370,14 @@ class Admin {
 
         $this->formStart();
         echo '<h1>' . esc_html__('Formularfelder', 'wordpress-calendar-booking') . '</h1>';
+        $needsReview = array_filter($items, static function ($item): bool {
+            $definition = \Wpcb\Forms\FieldContract::definition($item);
+            return (string)($item->field_key ?? '') === 'who_calls'
+                && (is_wp_error($definition) || !empty($definition['options_need_review']));
+        });
+        if ($needsReview) {
+            echo '<div class="notice notice-warning"><p>' . esc_html__('Die Optionen von „Wer ruft an?“ sind nicht eindeutig zugeordnet. Bearbeite das Feld: erste Option = „Ich rufe an“, zweite Option = „Die Kundin ruft an“. Bis dahin wird keine Richtung aus dem sichtbaren Text abgeleitet.', 'wordpress-calendar-booking') . '</p></div>';
+        }
         $this->renderFieldsTable($items);
         $this->renderFieldForm($editing);
         $this->formEnd();
@@ -719,6 +736,7 @@ class Admin {
         foreach ([
             __('Name', 'wordpress-calendar-booking'),
             __('Slug', 'wordpress-calendar-booking'),
+            __('Kanal', 'wordpress-calendar-booking'),
             __('Dauer', 'wordpress-calendar-booking'),
             __('Kapazität', 'wordpress-calendar-booking'),
             __('Zahlung', 'wordpress-calendar-booking'),
@@ -733,6 +751,7 @@ class Admin {
                 ? number_format(((int)($i->price_minor ?? 0)) / 100, 2, ',', '.') . ' ' . esc_html((string)($i->currency ?? 'EUR'))
                 : esc_html__('Kostenlos', 'wordpress-calendar-booking');
             echo '<tr><td>' . esc_html($i->name) . '</td><td>' . esc_html($i->slug) . '</td><td>'
+                . esc_html($this->channelLabel((string)($i->channel ?? 'review'))) . '</td><td>'
                 . (int)$i->duration_minutes . ' ' . esc_html__('Min.', 'wordpress-calendar-booking') . '</td><td>'
                 . max(1, (int)($i->capacity ?? 1)) . '</td><td>' . $payment . '</td><td>'
                 . esc_html($i->is_active ? __('Ja', 'wordpress-calendar-booking') : __('Nein', 'wordpress-calendar-booking')) . '</td><td>';
@@ -761,6 +780,19 @@ class Admin {
         echo '<table class="form-table">';
         $this->row(__('Name', 'wordpress-calendar-booking'), '<input type="text" name="name" required value="' . esc_attr((string)($editing->name ?? '')) . '">');
         $this->row(__('Slug', 'wordpress-calendar-booking'), '<input type="text" name="slug" required value="' . esc_attr((string)($editing->slug ?? '')) . '">');
+        $channel = (string)($editing->channel ?? 'review');
+        $channelOptions = '';
+        foreach ([
+            'review' => __('Zu prüfen (allgemeines Verhalten)', 'wordpress-calendar-booking'),
+            'custom' => __('Individuell', 'wordpress-calendar-booking'),
+            'phone' => __('Telefon', 'wordpress-calendar-booking'),
+            'online' => __('Online-Meeting', 'wordpress-calendar-booking'),
+            'in_person' => __('Vor Ort', 'wordpress-calendar-booking'),
+        ] as $value => $label) {
+            $channelOptions .= '<option value="' . esc_attr($value) . '" ' . selected($channel, $value, false) . '>' . esc_html($label) . '</option>';
+        }
+        $this->row(__('Kanal / Verhalten', 'wordpress-calendar-booking'), '<select name="channel">' . $channelOptions . '</select><p class="description">'
+            . esc_html__('Der Kanal steuert Formular- und Ortsverhalten unabhängig von Name, Slug oder Übersetzung.', 'wordpress-calendar-booking') . '</p>');
         $this->row(__('Beschreibung', 'wordpress-calendar-booking'), '<textarea name="description">' . esc_textarea((string)($editing->description ?? '')) . '</textarea>');
         $this->row(__('Dauer', 'wordpress-calendar-booking'), '<input type="number" min="1" name="duration_minutes" value="' . esc_attr((string)($editing->duration_minutes ?? 30)) . '">');
         $this->row(__('Puffer davor', 'wordpress-calendar-booking'), '<input type="number" min="0" name="buffer_before_minutes" value="' . esc_attr((string)($editing->buffer_before_minutes ?? 0)) . '">');
@@ -797,10 +829,14 @@ class Admin {
         }
         echo '</tr></thead><tbody>';
         foreach ($items as $i) {
-            $options = json_decode((string)($i->options_json ?? ''), true);
-            $options = is_array($options) ? $options : [];
+            $definition = \Wpcb\Forms\FieldContract::definition($i);
+            $options = !is_wp_error($definition) ? $definition['options'] : [];
+            $optionLabels = array_map(
+                static fn($option): string => is_array($option) ? (string)($option['label'] ?? '') : (string)$option,
+                $options
+            );
             echo '<tr><td>' . esc_html($i->field_key) . '</td><td>' . esc_html($i->label) . '</td><td>'
-                . esc_html($i->field_type) . '</td><td>' . esc_html(implode(', ', $options)) . '</td><td>'
+                . esc_html($i->field_type) . '</td><td>' . esc_html(implode(', ', $optionLabels)) . '</td><td>'
                 . esc_html($i->is_required ? __('Ja', 'wordpress-calendar-booking') : __('Nein', 'wordpress-calendar-booking')) . '</td><td>';
             echo '<a class="button button-small" href="' . esc_url(add_query_arg([
                 'page' => 'wpcb_fields',
@@ -817,8 +853,15 @@ class Admin {
 
     private function renderFieldForm(?object $editing = null): void {
         $isEdit = $editing !== null;
-        $options = $isEdit ? json_decode((string)($editing->options_json ?? ''), true) : [];
-        $options = is_array($options) ? $options : [];
+        $definition = $isEdit ? \Wpcb\Forms\FieldContract::definition($editing) : null;
+        $options = $isEdit && !is_wp_error($definition) ? $definition['options'] : [];
+        $optionLabels = array_map(
+            static fn($option): string => is_array($option) ? (string)($option['label'] ?? '') : (string)$option,
+            $options
+        );
+        $optionsNeedReview = $isEdit
+            && (string)($editing->field_key ?? '') === 'who_calls'
+            && (is_wp_error($definition) || !empty($definition['options_need_review']));
         $rules = $isEdit ? json_decode((string)($editing->validation_rules_json ?? ''), true) : [];
         $rules = is_array($rules) ? $rules : [];
 
@@ -838,7 +881,15 @@ class Admin {
             $fieldOptions .= '<option value="' . esc_attr($value) . '" ' . selected($fieldType, $value, false) . '>' . esc_html($label) . '</option>';
         }
         $this->row(__('Typ', 'wordpress-calendar-booking'), '<select name="field_type">' . $fieldOptions . '</select>');
-        $this->row(__('Optionen', 'wordpress-calendar-booking'), '<textarea name="options_raw" rows="5" class="regular-text" placeholder="' . esc_attr__('Eine Option pro Zeile', 'wordpress-calendar-booking') . '">' . esc_textarea(implode("\n", $options)) . '</textarea>');
+        $this->row(__('Optionen', 'wordpress-calendar-booking'), '<textarea name="options_raw" rows="5" class="regular-text" placeholder="' . esc_attr__('Eine Option pro Zeile', 'wordpress-calendar-booking') . '">' . esc_textarea(implode("\n", $optionLabels)) . '</textarea>');
+        if ((string)($editing->field_key ?? '') === 'who_calls') {
+            $this->row(
+                __('Bedeutung der Optionen', 'wordpress-calendar-booking'),
+                '<p class="description">' . esc_html__('Genau zwei Zeilen. Erste Zeile bedeutet „Ich rufe an“, zweite Zeile „Die Kundin ruft an“. Die Beschriftungen dürfen übersetzt oder umbenannt werden.', 'wordpress-calendar-booking')
+                    . ($optionsNeedReview ? '<br><strong>' . esc_html__('Bestehende Zuordnung ist unklar; bestätige die Reihenfolge ausdrücklich durch Speichern.', 'wordpress-calendar-booking') . '</strong>' : '')
+                    . '</p>'
+            );
+        }
         $this->row(__('Mindestlänge', 'wordpress-calendar-booking'), '<input type="number" min="0" max="10000" name="min_length" value="' . esc_attr(isset($rules['min_length']) ? (string)$rules['min_length'] : '') . '">');
         $this->row(__('Maximallänge', 'wordpress-calendar-booking'), '<input type="number" min="1" max="10000" name="max_length" value="' . esc_attr(isset($rules['max_length']) ? (string)$rules['max_length'] : '') . '">');
         $this->row(
@@ -857,7 +908,18 @@ class Admin {
         if ($isEdit) {
             echo ' <a class="button" href="' . esc_url(admin_url('admin.php?page=wpcb_fields')) . '">' . esc_html__('Abbrechen', 'wordpress-calendar-booking') . '</a>';
         }
+
         echo '</p></form>';
+    }
+
+    private function channelLabel(string $channel): string {
+        return [
+            'review' => __('Zu prüfen', 'wordpress-calendar-booking'),
+            'custom' => __('Individuell', 'wordpress-calendar-booking'),
+            'phone' => __('Telefon', 'wordpress-calendar-booking'),
+            'online' => __('Online-Meeting', 'wordpress-calendar-booking'),
+            'in_person' => __('Vor Ort', 'wordpress-calendar-booking'),
+        ][$channel] ?? __('Zu prüfen', 'wordpress-calendar-booking');
     }
 
     private function renderRulesTable(array $items): void {

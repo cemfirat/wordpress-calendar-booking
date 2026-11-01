@@ -136,6 +136,69 @@ wpcb_field_assert(
     'Active choice fields without options fail closed.'
 );
 
+$callerOptions = [
+    ['value'=>'business_calls','label'=>'Ich melde mich'],
+    ['value'=>'customer_calls','label'=>'Bitte rufen Sie mich an'],
+];
+$callerField = wpcb_field_row('who_calls', 'select', false, true, $callerOptions);
+$callerDefinition = Wpcb\Forms\FieldContract::definition($callerField);
+wpcb_field_assert(
+    is_array($callerDefinition)
+    && $callerDefinition['option_values'] === ['business_calls', 'customer_calls']
+    && $callerDefinition['options'] === ['Ich melde mich', 'Bitte rufen Sie mich an'],
+    'Caller-direction choices retain stable technical values when labels are renamed.'
+);
+$callerHtml = (new Wpcb\Forms\FieldInputRenderer())->render($callerField, 'wpcb_who_calls');
+wpcb_field_assert(
+    strpos($callerHtml, 'value="business_calls"') !== false
+    && strpos($callerHtml, 'value="customer_calls"') !== false
+    && strpos($callerHtml, 'Ich melde mich') !== false,
+    'Rendered caller choices submit stable values independently of their labels.'
+);
+$radioCallerField = wpcb_field_row('who_calls', 'radio', false, true, $callerOptions);
+$radioCallerDefinition = Wpcb\Forms\FieldContract::definition($radioCallerField);
+$radioCallerSubmission = $validator->validate(
+    ['who_calls'=>'business_calls'],
+    [$radioCallerField]
+);
+wpcb_field_assert(
+    is_array($radioCallerDefinition)
+    && $radioCallerDefinition['option_values'] === ['business_calls', 'customer_calls']
+    && is_array($radioCallerSubmission)
+    && $radioCallerSubmission['who_calls'] === 'business_calls',
+    'Radio-based caller fields preserve the same stable caller-direction contract.'
+);
+
+$legacyCallerField = wpcb_field_row('who_calls', 'select', false, true, [
+    'Ich rufe an',
+    'Die Kundin ruft an',
+]);
+$legacyCallerDefinition = Wpcb\Forms\FieldContract::definition($legacyCallerField);
+wpcb_field_assert(
+    is_array($legacyCallerDefinition)
+    && $legacyCallerDefinition['option_values'] === ['business_calls', 'customer_calls']
+    && empty($legacyCallerDefinition['options_need_review']),
+    'Only the exact historical default caller labels are upgraded automatically.'
+);
+
+$ambiguousCallerField = wpcb_field_row('who_calls', 'select', false, true, [
+    'Rückruf durch Firma',
+    'Kundin meldet sich',
+]);
+$ambiguousCallerDefinition = Wpcb\Forms\FieldContract::definition($ambiguousCallerField);
+$ambiguousCanonicalSubmission = $validator->validate(
+    ['who_calls'=>'business_calls'],
+    [$ambiguousCallerField]
+);
+wpcb_field_assert(
+    is_array($ambiguousCallerDefinition)
+    && !empty($ambiguousCallerDefinition['options_need_review'])
+    && $ambiguousCallerDefinition['option_values'] === ['Rückruf durch Firma', 'Kundin meldet sich']
+    && is_wp_error($ambiguousCanonicalSubmission)
+    && $ambiguousCanonicalSubmission->get_error_code() === 'wpcb_field_option',
+    'Ambiguous legacy labels remain review-only and cannot trigger caller-direction behavior.'
+);
+
 $recoveryTimestamp = max(1, (int)current_time('timestamp') - 30);
 $recoveryHtml = (new Wpcb\Frontend\ComponentRenderer())->bookingForm([
     'wpcb_form_ts' => $recoveryTimestamp,
@@ -194,6 +257,50 @@ try {
 } finally {
     if ($fieldId > 0) {
         $wpdb->delete($table, ['id'=>$fieldId]);
+    }
+}
+
+$callerFieldId = 0;
+try {
+    $callerFieldId = $service->saveField([
+        'field_key' => 'who_calls',
+        'label' => 'Caller',
+        'field_type' => 'select',
+        'options_raw' => "I call\nPlease call me",
+        'is_active' => 1,
+        'sort_order' => 999,
+    ]);
+    $storedCallerOptions = is_int($callerFieldId) && $callerFieldId > 0
+        ? json_decode((string)$wpdb->get_var($wpdb->prepare(
+            "SELECT options_json FROM {$table} WHERE id=%d",
+            $callerFieldId
+        )), true)
+        : null;
+    wpcb_field_assert(
+        is_int($callerFieldId)
+        && $storedCallerOptions === [
+            ['value'=>'business_calls','label'=>'I call'],
+            ['value'=>'customer_calls','label'=>'Please call me'],
+        ],
+        'Configuration saves caller labels with stable direction values.'
+    );
+
+    $invalidCallerOptions = $service->saveField([
+        'field_key' => 'who_calls',
+        'label' => 'Caller',
+        'field_type' => 'select',
+        'options_raw' => 'Only one choice',
+        'is_active' => 1,
+        'sort_order' => 999,
+    ], (int)$callerFieldId);
+    wpcb_field_assert(
+        is_wp_error($invalidCallerOptions)
+        && $invalidCallerOptions->get_error_code() === 'wpcb_caller_options',
+        'Caller-direction configuration rejects ambiguous option counts without saving.'
+    );
+} finally {
+    if (is_int($callerFieldId) && $callerFieldId > 0) {
+        $wpdb->delete($table, ['id'=>$callerFieldId]);
     }
 }
 

@@ -16,6 +16,9 @@ final class ConfigurationService {
             'name' => sanitize_text_field((string)($input['name'] ?? '')),
             'slug' => sanitize_title((string)($input['slug'] ?? '')),
             'description' => sanitize_textarea_field((string)($input['description'] ?? '')),
+            'channel' => in_array(($input['channel'] ?? 'review'), ['phone', 'online', 'in_person', 'custom', 'review'], true)
+                ? sanitize_key((string)($input['channel'] ?? 'review'))
+                : 'review',
             'duration_minutes' => max(1, absint($input['duration_minutes'] ?? 30)),
             'buffer_before_minutes' => absint($input['buffer_before_minutes'] ?? 0),
             'buffer_after_minutes' => absint($input['buffer_after_minutes'] ?? 0),
@@ -78,12 +81,32 @@ final class ConfigurationService {
         global $wpdb;
         $table = $wpdb->prefix . 'wpcb_form_fields';
 
-        $rawOptions = (string)($input['options_raw'] ?? '');
-        $options = preg_split('/\r\n|\r|\n/', $rawOptions) ?: [];
-        $options = array_values(array_unique(array_filter(array_map(
-            static fn($value): string => sanitize_text_field(trim((string)$value)),
-            $options
-        ), static fn(string $value): bool => $value !== '')));
+        if (array_key_exists('options_raw', $input)) {
+            $rawOptions = (string)$input['options_raw'];
+            $options = preg_split('/\r\n|\r|\n/', $rawOptions) ?: [];
+            $options = array_values(array_unique(array_filter(array_map(
+                static fn($value): string => sanitize_text_field(trim((string)$value)),
+                $options
+            ), static fn(string $value): bool => $value !== '')));
+            if (sanitize_key((string)($input['field_key'] ?? '')) === 'who_calls') {
+                if (count($options) !== 2) {
+                    return new \WP_Error(
+                        'wpcb_caller_options',
+                        __('Das Feld „Wer ruft an?“ benötigt genau zwei Optionen: zuerst „Ich rufe an“, danach „Die Kundin ruft an“ (Beschriftungen dürfen angepasst werden).', 'wordpress-calendar-booking')
+                    );
+                }
+                $optionsJson = wp_json_encode([
+                    ['value' => 'business_calls', 'label' => $options[0]],
+                    ['value' => 'customer_calls', 'label' => $options[1]],
+                ]);
+            } else {
+                $optionsJson = $options ? wp_json_encode($options) : null;
+            }
+        } else {
+            $optionsJson = isset($input['options_json']) && is_string($input['options_json'])
+                ? $input['options_json']
+                : null;
+        }
 
         $rulesJson = null;
         if (array_key_exists('validation_rules_json', $input)) {
@@ -113,7 +136,7 @@ final class ConfigurationService {
             'field_key' => sanitize_key((string)($input['field_key'] ?? '')),
             'label' => sanitize_text_field((string)($input['label'] ?? '')),
             'field_type' => sanitize_key((string)($input['field_type'] ?? 'text')),
-            'options_json' => $options ? wp_json_encode($options) : null,
+            'options_json' => $optionsJson,
             'validation_rules_json' => $rulesJson,
             'is_required' => empty($input['is_required']) ? 0 : 1,
             'is_active' => empty($input['is_active']) ? 0 : 1,
