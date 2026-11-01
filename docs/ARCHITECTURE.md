@@ -168,6 +168,10 @@ Video meeting providers implement a shared capability contract. Current adapters
 
 Lifecycle effects enqueue meeting creation/update/deletion idempotently. Credentials use the shared encrypted-secret infrastructure. Join URLs are treated as access credentials: they are included only in appropriate customer/admin communication, excluded from public availability, and removed locally during privacy erasure.
 
+### Google Meet
+
+The adapter calls `POST https://meet.googleapis.com/v2/spaces` with a JSON `Space` object (`{}`) and requires `name` and `meetingUri` in the response; rejections, malformed bodies and missing URIs fail without storing a remote reference. The access token stored for the connection must carry the OAuth scope `https://www.googleapis.com/auth/meetings.space.created`. Update and delete are no-ops because a Space has no scheduled event state. Contract tests use an HTTP double (`tests/provider-create-idempotency-smoke.php`); an opt-in real-account create/join smoke test has not been run, so the adapter is not advertised as production-ready.
+
 ## Recurring booking series
 
 Recurring customer bookings are represented as a series plus normal per-occurrence booking rows. Series creation validates every bounded occurrence against resource availability/capacity before commitment.
