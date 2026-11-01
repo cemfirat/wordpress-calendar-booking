@@ -28,11 +28,22 @@ values, conservative legacy migration, administrator review notices, compatible
 backup/restore, and server-side computed locations. Renamed/custom type names
 and translated caller labels no longer determine phone or in-person behavior.
 Focused WordPress smoke tests, offline preflight, 61 Python regressions, and 10
-CI-concurrency tests passed locally. Branch readiness and full CI both passed
-on `e7dd0bd0bed8530fb257d47677e7ab17a50db126`:
-[branch readiness](https://github.com/cemfirat/wordpress-calendar-booking/actions/runs/41309112349),
-[full CI](https://github.com/cemfirat/wordpress-calendar-booking/actions/runs/41309126488).
-The branch is based on `main` at
-`4f5cbe8397f658f7f6312a3b0035a29026159989`. PR review/CI, merge, and a
-post-merge tree readback remain outstanding. No version, release, installation,
-or product acceptance change was made.
+CI-concurrency tests passed locally. Branch readiness and full CI passed on
+`4b09d341f46f53d65ed05e560edfc8ebd96ad65c`; independent PR CI passed and
+[PR #229](https://github.com/cemfirat/wordpress-calendar-booking/pull/229) was
+merged as `8a3b8d3325f39d68203e707f42f7150cb4c2e4c9`. The post-merge tree
+(`17b601ab05401702ec8d8e4e3a5fbac728d42c86`) matched the tested branch tree, and
+[main CI](https://github.com/cemfirat/wordpress-calendar-booking/actions/runs/41310012941)
+passed. Issue #173 is closed. No version, release, installation, or product
+acceptance change was made.
+
+## Issue #162 — Google Meet request shape
+
+Current `main` sends an empty JSON object to `spaces.create`, and the contract
+test covers success, provider rejection, malformed responses and a missing
+meeting URI. [PR #230](https://github.com/cemfirat/wordpress-calendar-booking/pull/230)
+added the missing exact-URL assertion; branch readiness, full CI and PR CI passed
+and it was merged as `6d97c68b551971a360688501455c7a6344fcb3af` (tree readback
+matched `c73b7099cf0cf58943fc49d0998458ea249f751c`). The issue remains open: the
+opt-in real-account create/join smoke test has not been run. No version,
+release, installation, or product acceptance change was made.
