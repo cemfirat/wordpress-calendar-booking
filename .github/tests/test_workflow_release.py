@@ -14,6 +14,16 @@ def job(name):
 
 
 class WorkflowReleaseTests(unittest.TestCase):
+    def test_release_is_manual_and_environment_gated_before_attestation(self):
+        gate = "github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.release == true"
+        for name in ['release', 'production_update']:
+            with self.subTest(job=name):
+                self.assertIn('    if: ' + gate + '\n', job(name))
+        source = job('release')
+        self.assertIn('    environment: release\n', source)
+        self.assertLess(source.index('environment: release'), source.index('actions/attest@'))
+        self.assertRegex(SOURCE, r"workflow_dispatch:\n    inputs:\n      release:\n[\s\S]*?default: false")
+
     def test_offline_checks_precede_dependency_installation(self):
         source = job('dependency_locks')
         self.assertLess(source.index('python3 -B scripts/preflight.py'), source.index('composer validate'))

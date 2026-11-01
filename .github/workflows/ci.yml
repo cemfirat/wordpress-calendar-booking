@@ -5,6 +5,11 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Publish/attest the stable release (requires release environment approval)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -889,9 +894,10 @@ jobs:
 
   release:
     name: Publish stable release
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.release == true
     needs: [docs, php, dependency_audit, i18n, wordpress, fresh_release, legacy_upgrade, browser_release, multisite_release, uninstall_release]
     runs-on: ubuntu-latest
+    environment: release
     permissions:
       contents: write
       id-token: write
@@ -951,7 +957,7 @@ jobs:
 
   production_update:
     name: Public GitHub updater smoke test
-    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'workflow_dispatch' && inputs.release == true
     needs: [release]
     runs-on: ubuntu-latest
     permissions:

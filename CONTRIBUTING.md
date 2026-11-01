@@ -36,3 +36,8 @@ The package job builds twice and compares the ZIP bytes. Published releases
 are not overwritten by later CI-only commits. The public updater job separately
 verifies the downloaded release ZIP and its main-workflow attestation, then
 checks every installed plugin file against that verified public archive.
+
+The release and public-updater jobs no longer run on ordinary main pushes. They
+run only for a manual main `workflow_dispatch` with `release: true`, and the
+release job uses the `release` GitHub Environment, which must have required
+reviewers configured by the repository owner before attestation or publishing.
