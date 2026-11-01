@@ -191,31 +191,22 @@ final class RecurringBookingService {
         }
 
         $members = $this->series->members((int)$booking->series_id, (int)$booking->series_occurrence);
-        $transitions = new BookingTransitionService($this->bookings);
-        $changed = [];
-        if (in_array($event, [
+        $isConfirmation = in_array($event, [
             BookingStateMachine::EMAIL_CONFIRMED_APPROVAL,
             BookingStateMachine::EMAIL_CONFIRMED_AUTOMATIC,
             BookingStateMachine::ADMIN_APPROVED,
-        ], true)) {
-            // Validate/write the complete requested confirmation scope under
-            // sorted resource locks, rolling back if ANY occurrence fails.
-            $results = $transitions->applyBatch(
-                array_map(static fn($member) => (int)$member->id, $members),
-                $event,
-                $actor,
-                $note
-            );
-            if (is_wp_error($results)) {
-                return $results;
-            }
-            foreach ($results as $result) {
-                if (!empty($result['changed'])) {
-                    $changed[] = (int)$result['booking_id'];
-                }
-            }
-            return ['series_id' => (int)$booking->series_id, 'changed_booking_ids' => $changed];
+        ], true);
+        if (!$isConfirmation) {
+            $members = array_values(array_filter(
+                $members,
+                static fn($member): bool => !in_array((string)$member->status, BookingStatus::terminalStatuses(), true)
+            ));
         }
+        if (!$members) {
+            return ['series_id' => (int)$booking->series_id, 'changed_booking_ids' => []];
+        }
+        $transitions = new BookingTransitionService($this->bookings);
+        $changed = [];
         $isCancellation = in_array($event, [
             BookingStateMachine::USER_CANCELLED,
             BookingStateMachine::ADMIN_CANCELLED,
@@ -234,22 +225,27 @@ final class RecurringBookingService {
                 return $validation;
             }
         }
-        foreach ($members as $member) {
-            if (in_array((string)$member->status, BookingStatus::terminalStatuses(), true)) {
-                continue;
-            }
-            $result = $transitions->apply(
-                (int)$member->id,
-                $event,
-                $actor,
-                $note,
-                $allowPaidSeriesCancellation
-            );
-            if (is_wp_error($result)) {
-                return $result;
-            }
+        // All operations on the selected suffix commit as a single lifecycle
+        // batch. The durable effects carry one shared operation key so mail is
+        // aggregated once rather than sent once per changed occurrence.
+        $results = $transitions->applyBatch(
+            array_map(static fn($member) => (int)$member->id, $members),
+            $event,
+            $actor,
+            $note,
+            $allowPaidSeriesCancellation,
+            false,
+            [
+                'series_scope' => 'batch',
+                'series_operation_id' => wp_generate_uuid4(),
+            ]
+        );
+        if (is_wp_error($results)) {
+            return $results;
+        }
+        foreach ($results as $result) {
             if (!empty($result['changed'])) {
-                $changed[] = (int)$member->id;
+                $changed[] = (int)$result['booking_id'];
             }
         }
 
@@ -338,6 +334,12 @@ final class RecurringBookingService {
         global $wpdb;
         $transaction = false;
         $outbox = new BookingEffectOutbox();
+        $seriesOperationId = wp_generate_uuid4();
+        $seriesBookingIds = array_map(
+            static fn($target): int => (int)$target['member']->id,
+            $targets
+        );
+        $seriesOwnerBookingId = (int)$targets[0]['member']->id;
         try {
             foreach ($targets as $target) {
                 $member = $target['member'];
@@ -396,6 +398,10 @@ final class RecurringBookingService {
                     'previous_resource_id' => (int)($member->resource_id ?? 0),
                     'previous_slot_start' => (string)$member->slot_start,
                     'previous_slot_end' => (string)$member->slot_end,
+                    'series_scope' => 'batch',
+                    'series_operation_id' => $seriesOperationId,
+                    'series_booking_ids' => $seriesBookingIds,
+                    'series_owner_booking_id' => $seriesOwnerBookingId,
                 ];
                 if (!$fresh || $outbox->recordEvent($event, $fresh) < 1) {
                     return new \WP_Error('wpcb_effect_storage', 'Recurring reschedule follow-up work could not be stored.');

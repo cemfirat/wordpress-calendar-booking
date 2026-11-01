@@ -51,7 +51,8 @@ final class BookingTransitionService {
         string $actor = 'system',
         string $note = '',
         bool $allowPaidSeriesCancellation = false,
-        bool $onlyIfExpired = false
+        bool $onlyIfExpired = false,
+        array $effectContext = []
     ) {
         $bookingIds = array_values(array_unique(array_map('intval', $bookingIds)));
         if (!$bookingIds || count($bookingIds) > 24 || min($bookingIds) < 1) {
@@ -77,6 +78,7 @@ final class BookingTransitionService {
         sort($resourceIds, SORT_NUMERIC);
         $held = [];
         $results = [];
+        $changedBookings = [];
         $outbox = new BookingEffectOutbox();
         $shouldKick = false;
         $transaction = false;
@@ -110,10 +112,20 @@ final class BookingTransitionService {
                 $results[] = $result;
                 if (!empty($result['changed'])) {
                     $fresh = $this->bookings->find($id);
-                    if (!$fresh || $outbox->recordTransition($result, $fresh) < 1) {
+                    if (!$fresh) {
                         return new \WP_Error('wpcb_effect_storage', 'The booking follow-up work could not be stored.');
                     }
+                    $changedBookings[] = [$result, $fresh];
                     $shouldKick = true;
+                }
+            }
+            if ($changedBookings) {
+                $context = $this->effectContext($effectContext, $changedBookings);
+                foreach ($changedBookings as [$result, $fresh]) {
+                    $result += $context;
+                    if ($outbox->recordTransition($result, $fresh) < 1) {
+                        return new \WP_Error('wpcb_effect_storage', 'The booking follow-up work could not be stored.');
+                    }
                 }
             }
             if ($transaction) {
@@ -412,6 +424,39 @@ final class BookingTransitionService {
             'to' => $to,
             'actor' => $actor,
             'changed' => $changed,
+        ];
+    }
+
+    /**
+     * Batch scope is technical notification metadata; it never includes
+     * customer fields and is persisted with each durable lifecycle effect.
+     */
+    private function effectContext(array $context, array $changedBookings): array {
+        $scope = ($context['series_scope'] ?? '') === 'batch' ? 'batch' : 'single';
+        if ($scope !== 'batch') {
+            return ['series_scope' => 'single'];
+        }
+
+        $changedIds = array_map(static fn($pair): int => (int)$pair[0]['booking_id'], $changedBookings);
+        $ownerId = 0;
+        $ownerOccurrence = PHP_INT_MAX;
+        foreach ($changedBookings as [$result, $booking]) {
+            $occurrence = (int)($booking->series_occurrence ?? 0);
+            if ($occurrence < $ownerOccurrence) {
+                $ownerOccurrence = $occurrence;
+                $ownerId = (int)$result['booking_id'];
+            }
+        }
+
+        $operationId = preg_replace('/[^A-Za-z0-9_-]/', '', (string)($context['series_operation_id'] ?? ''));
+        if (!is_string($operationId) || $operationId === '') {
+            $operationId = wp_generate_uuid4();
+        }
+        return [
+            'series_scope' => 'batch',
+            'series_operation_id' => substr($operationId, 0, 64),
+            'series_booking_ids' => $changedIds,
+            'series_owner_booking_id' => $ownerId,
         ];
     }
 }

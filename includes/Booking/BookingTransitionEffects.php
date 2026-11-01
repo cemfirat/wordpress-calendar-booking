@@ -1,7 +1,6 @@
 <?php
 namespace Wpcb\Booking;
 
-use Wpcb\Admin\Settings;
 use Wpcb\Mail\Mailer;
 use Wpcb\Sync\QueueService;
 use Wpcb\Tokens\TokenService;
@@ -26,31 +25,72 @@ final class BookingTransitionEffects {
         $repo = new BookingRepository();
         $meta = $repo->getMeta($bookingId);
         $mailer = new Mailer();
-        $settings = Settings::get();
         $bookingArray = (array)$booking;
-        $seriesSecondary = !empty($booking->series_id) && (int)($booking->series_occurrence ?? 0) > 0;
+        $seriesBookingIds = $this->seriesBookingIds($transition, $booking);
+        $batch = ($transition['series_scope'] ?? '') === 'batch' && $seriesBookingIds !== [];
+        $notify = !$batch || (int)($transition['series_owner_booking_id'] ?? 0) === $bookingId;
+        $deliverySuffix = $batch
+            ? 'series:' . sanitize_key((string)($transition['series_operation_id'] ?? ''))
+            : (string)$bookingId;
 
         if ($target === BookingStatus::PENDING_APPROVAL) {
-            if (!$seriesSecondary) $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'pending', $bookingArray, $meta, $this->actionLinks($bookingId), false);
+            if ($notify) $mailer->sendTemplateOnce(
+                $batch ? 'mail:user:' . $deliverySuffix . ':pending' : $this->mailKey($bookingId, $event, $bookingArray),
+                'pending',
+                $bookingArray,
+                $meta,
+                $this->actionLinks($bookingId),
+                false,
+                $seriesBookingIds
+            );
         } elseif ($target === BookingStatus::CONFIRMED) {
             $queue = new QueueService();
             if ($queue->enqueueCreate($bookingId) > 0) {
                 $queue->runNow();
             }
             $template = $event === BookingStateMachine::ADMIN_APPROVED ? 'approved' : 'confirmed';
-            if (!$seriesSecondary) $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), $template, $bookingArray, $meta, $this->actionLinks($bookingId), true);
+            if ($notify) $mailer->sendTemplateOnce(
+                $batch ? 'mail:user:' . $deliverySuffix . ':' . $template : $this->mailKey($bookingId, $event, $bookingArray),
+                $template,
+                $bookingArray,
+                $meta,
+                $this->actionLinks($bookingId),
+                true,
+                $seriesBookingIds
+            );
         } elseif ($target === BookingStatus::REJECTED) {
-            if (!$seriesSecondary) $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'rejected', $bookingArray, $meta, [], false);
+            if ($notify) $mailer->sendTemplateOnce(
+                $batch ? 'mail:user:' . $deliverySuffix . ':rejected' : $this->mailKey($bookingId, $event, $bookingArray),
+                'rejected',
+                $bookingArray,
+                $meta,
+                [],
+                false,
+                $seriesBookingIds
+            );
         } elseif ($target === BookingStatus::CANCELLED) {
             $queue = new QueueService();
             if ($queue->enqueueCancel($bookingId) > 0) {
                 $queue->runNow();
             }
-            if (!$seriesSecondary) $mailer->sendTemplateOnce($this->mailKey($bookingId, $event, $bookingArray), 'cancelled', $bookingArray, $meta, [], false);
+            if ($notify) $mailer->sendTemplateOnce(
+                $batch ? 'mail:user:' . $deliverySuffix . ':cancelled' : $this->mailKey($bookingId, $event, $bookingArray),
+                'cancelled',
+                $bookingArray,
+                $meta,
+                [],
+                !empty($booking->series_id),
+                $seriesBookingIds
+            );
         }
 
-        if ($target !== BookingStatus::EXPIRED && !$seriesSecondary) {
-            $mailer->sendInternalOnce('mail:internal:' . $bookingId . ':transition:' . $event, $bookingArray, $meta);
+        if ($notify && $target !== BookingStatus::EXPIRED) {
+            $mailer->sendInternalOnce(
+                $batch ? 'mail:internal:' . $deliverySuffix . ':' . $event : 'mail:internal:' . $bookingId . ':transition:' . $event,
+                $bookingArray,
+                $meta,
+                $seriesBookingIds
+            );
         }
     }
 
@@ -62,8 +102,9 @@ final class BookingTransitionEffects {
         $bookingId = (int)$event['booking_id'];
         $repo = new BookingRepository();
         $meta = $repo->getMeta($bookingId);
-        $settings = Settings::get();
-        $seriesSecondary = !empty($booking->series_id) && (int)($booking->series_occurrence ?? 0) > 0;
+        $seriesBookingIds = $this->seriesBookingIds($event, $booking);
+        $batch = ($event['series_scope'] ?? '') === 'batch' && $seriesBookingIds !== [];
+        $notify = !$batch || (int)($event['series_owner_booking_id'] ?? 0) === $bookingId;
 
         $queue = new QueueService();
         if ($queue->enqueueUpdate($bookingId) > 0) {
@@ -73,10 +114,22 @@ final class BookingTransitionEffects {
         $bookingArray = (array)$repo->find($bookingId);
         $mailer = new Mailer();
         $version = hash('sha256', (string)($bookingArray['slot_start'] ?? '') . '|' . (string)($bookingArray['slot_end'] ?? ''));
-        if (!$seriesSecondary) {
-            $mailer->sendTemplateOnce('mail:user:' . $bookingId . ':rescheduled:' . $version, 'updated', $bookingArray, $meta, $this->actionLinks($bookingId), true);
-            $mailer->sendInternalOnce('mail:internal:' . $bookingId . ':rescheduled:' . $version, $bookingArray, $meta);
-        }
+        $operationId = sanitize_key((string)($event['series_operation_id'] ?? ''));
+        if ($notify) $mailer->sendTemplateOnce(
+            $batch ? 'mail:user:series:' . $operationId . ':updated' : 'mail:user:' . $bookingId . ':rescheduled:' . $version,
+            'updated',
+            $bookingArray,
+            $meta,
+            $this->actionLinks($bookingId),
+            true,
+            $seriesBookingIds
+        );
+        if ($notify) $mailer->sendInternalOnce(
+            $batch ? 'mail:internal:series:' . $operationId . ':rescheduled' : 'mail:internal:' . $bookingId . ':rescheduled:' . $version,
+            $bookingArray,
+            $meta,
+            $seriesBookingIds
+        );
     }
 
     private function mailKey(int $bookingId, string $event, array $booking): string {
@@ -101,5 +154,16 @@ final class BookingTransitionEffects {
                 home_url('/')
             ),
         ];
+    }
+
+    private function seriesBookingIds(array $event, object $booking): array {
+        if (empty($booking->series_id)) {
+            return [];
+        }
+        if (($event['series_scope'] ?? '') !== 'batch') {
+            return [(int)$booking->id];
+        }
+        $ids = array_values(array_unique(array_filter(array_map('intval', (array)($event['series_booking_ids'] ?? [])))));
+        return array_slice($ids, 0, 24);
     }
 }

@@ -94,17 +94,22 @@ final class BookingEffectOutbox {
         foreach ([
             'booking_id', 'event', 'from', 'to', 'actor', 'changed',
             'previous_resource_id', 'previous_slot_start', 'previous_slot_end',
+            'series_scope', 'series_operation_id', 'series_owner_booking_id',
         ] as $field) {
             if (!array_key_exists($field, $event)) {
                 continue;
             }
-            if (in_array($field, ['booking_id', 'previous_resource_id'], true)) {
+            if (in_array($field, ['booking_id', 'previous_resource_id', 'series_owner_booking_id'], true)) {
                 $safe[$field] = (int)$event[$field];
             } elseif ($field === 'changed') {
                 $safe[$field] = (bool)$event[$field];
             } else {
                 $safe[$field] = sanitize_text_field((string)$event[$field]);
             }
+        }
+        if (isset($event['series_booking_ids']) && is_array($event['series_booking_ids'])) {
+            $ids = array_values(array_unique(array_filter(array_map('intval', $event['series_booking_ids']))));
+            $safe['series_booking_ids'] = array_slice($ids, 0, 24);
         }
         return $safe;
     }

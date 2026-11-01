@@ -37,7 +37,8 @@ final class EmailRetryJobRunner {
         string $deliveryKey,
         string $template,
         bool $attachIcs,
-        string $expectedStatus
+        string $expectedStatus,
+        array $seriesBookingIds = []
     ): int {
         if ($bookingId < 1 || !$this->validDeliveryKey($deliveryKey) || !in_array($template, self::CUSTOMER_TEMPLATES, true)) {
             return 0;
@@ -54,6 +55,7 @@ final class EmailRetryJobRunner {
                 'recipient_class' => 'customer',
                 'attach_ics' => $attachIcs ? 1 : 0,
                 'expected_status' => sanitize_key($expectedStatus),
+                'series_booking_ids' => $this->sanitizeSeriesBookingIds($seriesBookingIds),
             ],
             self::jobKey($deliveryKey)
         );
@@ -63,7 +65,7 @@ final class EmailRetryJobRunner {
         return $jobId;
     }
 
-    public function enqueueInternal(int $bookingId, string $deliveryKey, string $expectedStatus): int {
+    public function enqueueInternal(int $bookingId, string $deliveryKey, string $expectedStatus, array $seriesBookingIds = []): int {
         if ($bookingId < 1 || !$this->validDeliveryKey($deliveryKey)) {
             return 0;
         }
@@ -77,6 +79,7 @@ final class EmailRetryJobRunner {
                 'delivery_key' => $deliveryKey,
                 'recipient_class' => 'admin',
                 'expected_status' => sanitize_key($expectedStatus),
+                'series_booking_ids' => $this->sanitizeSeriesBookingIds($seriesBookingIds),
             ],
             self::jobKey($deliveryKey)
         );
@@ -216,9 +219,10 @@ final class EmailRetryJobRunner {
         $mailer = new Mailer();
         $bookingArray = (array)$booking;
         $meta = $bookings->getMeta($bookingId);
+        $seriesBookingIds = $this->validSeriesBookingIds($booking, $payload['series_booking_ids'] ?? []);
 
         if ($kind === 'internal') {
-            $sent = $mailer->retryInternalOnce($deliveryKey, $bookingArray, $meta);
+            $sent = $mailer->retryInternalOnce($deliveryKey, $bookingArray, $meta, $seriesBookingIds);
         } else {
             $template = sanitize_key((string)($payload['template'] ?? ''));
             if (!in_array($template, self::CUSTOMER_TEMPLATES, true)) {
@@ -231,7 +235,8 @@ final class EmailRetryJobRunner {
                 $bookingArray,
                 $meta,
                 $links,
-                !empty($payload['attach_ics'])
+                !empty($payload['attach_ics']),
+                $seriesBookingIds
             );
         }
 
@@ -288,6 +293,7 @@ final class EmailRetryJobRunner {
             if (!empty($raw['pagename'])) {
                 $query['pagename'] = sanitize_key((string)$raw['pagename']);
             }
+
             if (!empty($raw['page_id'])) {
                 $query['page_id'] = absint($raw['page_id']);
             }
@@ -298,6 +304,25 @@ final class EmailRetryJobRunner {
 
         $target = $query ? add_query_arg($query, $path) : $path;
         return substr($target, 0, 500);
+    }
+
+    private function sanitizeSeriesBookingIds(array $ids): array {
+        return array_slice(array_values(array_unique(array_filter(array_map('intval', $ids)))), 0, 24);
+    }
+
+    private function validSeriesBookingIds(object $booking, $ids): array {
+        if (empty($booking->series_id) || !is_array($ids)) {
+            return [];
+        }
+        $valid = [];
+        $series = new \Wpcb\Booking\BookingSeriesRepository();
+        foreach ($this->sanitizeSeriesBookingIds($ids) as $id) {
+            $member = $series->forBooking($id);
+            if ($member && (int)$member->id === (int)$booking->series_id) {
+                $valid[] = $id;
+            }
+        }
+        return $valid;
     }
 
     private function validHash(string $value): bool {
