@@ -99,7 +99,7 @@ final class VideoMeetingAdminPage {
                 echo '<p><label><input type="checkbox" name="connections['.$id.'][enabled]" value="1" ' . checked(isset($selected[$id]),true,false) . '> ';
                 echo esc_html((string)$connection->name . ' (' . (string)$connection->provider . ')') . '</label></p>';
             }
-            echo '<p class="description">' . esc_html__('Für bestätigte Buchungen wird das Meeting asynchron über die Retry-Queue erzeugt. Ein Provider-Ausfall setzt die Buchung nicht zurück; Status und Fehler erscheinen unten.', 'wordpress-calendar-booking') . '</p>';
+            echo '<p class="description">' . esc_html__('Für bestätigte Buchungen wird das Meeting asynchron über die Retry-Queue erzeugt. Ein Provider-Ausfall setzt die Buchung nicht zurück; persistierte Provider-Fehler erscheinen unten.', 'wordpress-calendar-booking') . '</p>';
             echo '<p><button class="button button-primary">' . esc_html__('Zuordnung speichern', 'wordpress-calendar-booking') . '</button></p></form>';
         }
 

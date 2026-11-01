@@ -168,7 +168,7 @@ Video meeting providers implement a shared capability contract. Current adapters
 
 Lifecycle effects enqueue meeting creation/update/deletion idempotently. Credentials use the shared encrypted-secret infrastructure. Join URLs are treated as access credentials: they are included only in appropriate customer/admin communication, excluded from public availability, and removed locally during privacy erasure.
 
-Mapped meetings are asynchronous external effects: a provider outage does not roll back booking confirmation. The former per-mapping `is_required` flag had no distinct effect and is no longer exposed in the admin UI; the legacy database column remains for compatibility. Administrators can review provider status and errors in the video-meeting page.
+Mapped meetings are asynchronous external effects: a provider outage does not roll back booking confirmation. The former per-mapping `is_required` flag had no distinct effect and is no longer exposed in the admin UI; the legacy database column remains for compatibility. Persisted provider errors are visible on the video-meeting page; jobs waiting for retry remain in the shared retry queue.
 
 ### Google Meet
 
