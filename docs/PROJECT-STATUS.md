@@ -47,3 +47,19 @@ and it was merged as `6d97c68b551971a360688501455c7a6344fcb3af` (tree readback
 matched `c73b7099cf0cf58943fc49d0998458ea249f751c`). The issue remains open: the
 opt-in real-account create/join smoke test has not been run. No version,
 release, installation, or product acceptance change was made.
+
+## Issue #219 — Plugin Check findings
+
+Static findings are being removed in reviewed slices, each with full CI, PR CI
+and a post-merge tree readback: i18n placeholders and translator comments
+([PR #232](https://github.com/cemfirat/wordpress-calendar-booking/pull/232)),
+direct-access guards in the YOOtheme module files
+([PR #233](https://github.com/cemfirat/wordpress-calendar-booking/pull/233)),
+output escaping
+([PR #234](https://github.com/cemfirat/wordpress-calendar-booking/pull/234)) and
+documented prepared-SQL boundaries
+([PR #235](https://github.com/cemfirat/wordpress-calendar-booking/pull/235)).
+The local WPCS I18n and EscapeOutput sniffs and the Plugin Check DirectDB sniff
+now report no errors. The issue remains open: the official Plugin Check run has
+not been repeated on the merged code and Plugin Check is not yet a CI gate. No
+version, release, installation, or deployment change was made.
