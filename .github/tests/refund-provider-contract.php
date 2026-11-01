@@ -7,7 +7,7 @@ $root = getenv('WPCB_CONTRACT_ROOT') ?: dirname(__DIR__, 2);
 foreach (['Support/Time', 'Booking/BookingStatus', 'Booking/BookingRepository',
     'Booking/BookingTypeRepository', 'Booking/BookingSeriesRepository',
     'Payments/PaymentStatus', 'Payments/PaymentRefundStatus', 'Payments/PaymentAdapterInterface',
-    'Payments/RefundStatusProviderInterface', 'Payments/PaymentRepository',
+    'Payments/RefundStatusProviderInterface', 'Payments/CheckoutExpiryInterface', 'Payments/PaymentRepository',
     'Payments/PaymentRefundRepository', 'Payments/PaymentService', 'Payments/StripeAdapter',
     'Payments/StripeWebhookController', 'Payments/StripeReturnController', 'Admin/PaymentAdminPage'] as $class) {
     require $root . '/includes/' . $class . '.php';
