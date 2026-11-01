@@ -6,15 +6,13 @@ final class TeamsProvider extends AbstractBearerProvider {
     public function capabilities(): array { return ['create'=>true,'update'=>true,'delete'=>true]; }
 
     public function create(array $booking, object $connection): array {
-        $token=$this->token($connection);
-        if($token==='') return ['ok'=>false,'message'=>'Microsoft Teams access token missing.'];
         $bookingUuid=trim((string)($booking['booking_uuid']??''));
         if($bookingUuid==='') return ['ok'=>false,'message'=>'Microsoft Teams requires a stable booking identity.'];
         $cfg=is_array($connection->config ?? null)?$connection->config:[];
         $user=trim((string)($cfg['user_id']??''));
         $base=$user!==''?'https://graph.microsoft.com/v1.0/users/'.rawurlencode($user).'/onlineMeetings':'https://graph.microsoft.com/v1.0/me/onlineMeetings';
         $externalId='wpcb-' . substr(hash('sha256', home_url('/') . '|' . $bookingUuid . '|' . (int)$connection->id),0,48);
-        $r=$this->request('POST',$base.'/createOrGet',$token,[
+        $r=$this->call($connection,'POST',$base.'/createOrGet',[
             'externalId'=>$externalId,
             'startDateTime'=>(new \DateTimeImmutable((string)$booking['slot_start'],new \DateTimeZone('UTC')))->format(DATE_ATOM),
             'endDateTime'=>(new \DateTimeImmutable((string)$booking['slot_end'],new \DateTimeZone('UTC')))->format(DATE_ATOM),
@@ -33,9 +31,9 @@ final class TeamsProvider extends AbstractBearerProvider {
     }
 
     public function update(array $meeting, array $booking, object $connection): array {
-        $token=$this->token($connection); $id=(string)($meeting['remote_id']??'');
-        if($token===''||$id==='') return ['ok'=>false,'message'=>'Microsoft Teams meeting credentials missing.'];
-        $r=$this->request('PATCH',$this->url($connection,$id),$token,[
+        $id=(string)($meeting['remote_id']??'');
+        if($id==='') return ['ok'=>false,'message'=>'Microsoft Teams meeting credentials missing.'];
+        $r=$this->call($connection,'PATCH',$this->url($connection,$id),[
             'startDateTime'=>(new \DateTimeImmutable((string)$booking['slot_start'],new \DateTimeZone('UTC')))->format(DATE_ATOM),
             'endDateTime'=>(new \DateTimeImmutable((string)$booking['slot_end'],new \DateTimeZone('UTC')))->format(DATE_ATOM),
             'subject'=>$this->topic($booking),
@@ -44,9 +42,9 @@ final class TeamsProvider extends AbstractBearerProvider {
     }
 
     public function delete(array $meeting, object $connection): array {
-        $token=$this->token($connection); $id=(string)($meeting['remote_id']??'');
-        if($token===''||$id==='') return ['ok'=>false,'message'=>'Microsoft Teams meeting credentials missing.'];
-        $r=$this->request('DELETE',$this->url($connection,$id),$token);
+        $id=(string)($meeting['remote_id']??'');
+        if($id==='') return ['ok'=>false,'message'=>'Microsoft Teams meeting credentials missing.'];
+        $r=$this->call($connection,'DELETE',$this->url($connection,$id));
         return empty($r['ok'])?$r:['ok'=>true];
     }
 }

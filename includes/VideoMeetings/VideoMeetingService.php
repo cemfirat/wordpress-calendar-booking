@@ -27,6 +27,22 @@ final class VideoMeetingService {
         $this->enqueue('update', $booking);
     }
 
+    /** Manual recovery: re-queues the current desired state for one booking/connection pair. */
+    public function retry(int $bookingId, int $connectionId): bool {
+        $booking = (new \Wpcb\Booking\BookingRepository())->find($bookingId);
+        $connection = (new VideoMeetingConnectionRepository())->find($connectionId, false);
+        if (!$booking || !$connection) return false;
+        $exists = (string)$booking->status === BookingStatus::CONFIRMED && !empty($connection->is_active);
+        $id = (new JobRepository())->enqueue(
+            $exists ? 'video_update' : 'video_delete',
+            $bookingId,
+            ['connection_id' => $connectionId, 'desired_version' => VideoMeetingJobRunner::desiredVersion($booking, $connection)],
+            'video:manual:' . $bookingId . ':' . $connectionId . ':' . wp_generate_uuid4()
+        );
+        if ($id > 0) (new QueueService())->runNow();
+        return $id > 0;
+    }
+
     private function enqueue(string $operation, object $booking): void {
         $connections = new VideoMeetingConnectionRepository();
         $meetings = new VideoMeetingRepository();

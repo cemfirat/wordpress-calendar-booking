@@ -24,14 +24,33 @@ abstract class AbstractBearerProvider implements VideoMeetingProviderInterface {
         $raw = (string)wp_remote_retrieve_body($response);
         $decoded = $raw !== '' ? json_decode($raw, true) : [];
         if ($code < 200 || $code >= 300) {
-            return ['ok'=>false,'message'=>'Provider HTTP ' . $code];
+            return ['ok'=>false,'message'=>'Provider HTTP ' . $code,'status'=>$code];
         }
         return ['ok'=>true,'data'=>is_array($decoded)?$decoded:[],'status'=>$code];
     }
 
-    protected function token(object $connection): string {
-        $credentials = is_array($connection->credentials ?? null) ? $connection->credentials : [];
-        return trim((string)($credentials['access_token'] ?? ''));
+    /** Authenticated call; renews expired tokens and retries once after a 401. */
+    protected function call(object $connection, string $method, string $url, array|object|null $body = null): array {
+        $tokens = new VideoTokenManager();
+        $access = $tokens->access($connection);
+        if (empty($access['ok'])) return $access;
+
+        $result = $this->request($method, $url, $access['token'], $body);
+        if (empty($result['ok']) && ($result['status'] ?? 0) === 401) {
+            if ($tokens->renewable($connection)) {
+                $access = $tokens->access($connection, $access['token']);
+                if (empty($access['ok'])) return $access;
+                $result = $this->request($method, $url, $access['token'], $body);
+            }
+            if (empty($result['ok']) && ($result['status'] ?? 0) === 401) {
+                $message = 'Provider HTTP 401. The video connection was rejected; reconnect it.';
+                if ((int)($connection->id ?? 0) > 0) {
+                    (new VideoMeetingConnectionRepository())->setAuthHealth((int)$connection->id, 'reauth_required', $message);
+                }
+                return ['ok'=>false,'message'=>$message,'status'=>401];
+            }
+        }
+        return $result;
     }
 
     protected function topic(array $booking): string {

@@ -6,14 +6,12 @@ final class ZoomProvider extends AbstractBearerProvider {
     public function capabilities(): array { return ['create'=>true,'update'=>true,'delete'=>true]; }
 
     public function create(array $booking, object $connection): array {
-        $token=$this->token($connection);
-        if($token==='') return ['ok'=>false,'message'=>'Zoom access token missing.'];
         $cfg=is_array($connection->config ?? null)?$connection->config:[];
         $user=rawurlencode((string)($cfg['user_id'] ?? 'me'));
         $start=new \DateTimeImmutable((string)$booking['slot_start'], new \DateTimeZone('UTC'));
         $end=new \DateTimeImmutable((string)$booking['slot_end'], new \DateTimeZone('UTC'));
         $duration=max(1,(int)ceil(($end->getTimestamp()-$start->getTimestamp())/60));
-        $r=$this->request('POST','https://api.zoom.us/v2/users/'.$user.'/meetings',$token,[
+        $r=$this->call($connection,'POST','https://api.zoom.us/v2/users/'.$user.'/meetings',[
             'topic'=>$this->topic($booking),'type'=>2,'start_time'=>$start->format('Y-m-d\TH:i:s\Z'),
             'duration'=>$duration,'timezone'=>'UTC',
         ]);
@@ -23,12 +21,11 @@ final class ZoomProvider extends AbstractBearerProvider {
     }
 
     public function update(array $meeting, array $booking, object $connection): array {
-        $token=$this->token($connection);
         $id=rawurlencode((string)($meeting['remote_id']??''));
-        if($token===''||$id==='') return ['ok'=>false,'message'=>'Zoom meeting credentials missing.'];
+        if($id==='') return ['ok'=>false,'message'=>'Zoom meeting credentials missing.'];
         $start=new \DateTimeImmutable((string)$booking['slot_start'],new \DateTimeZone('UTC'));
         $end=new \DateTimeImmutable((string)$booking['slot_end'],new \DateTimeZone('UTC'));
-        $r=$this->request('PATCH','https://api.zoom.us/v2/meetings/'.$id,$token,[
+        $r=$this->call($connection,'PATCH','https://api.zoom.us/v2/meetings/'.$id,[
             'topic'=>$this->topic($booking),'start_time'=>$start->format('Y-m-d\TH:i:s\Z'),
             'duration'=>max(1,(int)ceil(($end->getTimestamp()-$start->getTimestamp())/60)),'timezone'=>'UTC',
         ]);
@@ -36,9 +33,9 @@ final class ZoomProvider extends AbstractBearerProvider {
     }
 
     public function delete(array $meeting, object $connection): array {
-        $token=$this->token($connection); $id=rawurlencode((string)($meeting['remote_id']??''));
-        if($token===''||$id==='') return ['ok'=>false,'message'=>'Zoom meeting credentials missing.'];
-        $r=$this->request('DELETE','https://api.zoom.us/v2/meetings/'.$id,$token);
+        $id=rawurlencode((string)($meeting['remote_id']??''));
+        if($id==='') return ['ok'=>false,'message'=>'Zoom meeting credentials missing.'];
+        $r=$this->call($connection,'DELETE','https://api.zoom.us/v2/meetings/'.$id);
         return empty($r['ok'])?$r:['ok'=>true];
     }
 }
