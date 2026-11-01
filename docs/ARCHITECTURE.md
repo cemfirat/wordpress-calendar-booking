@@ -174,11 +174,25 @@ Video meeting providers implement a shared capability contract. Current adapters
 
 Lifecycle effects enqueue meeting creation/update/deletion idempotently. Credentials use the shared encrypted-secret infrastructure. Join URLs are treated as access credentials: they are included only in appropriate customer/admin communication, excluded from public availability, and removed locally during privacy erasure.
 
-Mapped meetings are asynchronous external effects: a provider outage does not roll back booking confirmation. The former per-mapping `is_required` flag had no distinct effect and is no longer exposed in the admin UI; the legacy database column remains for compatibility. Persisted provider errors are visible on the video-meeting page; jobs waiting for retry remain in the shared retry queue.
+Mapped meetings are asynchronous external effects: a provider outage does not roll back booking confirmation, whether or not the mapping is marked "Pflicht" (required). The required flag has one distinct, non-blocking effect: failed meetings of required mappings are highlighted on the video-meeting page, and any failed or pending meeting can be re-queued manually ("Erneut versuchen"). Persisted provider errors are visible on that page; jobs waiting for retry remain in the shared retry queue.
+
+### Renewable credentials
+
+`VideoTokenManager` supplies access tokens to the adapters. Credentials are stored encrypted (`credentials_enc`); the non-secret connection state (`auth_status`, `auth_error`, `auth_checked_at`) lives in `config_json`. Renewal never changes the connection `updated_at`, which versions queued jobs.
+
+| Provider | Renewable grant | Required fields | Permissions / account prerequisites |
+|---|---|---|---|
+| Zoom | Server-to-Server OAuth (`account_credentials`) | Account ID, client ID, client secret | A Server-to-Server OAuth app with scope `meeting:write:meeting:admin` (or classic `meeting:write:admin`) activated in the Zoom account. |
+| Google Meet | OAuth refresh token | Refresh token, client ID, client secret | Consent granted for `https://www.googleapis.com/auth/meetings.space.created`; Google Meet REST API enabled in the Cloud project. |
+| Microsoft Teams | Client credentials, or refresh token if one is stored | Tenant ID, client ID, client secret (plus refresh token for the delegated mode) | Application: `OnlineMeetings.ReadWrite.All` with admin consent and an application access policy for the configured user ID. Delegated: `OnlineMeetings.ReadWrite` and `offline_access`. |
+
+Expired tokens are renewed under a per-connection MySQL lock; concurrent workers re-read the stored credentials after acquiring it and reuse a fresh token, so rotating refresh tokens are not burned twice. A provider 401 triggers one forced renewal and one retry. Revoked or rejected grants set the connection to "reconnect required" (visible in the admin page) until credentials are saved again; HTTP 403 results show a permission/account-policy hint without discarding the grant. Token-endpoint outages are retryable and do not mark the grant revoked. A pasted `access_token` remains possible for tests but expires and is never renewed.
+
+There is no browser-based consent flow for video providers: administrators supply the app credentials (and, for Google/delegated Teams, an authorized refresh token). Opt-in real-account sandbox acceptance for each provider has not been run, so these adapters are not advertised as production-ready.
 
 ### Google Meet
 
-The adapter calls `POST https://meet.googleapis.com/v2/spaces` with a JSON `Space` object (`{}`) and requires `name` and `meetingUri` in the response; rejections, malformed bodies and missing URIs fail without storing a remote reference. The access token stored for the connection must carry the OAuth scope `https://www.googleapis.com/auth/meetings.space.created`. Update and delete are no-ops because a Space has no scheduled event state. Contract tests use an HTTP double (`tests/provider-create-idempotency-smoke.php`); an opt-in real-account create/join smoke test has not been run, so the adapter is not advertised as production-ready.
+The adapter calls `POST https://meet.googleapis.com/v2/spaces` with a JSON `Space` object (`{}`) and requires `name` and `meetingUri` in the response; rejections, malformed bodies and missing URIs fail without storing a remote reference. The access token (obtained from the stored refresh token or pasted for tests) must carry the OAuth scope `https://www.googleapis.com/auth/meetings.space.created`. Update and delete are no-ops because a Space has no scheduled event state. Contract tests use an HTTP double (`tests/provider-create-idempotency-smoke.php`); an opt-in real-account create/join smoke test has not been run, so the adapter is not advertised as production-ready.
 
 ## Recurring booking series
 

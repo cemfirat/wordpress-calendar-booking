@@ -6,9 +6,7 @@ final class GoogleMeetProvider extends AbstractBearerProvider {
     public function capabilities(): array { return ['create'=>true,'update'=>false,'delete'=>false]; }
 
     public function create(array $booking, object $connection): array {
-        $token=$this->token($connection);
-        if($token==='') return ['ok'=>false,'message'=>'Google Meet access token missing.'];
-        $r=$this->request('POST','https://meet.googleapis.com/v2/spaces',$token,(object)[]);
+        $r=$this->call($connection,'POST','https://meet.googleapis.com/v2/spaces',(object)[]);
         if(empty($r['ok'])) return $r;
         $d=$r['data'];
         $remoteId=trim((string)($d['name']??''));

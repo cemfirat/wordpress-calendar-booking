@@ -5,6 +5,8 @@ use Wpcb\Security\SecretBox;
 use Wpcb\Support\Time;
 
 final class VideoMeetingConnectionRepository {
+    public const CREDENTIAL_FIELDS = ['access_token', 'refresh_token', 'client_id', 'client_secret', 'account_id', 'tenant_id'];
+
     private string $table;
     private string $mapTable;
 
@@ -53,20 +55,40 @@ final class VideoMeetingConnectionRepository {
             return new \WP_Error('wpcb_video_connection_invalid', 'Meeting provider and name are required.');
         }
 
+        $existing = $id > 0 ? $this->find($id, true) : null;
+        $config = (array)($data['config'] ?? []);
+
         $row = [
             'provider' => $provider,
             'name' => $name,
-            'config_json' => wp_json_encode((array)($data['config'] ?? [])),
             'is_active' => !empty($data['is_active']) ? 1 : 0,
             'updated_at' => Time::formatUtc(Time::nowUtc()),
         ];
 
-        $accessToken = trim((string)($data['access_token'] ?? ''));
-        if ($accessToken !== '') {
-            $encrypted = (new SecretBox())->encrypt(wp_json_encode(['access_token' => $accessToken]));
+        $submitted = [];
+        foreach (self::CREDENTIAL_FIELDS as $field) {
+            $value = trim((string)($data[$field] ?? ($data['credentials'][$field] ?? '')));
+            if ($value !== '') $submitted[$field] = $value;
+        }
+        if ($submitted) {
+            // Blank fields keep stored secrets; any new secret starts a clean grant.
+            $merged = array_merge($existing ? $existing->credentials : [], $submitted);
+            unset($merged['expires_at']);
+            if (!isset($submitted['access_token'])) unset($merged['access_token']);
+            $encrypted = (new SecretBox())->encrypt(wp_json_encode($merged));
             if (is_wp_error($encrypted)) return $encrypted;
             $row['credentials_enc'] = $encrypted;
+        } elseif ($existing) {
+            foreach (['auth_status', 'auth_error', 'auth_checked_at'] as $key) {
+                if (isset($existing->config[$key])) $config[$key] = $existing->config[$key];
+            }
         }
+        if ($submitted) {
+            $config['auth_status'] = 'ok';
+            $config['auth_error'] = '';
+            $config['auth_checked_at'] = Time::formatUtc(Time::nowUtc());
+        }
+        $row['config_json'] = wp_json_encode($config);
 
         if ($id > 0) {
             if (!$this->find($id)) return new \WP_Error('wpcb_video_connection_missing', 'Meeting connection not found.');
@@ -77,6 +99,26 @@ final class VideoMeetingConnectionRepository {
         $row['created_at'] = Time::formatUtc(Time::nowUtc());
         $inserted = $wpdb->insert($this->table, $row);
         return $inserted === false ? new \WP_Error('wpcb_video_connection_storage', 'Meeting connection could not be saved.') : (int)$wpdb->insert_id;
+    }
+
+    /** Stores renewed credentials without touching updated_at, which versions queued jobs. */
+    public function updateCredentials(int $id, array $credentials) {
+        global $wpdb;
+        $encrypted = (new SecretBox())->encrypt(wp_json_encode($credentials));
+        if (is_wp_error($encrypted)) return $encrypted;
+        $ok = $wpdb->update($this->table, ['credentials_enc' => $encrypted], ['id' => $id]);
+        return $ok === false ? new \WP_Error('wpcb_video_connection_storage', 'Meeting credentials could not be stored.') : true;
+    }
+
+    public function setAuthHealth(int $id, string $status, string $error): void {
+        global $wpdb;
+        $row = $this->find($id);
+        if (!$row) return;
+        $config = $row->config;
+        $config['auth_status'] = sanitize_key($status);
+        $config['auth_error'] = mb_substr(wp_strip_all_tags($error), 0, 500);
+        $config['auth_checked_at'] = Time::formatUtc(Time::nowUtc());
+        $wpdb->update($this->table, ['config_json' => wp_json_encode($config)], ['id' => $id]);
     }
 
     public function delete(int $id) {
