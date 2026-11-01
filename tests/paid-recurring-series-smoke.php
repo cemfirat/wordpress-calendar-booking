@@ -79,7 +79,11 @@ final class WpcbPaidSeriesAdapter implements PaymentAdapterInterface {
     public function refund(array $context) {
         $this->refundContexts[] = $context;
         return [
-            'provider_event_id' => 'series-refund-' . (int)$context['payment_id'] . '-' . count($this->refundContexts),
+            'provider_refund_id' => 'series-refund-' . hash('sha256', (string)$context['idempotency_key']),
+            'provider_status' => 'succeeded',
+            'amount_minor' => (int)$context['amount_minor'],
+            'currency' => (string)$context['currency'],
+            'provider_created_at' => time(),
         ];
     }
 }
@@ -292,6 +296,7 @@ function wpcb_paid_series_cleanup(int $seriesId): void {
     }
     foreach ($paymentIds as $paymentId) {
         $wpdb->delete($wpdb->prefix . 'wpcb_payment_events', ['payment_id' => $paymentId]);
+        $wpdb->delete($wpdb->prefix . 'wpcb_payment_refunds', ['payment_id' => $paymentId]);
         $wpdb->delete($wpdb->prefix . 'wpcb_payments', ['id' => $paymentId]);
     }
     foreach ($members as $member) {

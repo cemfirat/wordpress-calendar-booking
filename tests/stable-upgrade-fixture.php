@@ -10,20 +10,38 @@ if (!defined('ABSPATH') || getenv('GITHUB_ACTIONS') !== 'true'
         if (!$ok) throw new RuntimeException($message);
         WP_CLI::log('PASS: ' . $message);
     };
-    $snapshot = static function () use ($wpdb): array {
+    $snapshot = static function (bool $upgraded = false) use ($wpdb): array {
         $result = [];
         $tables = $wpdb->get_col($wpdb->prepare('SHOW TABLES LIKE %s', $wpdb->esc_like($wpdb->prefix . 'wpcb_') . '%'));
-        if (count($tables) !== 27 || $wpdb->last_error !== '') throw new RuntimeException('Incomplete fixture schema');
+        if (count($tables) !== ($upgraded ? 28 : 27) || $wpdb->last_error !== '') throw new RuntimeException('Incomplete fixture schema');
+        if ($upgraded) {
+            $refundTable = $wpdb->prefix . 'wpcb_payment_refunds';
+            if (!in_array($refundTable, $tables, true)
+                || (int)$wpdb->get_var("SELECT COUNT(*) FROM {$refundTable}") !== 0
+                || $wpdb->last_error !== ''
+            ) throw new RuntimeException('Upgrade must add an empty refund-attempt table');
+            $tables = array_values(array_diff($tables, [$refundTable]));
+            if ($wpdb->get_var("SHOW COLUMNS FROM {$wpdb->prefix}wpcb_payments LIKE 'refund_inflight_minor'") !== 'refund_inflight_minor'
+                || (int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_payments WHERE refund_inflight_minor IS NULL OR refund_inflight_minor <> 0") !== 0
+                || $wpdb->last_error !== ''
+            ) throw new RuntimeException('Historical payments must start with zero provider-inflight refunds');
+        }
         sort($tables);
         foreach ($tables as $table) {
             if (!preg_match('/^[a-zA-Z0-9_]+$/', $table)) throw new RuntimeException('Invalid test table');
             $rows = $wpdb->get_results('SELECT * FROM `' . $table . '`', ARRAY_A);
             if ($wpdb->last_error !== '') throw new RuntimeException('Failed fixture snapshot');
-            // Candidate-only nullable columns are excluded from the historical
+            // Only these defined new columns are excluded from the historical
             // byte-equivalence hash; the new schema contract is asserted below.
             if (str_ends_with($table, 'wpcb_waiting_list')) {
                 foreach ($rows as &$row) {
                     unset($row['form_data_json']);
+                }
+                unset($row);
+            }
+            if ($upgraded && $table === $wpdb->prefix . 'wpcb_payments') {
+                foreach ($rows as &$row) {
+                    unset($row['refund_inflight_minor']);
                 }
                 unset($row);
             }
@@ -99,7 +117,7 @@ if (!defined('ABSPATH') || getenv('GITHUB_ACTIONS') !== 'true'
         $assert(Wpcb\Database\DefaultSeedMigration::isReady(), 'Upgraded default seed migration is complete.');
         $assert(Wpcb\Database\MigrationReadiness::isReady(), 'Upgraded required migrations are ready.');
         $fixture = get_option('wpcb_upgrade_test_fixture');
-        $assert(is_array($fixture) && $fixture['snapshot'] === $snapshot(), 'All 27 plugin tables and saved configuration survive the actual upgrade byte-equivalently.');
+        $assert(is_array($fixture) && $fixture['snapshot'] === $snapshot(true), 'All 27 historical tables and saved configuration survive byte-equivalently; the new refund table is empty and inflight amounts are zero.');
         $settings = (array)get_option('wpcb_settings');
         $assert((new Wpcb\Security\SecretBox())->decrypt($settings['icloud_sync_password_enc']) === 'synthetic-upgrade-credential', 'Existing encrypted provider credential remains decryptable.');
         $stripe = new Wpcb\Payments\StripeConfig();
@@ -109,12 +127,12 @@ if (!defined('ABSPATH') || getenv('GITHUB_ACTIONS') !== 'true'
         $assert((new Wpcb\Frontend\BookingEntryGuard())->expiredReservation($booking), 'Upgraded presentation recognizes the expired hold despite a valid old token.');
         $result = (new Wpcb\Booking\BookingTransitionService())->apply((int)$booking->id, 'email_confirmed_automatic');
         $assert(is_wp_error($result) && $result->get_error_code() === 'wpcb_reservation_expired', 'Upgraded domain cannot resurrect an expired old reservation.');
-        $assert($tokens->inspect($fixture['token'], 'doi')['state'] === 'valid' && $fixture['snapshot'] === $snapshot(), 'Rejected confirmation consumes no token and mutates no historical data.');
+        $assert($tokens->inspect($fixture['token'], 'doi')['state'] === 'valid' && $fixture['snapshot'] === $snapshot(true), 'Rejected confirmation consumes no token and mutates no historical data.');
         $demo = new Wpcb\Demo\DemoCalendar();
         $assert($demo->read() === [], 'Upgrade does not silently generate demo data.');
         $created = $demo->create();
         $assert(is_array($created) && count($created['entries']) === 10, 'New optional demo can be explicitly created after an actual upgrade.');
-        $assert($demo->remove() === true && $demo->read() === [] && $fixture['snapshot'] === $snapshot(), 'Demo removal preserves all upgraded real-data fixtures.');
+        $assert($demo->remove() === true && $demo->read() === [] && $fixture['snapshot'] === $snapshot(true), 'Demo removal preserves all upgraded real-data fixtures.');
     } else {
         throw new RuntimeException('Unknown isolated upgrade fixture phase');
     }

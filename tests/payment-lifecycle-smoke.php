@@ -16,7 +16,13 @@ final class WpcbPaymentFakeAdapter implements Wpcb\Payments\PaymentAdapterInterf
         return ['provider_reference' => 'fake-' . $context['payment_uuid']];
     }
     public function refund(array $context) {
-        return ['provider_event_id' => 'refund-' . $context['payment_uuid']];
+        return [
+            'provider_refund_id' => 'refund-' . hash('sha256', (string)$context['idempotency_key']),
+            'provider_status' => 'succeeded',
+            'amount_minor' => (int)$context['amount_minor'],
+            'currency' => (string)$context['currency'],
+            'provider_created_at' => time(),
+        ];
     }
 }
 
@@ -175,6 +181,7 @@ foreach ([$bookingId, $blockedBookingId, $expiringId] as $id) {
     $paymentIds = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$wpdb->prefix}wpcb_payments WHERE booking_id = %d", $id));
     foreach ($paymentIds as $paymentId) {
         $wpdb->delete($wpdb->prefix . 'wpcb_payment_events', ['payment_id' => (int)$paymentId]);
+        $wpdb->delete($wpdb->prefix . 'wpcb_payment_refunds', ['payment_id' => (int)$paymentId]);
     }
     $wpdb->delete($wpdb->prefix . 'wpcb_payments', ['booking_id' => $id]);
     $wpdb->delete($wpdb->prefix . 'wpcb_booking_status_log', ['booking_id' => $id]);

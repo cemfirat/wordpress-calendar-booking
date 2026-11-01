@@ -386,6 +386,7 @@ class Schema {
             amount_minor bigint unsigned NOT NULL,
             refunded_minor bigint unsigned NOT NULL DEFAULT 0,
             refund_pending_minor bigint unsigned NOT NULL DEFAULT 0,
+            refund_inflight_minor bigint unsigned NOT NULL DEFAULT 0,
             currency char(3) NOT NULL,
             status varchar(30) NOT NULL DEFAULT 'pending',
             expires_at datetime DEFAULT NULL,
@@ -412,6 +413,29 @@ class Schema {
             UNIQUE KEY provider_event (provider, provider_event_id),
             KEY payment_id (payment_id),
             KEY created_at (created_at)
+        ) {$charset};";
+
+        $sql[] = "CREATE TABLE {$prefix}payment_refunds (
+            id bigint unsigned NOT NULL AUTO_INCREMENT,
+            refund_uuid varchar(64) NOT NULL,
+            payment_id bigint unsigned NOT NULL,
+            provider varchar(64) NOT NULL,
+            idempotency_key varchar(190) NOT NULL,
+            provider_refund_id varchar(190) DEFAULT NULL,
+            amount_minor bigint unsigned NOT NULL,
+            currency char(3) NOT NULL,
+            status varchar(30) NOT NULL,
+            failure_reason varchar(190) DEFAULT NULL,
+            last_provider_event_created_at bigint unsigned NOT NULL DEFAULT 0,
+            completed_at datetime DEFAULT NULL,
+            created_at datetime NOT NULL,
+            updated_at datetime NOT NULL,
+            PRIMARY KEY (id),
+            UNIQUE KEY refund_uuid (refund_uuid),
+            UNIQUE KEY provider_idempotency (provider, idempotency_key),
+            UNIQUE KEY provider_refund (provider, provider_refund_id),
+            KEY payment_status (payment_id, status),
+            KEY updated_at (updated_at)
         ) {$charset};";
 
         $sql[] = "CREATE TABLE {$prefix}customer_sessions (

@@ -648,7 +648,8 @@ jobs:
   browser_release:
     name: Browser release acceptance
     needs: [package]
-    runs-on: ubuntu-latest
+    # Playwright 1.55 supports Ubuntu 24.04; ubuntu-latest may move beyond it.
+    runs-on: ubuntu-24.04
     services:
       mysql:
         image: mysql:8.0

@@ -6,7 +6,13 @@ final class WpcbRefundRaceAdapter implements Wpcb\Payments\PaymentAdapterInterfa
     public function createPayment(array $context) { return new WP_Error('unused', 'unused'); }
     public function refund(array $context) {
         usleep(250000);
-        return ['provider_event_id' => 'race-refund-' . hash('sha256', (string)($context['idempotency_key'] ?? ''))];
+        return [
+            'provider_refund_id' => 'race-refund-' . hash('sha256', (string)($context['idempotency_key'] ?? '')),
+            'provider_status' => 'succeeded',
+            'amount_minor' => (int)($context['amount_minor'] ?? 0),
+            'currency' => (string)($context['currency'] ?? ''),
+            'provider_created_at' => time(),
+        ];
     }
 }
 
