@@ -26,6 +26,7 @@ final class EmailRetryJobRunner {
         'portal_email_change',
         'waiting_list_offer',
         'video_ready',
+        'late_payment_refund',
     ];
 
     public static function jobKey(string $deliveryKey): string {
@@ -152,6 +153,16 @@ final class EmailRetryJobRunner {
             'connection_id' => $connectionId,
             'recipient_class' => $recipientClass,
             'meeting_version' => strtolower($meetingVersion),
+        ]);
+    }
+
+    public function enqueueLatePaymentRefund(int $bookingId, string $deliveryKey, int $paymentId): int {
+        if ($bookingId < 1 || $paymentId < 1) {
+            return 0;
+        }
+        return $this->enqueueSpecial($bookingId, $deliveryKey, [
+            'kind' => 'late_payment_refund',
+            'payment_id' => $paymentId,
         ]);
     }
 

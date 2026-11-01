@@ -103,6 +103,14 @@ wpcb_lifecycle_assert(!is_wp_error($bound), 'A verified paid callback reconciles
 $afterBound = $payments->find((int)$unbound->id);
 wpcb_lifecycle_assert($afterBound->provider === 'stripe' && $afterBound->provider_reference === 'cs_life_lost', 'The unbound payment is bound to the paid session.');
 
+$lateMails = [];
+add_filter('pre_wp_mail', static function ($pre, $atts) use (&$lateMails) {
+    if (($atts['to'] ?? '') === 'lifecycle@example.com' && strpos((string)($atts['subject'] ?? ''), 'zurückerstattet') !== false) {
+        $lateMails[] = $atts;
+    }
+    return true;
+}, 10, 2);
+
 // 2. Local expiry closes the provider session; a late payment is never silently kept.
 $paymentA = $payments->forBooking($bookingA);
 $wpdb->update($wpdb->prefix . 'wpcb_payments', ['expires_at' => '2000-01-01 00:00:00'], ['id' => $paymentA->id]);
@@ -123,6 +131,7 @@ $service->applyProviderEvent('stripe', $sameEvent, 'cs_life_a', 'paid', 5000, 'E
 $service->applyProviderEvent('stripe', $event('late2'), 'cs_life_a', 'paid', 5000, 'EUR');
 $after = $payments->find((int)$paymentA->id);
 wpcb_lifecycle_assert((int)$after->refund_pending_minor === 5000, 'Duplicate and repeated late callbacks never queue a second refund.');
+wpcb_lifecycle_assert(count($lateMails) === 1, 'The customer is told once that a late payment is refunded.');
 
 // 3. Expire failure (session already completed) is non-fatal and still reconciles.
 $bookingB = $makeBooking('+20 minutes');

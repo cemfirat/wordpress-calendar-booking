@@ -42,11 +42,9 @@ The payment shows `refund_pending`; the administrator payment list flags it as
 a late payment and the booking audit log gets `payment_late_refund_pending`. The
 customer portal shows the existing refund status. A paid booking whose hold
 expires before confirmation is now refunded as well (previously only cancel/
-reject). Queuing is idempotent against repeated callbacks and later expiry.
+reject). The customer receives one idempotent email (delivery ledger, retry queue on transport failure) explaining that the payment is refunded in full. Queuing is idempotent against repeated callbacks and later expiry.
 
 ## Not covered
 
-- No automatic customer email for a late-payment refund; portal status and the
-  administrator view only.
 - A duplicate paid session is not refunded automatically.
 - No live Stripe account was exercised; tests use an HTTP double.
