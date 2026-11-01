@@ -22,7 +22,8 @@ class Mailer {
         array $booking,
         array $meta,
         array $links = [],
-        bool $attachIcs = false
+        bool $attachIcs = false,
+        array $seriesBookingIds = []
     ): bool {
         return $this->sendTemplateTracked(
             $idempotencyKey,
@@ -31,7 +32,8 @@ class Mailer {
             $meta,
             $links,
             $attachIcs,
-            true
+            true,
+            $seriesBookingIds
         );
     }
 
@@ -41,7 +43,8 @@ class Mailer {
         array $booking,
         array $meta,
         array $links = [],
-        bool $attachIcs = false
+        bool $attachIcs = false,
+        array $seriesBookingIds = []
     ): bool {
         return $this->sendTemplateTracked(
             $idempotencyKey,
@@ -50,16 +53,17 @@ class Mailer {
             $meta,
             $links,
             $attachIcs,
-            false
+            false,
+            $seriesBookingIds
         );
     }
 
-    public function sendInternalOnce(string $idempotencyKey, array $booking, array $meta): bool {
-        return $this->sendInternalTracked($idempotencyKey, $booking, $meta, true);
+    public function sendInternalOnce(string $idempotencyKey, array $booking, array $meta, array $seriesBookingIds = []): bool {
+        return $this->sendInternalTracked($idempotencyKey, $booking, $meta, true, $seriesBookingIds);
     }
 
-    public function retryInternalOnce(string $idempotencyKey, array $booking, array $meta): bool {
-        return $this->sendInternalTracked($idempotencyKey, $booking, $meta, false);
+    public function retryInternalOnce(string $idempotencyKey, array $booking, array $meta, array $seriesBookingIds = []): bool {
+        return $this->sendInternalTracked($idempotencyKey, $booking, $meta, false, $seriesBookingIds);
     }
 
     private function sendTemplateTracked(
@@ -69,7 +73,8 @@ class Mailer {
         array $meta,
         array $links,
         bool $attachIcs,
-        bool $enqueueRetry
+        bool $enqueueRetry,
+        array $seriesBookingIds
     ): bool {
         $bookingId = (int)($booking['id'] ?? 0);
         if ($bookingId < 1 || $idempotencyKey === '') {
@@ -94,7 +99,8 @@ class Mailer {
         }
 
         try {
-            $sent = $this->sendTemplate($key, $booking, $meta, $links, $attachIcs);
+            $seriesBookings = $this->seriesBookings((int)($booking['id'] ?? 0), $seriesBookingIds);
+            $sent = $this->sendTemplate($key, $booking, $meta, $links, $attachIcs, $seriesBookings);
             if ($sent) {
                 $deliveries->markSent((int)$delivery['id']);
                 return true;
@@ -111,7 +117,8 @@ class Mailer {
                     $idempotencyKey,
                     $key,
                     $attachIcs,
-                    (string)($booking['status'] ?? '')
+                    (string)($booking['status'] ?? ''),
+                    $seriesBookingIds
                 );
                 if ($queued < 1) {
                     $deliveries->markFailed(
@@ -136,7 +143,8 @@ class Mailer {
         string $idempotencyKey,
         array $booking,
         array $meta,
-        bool $enqueueRetry
+        bool $enqueueRetry,
+        array $seriesBookingIds
     ): bool {
         $bookingId = (int)($booking['id'] ?? 0);
         $settings = Settings::get();
@@ -165,7 +173,8 @@ class Mailer {
         }
 
         try {
-            $sent = $this->sendInternal($booking, $meta);
+            $seriesBookings = $this->seriesBookings((int)($booking['id'] ?? 0), $seriesBookingIds);
+            $sent = $this->sendInternal($booking, $meta, $seriesBookings);
             if ($sent) {
                 $deliveries->markSent((int)$delivery['id']);
                 return true;
@@ -180,7 +189,8 @@ class Mailer {
                 $queued = (new EmailRetryJobRunner())->enqueueInternal(
                     $bookingId,
                     $idempotencyKey,
-                    (string)($booking['status'] ?? '')
+                    (string)($booking['status'] ?? ''),
+                    $seriesBookingIds
                 );
                 if ($queued < 1) {
                     $deliveries->markFailed(
@@ -201,7 +211,14 @@ class Mailer {
         }
     }
 
-    public function sendTemplate(string $key, array $booking, array $meta, array $links = [], bool $attachIcs = false): bool {
+    public function sendTemplate(
+        string $key,
+        array $booking,
+        array $meta,
+        array $links = [],
+        bool $attachIcs = false,
+        array $seriesBookings = []
+    ): bool {
         $templates = get_option('wpcb_email_templates', []);
         $subject = $templates[$key . '_subject'] ?? $key;
         $body = $templates[$key . '_body'] ?? '';
@@ -231,15 +248,23 @@ class Mailer {
             '{meeting_link}' => $meetingLink,
         ];
         $subject = strtr($subject, $replacements);
-        $body = nl2br(esc_html(strtr($body, $replacements)));
+        $body = strtr($body, $replacements);
+        if ($seriesBookings) {
+            $body .= "\n\nBetroffene Termine:\n" . $this->seriesDateSummary($seriesBookings, $settings);
+        }
+        $body = nl2br(esc_html($body));
         $headers = ['Content-Type: text/html; charset=UTF-8'];
         if (!empty($settings['sender_name']) && !empty($settings['sender_email'])) {
             $headers[] = 'From: ' . $settings['sender_name'] . ' <' . $settings['sender_email'] . '>';
         }
         $attachments = [];
         if ($attachIcs) {
-            $summary = $this->formatter->summary($booking, $meta);
-            $ics = (new IcsGenerator())->generate($booking, $meta, $summary, $resolvedLocation);
+            if ($seriesBookings) {
+                $ics = (new IcsGenerator())->generateSeries($this->seriesIcsEvents($seriesBookings, $settings));
+            } else {
+                $summary = $this->formatter->summary($booking, $meta);
+                $ics = (new IcsGenerator())->generate($booking, $meta, $summary, $resolvedLocation);
+            }
             $path = wp_upload_dir()['basedir'] . '/wpcb-' . md5(($booking['booking_uuid'] ?? '') . time()) . '.ics';
             file_put_contents($path, $ics);
             $attachments[] = $path;
@@ -253,7 +278,7 @@ class Mailer {
         }
     }
 
-    public function sendInternal(array $booking, array $meta): bool {
+    public function sendInternal(array $booking, array $meta, array $seriesBookings = []): bool {
         $settings = Settings::get();
         if (empty($settings['notifications_enabled']) || empty($settings['notification_emails'])) return true;
         $templates = get_option('wpcb_email_templates', []);
@@ -273,7 +298,56 @@ class Mailer {
             '{meeting_link}' => $meetingLink,
         ];
         $subject = strtr($templates['internal_subject'] ?? 'Neue Termin-Aktion', $map);
-        $body = nl2br(esc_html(strtr($templates['internal_body'] ?? '', $map)));
+        $body = strtr($templates['internal_body'] ?? '', $map);
+        if ($seriesBookings) {
+            $body .= "\n\nBetroffene Termine:\n" . $this->seriesDateSummary($seriesBookings, $settings);
+        }
+        $body = nl2br(esc_html($body));
         return wp_mail(array_map('trim', explode(',', $settings['notification_emails'])), $subject, $body, ['Content-Type: text/html; charset=UTF-8']);
+    }
+
+    private function seriesBookings(int $bookingId, array $ids): array {
+        if ($bookingId < 1 || !$ids) {
+            return [];
+        }
+        $bookings = new \Wpcb\Booking\BookingRepository();
+        $anchor = $bookings->find($bookingId);
+        if (!$anchor || empty($anchor->series_id)) {
+            return [];
+        }
+        $members = [];
+        foreach (array_slice(array_values(array_unique(array_filter(array_map('intval', $ids)))), 0, 24) as $id) {
+            $member = $bookings->find($id);
+            if ($member && (int)$member->series_id === (int)$anchor->series_id) {
+                $members[] = ['booking' => (array)$member, 'meta' => $bookings->getMeta($id)];
+            }
+        }
+        return $members;
+    }
+
+    private function seriesDateSummary(array $seriesBookings, array $settings): string {
+        $timezone = Time::bookingTimezone()->getName();
+        $lines = [];
+        foreach ($seriesBookings as $item) {
+            $booking = $item['booking'];
+            $lines[] = Time::display((string)$booking['slot_start'], $settings['date_format'] . ' ' . $settings['time_format'])
+                . '–' . Time::display((string)$booking['slot_end'], $settings['time_format'])
+                . ' (' . $this->formatter->location($booking, $item['meta'], $settings) . ')';
+        }
+        return implode("\n", $lines) . "\nZeitzone: " . $timezone;
+    }
+
+    private function seriesIcsEvents(array $seriesBookings, array $settings): array {
+        $events = [];
+        foreach ($seriesBookings as $item) {
+            $booking = $item['booking'];
+            $events[] = [
+                'booking' => $booking,
+                'meta' => $item['meta'],
+                'title' => $this->formatter->summary($booking, $item['meta']),
+                'location' => $this->formatter->location($booking, $item['meta'], $settings),
+            ];
+        }
+        return $events;
     }
 }

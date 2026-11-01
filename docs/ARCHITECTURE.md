@@ -183,7 +183,7 @@ Series operations distinguish:
 - a single occurrence;
 - remaining occurrences from a chosen point.
 
-Per-occurrence lifecycle/audit semantics remain intact. Calendar write-back and notifications operate through the same idempotent effect layer as single bookings. Paid series additionally share one series-level payment state while retaining per-occurrence privacy-safe payment audit events; cancellation scopes map to deterministic refund allocations without copying customer data into payment audit context.
+Per-occurrence lifecycle/audit semantics remain intact. Calendar write-back runs for every affected occurrence. A single-occurrence change sends an individual notification; a multi-occurrence transition or reschedule carries one durable operation scope so the earliest changed occurrence sends one aggregate customer/admin notification listing the affected local dates and timezone. Email retries retain only the bounded occurrence IDs needed to reconstruct that message and its calendar attachment. Confirmation/reschedule ICS files contain one stable-UID VEVENT per affected occurrence; cancellation files use `METHOD:CANCEL` and preserve those UIDs. Paid series additionally share one series-level payment state while retaining per-occurrence privacy-safe payment audit events; cancellation scopes map to deterministic refund allocations without copying customer data into payment audit context.
 
 ## Frontend architecture
 
