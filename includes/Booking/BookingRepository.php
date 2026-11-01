@@ -247,6 +247,7 @@ class BookingRepository {
 
         $sql .= ' ORDER BY booking_id ASC, id ASC';
         $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params)); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Placeholder list is generated; all values are bound.
+        $meta = [];
 
         foreach ($rows as $row) {
             $bookingId = (int)$row->booking_id;
