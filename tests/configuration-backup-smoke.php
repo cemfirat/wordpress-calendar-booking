@@ -100,6 +100,29 @@ wpcb_backup_assert(strpos($json, 'BACKUP-SECRET-CALENDAR-PASSWORD') === false, '
 wpcb_backup_assert(strpos($json, 'Backup Fixture Calendar') !== false, 'Export includes non-secret reconnect metadata for calendar connections.');
 wpcb_backup_assert(strpos($json, '"requires_reconnect":true') !== false, 'Export marks calendar metadata as requiring reconnect.');
 wpcb_backup_assert(strpos($json, 'backup-fixture-type') !== false, 'Export includes booking configuration.');
+wpcb_backup_assert(
+    array_key_exists('channel', $snapshot['booking_types'][0] ?? []),
+    'Export includes the stable booking channel.'
+);
+
+$legacySnapshot = $snapshot;
+foreach ($legacySnapshot['booking_types'] as &$legacyType) {
+    unset($legacyType['channel']);
+}
+unset($legacyType);
+wpcb_backup_assert(
+    !is_wp_error($service->validate($legacySnapshot)),
+    'Legacy backups without a channel remain importable and are conservatively classified for review.'
+);
+$legacyPlan = $service->plan($legacySnapshot);
+wpcb_backup_assert(
+    !is_wp_error($legacyPlan)
+    && count(array_filter(
+        $legacyPlan['warnings'],
+        static fn(string $warning): bool => strpos($warning, 'Termin-Kanal') !== false
+    )) === 1,
+    'Legacy restore previews surface the channel-review consequence before applying.'
+);
 
 $unknown = $snapshot;
 $unknown['unexpected_secret_bucket'] = ['x' => 'y'];
@@ -130,6 +153,10 @@ wpcb_backup_assert(is_wp_error($service->validate($badPaymentMode)), 'Unsupporte
 $badCurrency = $snapshot;
 $badCurrency['booking_types'][0]['currency'] = 'EURO';
 wpcb_backup_assert(is_wp_error($service->validate($badCurrency)), 'Invalid ISO currency shape fails closed.');
+
+$badChannel = $snapshot;
+$badChannel['booking_types'][0]['channel'] = 'phone-by-name';
+wpcb_backup_assert(is_wp_error($service->validate($badChannel)), 'Unsupported booking channels fail closed.');
 
 $badFieldType = $snapshot;
 $badFieldType['form_fields'][0]['field_type'] = 'script';
@@ -210,6 +237,7 @@ $restore = [
     'email_templates' => ['confirmed_subject' => 'Restored subject'],
     'booking_types' => [[
         'name'=>'Restored Type','slug'=>'backup-restore-type','description'=>'restored',
+        'channel'=>'in_person',
         'duration_minutes'=>45,'buffer_before_minutes'=>5,'buffer_after_minutes'=>5,
         'capacity'=>3,'show_remaining_capacity'=>1,'payment_mode'=>'free','price_minor'=>0,
         'currency'=>'EUR','is_active'=>1,'is_public'=>1,'sort_order'=>91,
@@ -224,6 +252,14 @@ $restore = [
     'form_fields' => [[
         'field_key'=>'backup_restore_company','label'=>'Company','field_type'=>'text',
         'is_required'=>0,'is_active'=>1,'options_json'=>null,'validation_rules_json'=>null,'sort_order'=>93,
+    ], [
+        'field_key'=>'who_calls','label'=>'Caller direction','field_type'=>'select',
+        'is_required'=>0,'is_active'=>1,
+        'options_json'=>wp_json_encode([
+            ['value'=>'business_calls','label'=>'I will call'],
+            ['value'=>'customer_calls','label'=>'Please call me'],
+        ]),
+        'validation_rules_json'=>null,'sort_order'=>9,
     ]],
     'availability_rules' => [[
         'scope_type'=>'booking_type','weekday'=>2,'start_time'=>'10:00:00','end_time'=>'12:00:00',
@@ -265,12 +301,26 @@ wpcb_backup_assert(!is_wp_error($applied) && !empty($applied['applied']), 'Valid
 $restoredType = (int)$wpdb->get_var("SELECT id FROM {$wpdb->prefix}wpcb_booking_types WHERE slug='backup-restore-type'");
 $restoredResource = (int)$wpdb->get_var("SELECT id FROM {$wpdb->prefix}wpcb_resources WHERE slug='backup-restore-resource'");
 wpcb_backup_assert($restoredType > 0 && $restoredResource > 0, 'Restore creates booking type and resource.');
+wpcb_backup_assert(
+    (string)$wpdb->get_var($wpdb->prepare("SELECT channel FROM {$wpdb->prefix}wpcb_booking_types WHERE id=%d", $restoredType)) === 'in_person',
+    'Restore persists the explicit booking channel.'
+);
 wpcb_backup_assert((int)$wpdb->get_var($wpdb->prepare(
     "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_booking_type_resources WHERE booking_type_id=%d AND resource_id=%d",
     $restoredType,
     $restoredResource
 )) === 1, 'Restore remaps booking type/resource relationships.');
 wpcb_backup_assert((int)$wpdb->get_var("SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_form_fields WHERE field_key='backup_restore_company'") === 1, 'Restore recreates form fields.');
+$restoredCallerOptions = json_decode((string)$wpdb->get_var(
+    "SELECT options_json FROM {$wpdb->prefix}wpcb_form_fields WHERE field_key='who_calls' ORDER BY id ASC LIMIT 1"
+), true);
+wpcb_backup_assert(
+    $restoredCallerOptions === [
+        ['value'=>'business_calls','label'=>'I will call'],
+        ['value'=>'customer_calls','label'=>'Please call me'],
+    ],
+    'Restore preserves stable caller-direction values while allowing translated labels.'
+);
 wpcb_backup_assert((int)$wpdb->get_var($wpdb->prepare(
     "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_availability_rules WHERE scope_type='booking_type' AND scope_id=%d AND weekday=2",
     $restoredType

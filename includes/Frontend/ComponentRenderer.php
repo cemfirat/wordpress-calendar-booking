@@ -60,7 +60,7 @@ class ComponentRenderer {
                     <select class="uk-select" id="wpcb_booking_type_id<?php echo $isModal ? '_modal' : ''; ?>" name="booking_type_id" required data-wpcb-type-select>
                         <option value=""><?php esc_html_e('Bitte wählen', 'wordpress-calendar-booking'); ?></option>
                         <?php foreach ($types as $type): ?>
-                            <option value="<?php echo esc_attr($type->id); ?>" <?php echo selected((int)($values['booking_type_id'] ?? 0), (int)$type->id, false); ?> data-capacity="<?php echo esc_attr(max(1, (int)($type->capacity ?? 1))); ?>" data-payment-mode="<?php echo esc_attr((string)($type->payment_mode ?? 'free')); ?>"><?php echo esc_html($type->name); ?></option>
+                            <option value="<?php echo esc_attr($type->id); ?>" <?php echo selected((int)($values['booking_type_id'] ?? 0), (int)$type->id, false); ?> data-capacity="<?php echo esc_attr(max(1, (int)($type->capacity ?? 1))); ?>" data-payment-mode="<?php echo esc_attr((string)($type->payment_mode ?? 'free')); ?>" data-channel="<?php echo esc_attr((string)($type->channel ?? 'review')); ?>"><?php echo esc_html($type->name); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>

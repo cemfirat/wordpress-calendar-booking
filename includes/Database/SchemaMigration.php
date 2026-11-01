@@ -9,7 +9,7 @@ final class SchemaMigration {
     private const OPTION = 'wpcb_schema_version';
     private const VERIFIED_OPTION = 'wpcb_schema_verified_version';
     private const ERROR_OPTION = 'wpcb_schema_migration_error';
-    private const VERSION = 17;
+    private const VERSION = 18;
     private const LOCK_SECONDS = 5;
 
     public static function maybeRun(): bool {
@@ -36,6 +36,10 @@ final class SchemaMigration {
 
             delete_option(self::VERIFIED_OPTION);
             Schema::install();
+            if (!BookingChannelMigration::migrate()) {
+                self::recordFailure('booking_channel_migration_failed', []);
+                return false;
+            }
 
             $verification = SchemaVerifier::verify();
             if (empty($verification['ready'])) {

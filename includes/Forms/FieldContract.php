@@ -21,10 +21,14 @@ final class FieldContract {
 
         $required = self::booleanValue($row['is_required'] ?? 0);
         $active = self::booleanValue($row['is_active'] ?? 0);
-        $options = self::decodeOptions($row['options_json'] ?? null);
-        if (is_wp_error($options)) {
-            return $options;
+        if ($key === 'who_calls' && !in_array($type, ['select', 'radio'], true)) {
+            return self::configError();
         }
+        $optionData = self::decodeOptions($row['options_json'] ?? null, $key);
+        if (is_wp_error($optionData)) {
+            return $optionData;
+        }
+        $options = $optionData['labels'];
         if ($active && in_array($type, ['select', 'radio'], true) && !$options) {
             return self::configError();
         }
@@ -50,7 +54,9 @@ final class FieldContract {
             'is_required' => $required,
             'is_active' => $active,
             'options' => $options,
-            'options_json' => $options ? wp_json_encode($options) : null,
+            'option_values' => $optionData['values'],
+            'options_need_review' => $optionData['needs_review'],
+            'options_json' => $options ? wp_json_encode($optionData['stored']) : null,
             'rules' => $rules,
             'validation_rules_json' => $rules ? wp_json_encode($rules) : null,
             'min_length' => isset($rules['min_length']) ? (int)$rules['min_length'] : 0,
@@ -83,10 +89,10 @@ final class FieldContract {
         return 190;
     }
 
-    /** @return string[]|\WP_Error */
-    private static function decodeOptions($encoded) {
+    /** @return array{labels:string[],values:string[],stored:array,needs_review:bool}|\WP_Error */
+    private static function decodeOptions($encoded, string $key) {
         if ($encoded === null || $encoded === '') {
-            return [];
+            return ['labels' => [], 'values' => [], 'stored' => [], 'needs_review' => false];
         }
         if (!is_string($encoded) || strlen($encoded) > 20000) {
             return self::configError();
@@ -97,16 +103,68 @@ final class FieldContract {
             || count($decoded) > 100) {
             return self::configError();
         }
-        $out = [];
+        $labels = [];
+        $values = [];
+        $stored = [];
+        $needsReview = false;
+        $structuredCount = 0;
         foreach ($decoded as $option) {
-            if (!is_string($option) || $option === '' || self::length($option) > 190) {
+            if (is_string($option)) {
+                $label = $option;
+                $value = $option;
+                $stored[] = $option;
+            } elseif ($key === 'who_calls' && is_array($option)
+                && count($option) === 2
+                && array_key_exists('value', $option)
+                && array_key_exists('label', $option)
+                && is_string($option['value'])
+                && in_array($option['value'], ['business_calls', 'customer_calls'], true)
+                && is_string($option['label'])
+            ) {
+                $label = $option['label'];
+                $value = $option['value'];
+                $stored[] = ['value' => $value, 'label' => $label];
+                $structuredCount++;
+            } else {
                 return self::configError();
             }
-            if (!in_array($option, $out, true)) {
-                $out[] = $option;
+            if ($label === '' || self::length($label) > 190 || $value === '' || self::length($value) > 190) {
+                return self::configError();
+            }
+            if (in_array($value, $values, true)) {
+                if ($key === 'who_calls') {
+                    return self::configError();
+                }
+                continue;
+            }
+            $labels[] = $label;
+            $values[] = $value;
+        }
+
+        if ($key === 'who_calls') {
+            $canonicalLabels = ['Ich rufe an', 'Die Kundin ruft an'];
+            $canonicalValues = ['business_calls', 'customer_calls'];
+            if ($structuredCount > 0) {
+                if ($structuredCount !== count($decoded) || $values !== $canonicalValues) {
+                    return self::configError();
+                }
+            } elseif ($values === $canonicalLabels) {
+                $values = $canonicalValues;
+                $stored = [
+                    ['value' => 'business_calls', 'label' => $labels[0]],
+                    ['value' => 'customer_calls', 'label' => $labels[1]],
+                ];
+            } elseif ($values !== $canonicalValues) {
+                $needsReview = true;
+                $values = $labels;
             }
         }
-        return $out;
+        return [
+            'labels' => $labels,
+            'values' => $values,
+            'stored' => $stored,
+            'needs_review' => $needsReview,
+        ];
     }
 
     /** @return array<string,mixed>|\WP_Error */

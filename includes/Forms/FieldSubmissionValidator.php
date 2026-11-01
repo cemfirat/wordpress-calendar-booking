@@ -42,7 +42,7 @@ final class FieldSubmissionValidator {
 
             $value = $raw === null ? '' : (string)$raw;
             if ($definition['field_type'] === 'select' || $definition['field_type'] === 'radio') {
-                if ($value !== '' && !in_array($value, $definition['options'], true)) {
+                if ($value !== '' && !in_array($value, $definition['option_values'], true)) {
                     return $this->error('wpcb_field_option', __('Eine Auswahl ist nicht mehr gültig. Bitte wähle erneut.', 'wordpress-calendar-booking'), $key);
                 }
                 $clean = $value;

@@ -184,6 +184,7 @@ test('canonical release ZIP passes the complete booking lifecycle in a browser',
         await typeForm.locator('input[name="name"]').fill('Browser E2E');
         await typeForm.locator('input[name="slug"]').fill('browser-e2e');
         await typeForm.locator('textarea[name="description"]').fill('Release acceptance booking type');
+        await typeForm.locator('select[name="channel"]').selectOption('phone');
         await typeForm.locator('input[name="duration_minutes"]').fill('30');
         await typeForm.locator('input[name="buffer_after_minutes"]').fill('0');
         await Promise.all([
@@ -242,6 +243,17 @@ test('canonical release ZIP passes the complete booking lifecycle in a browser',
         // Visitor creates a booking through the public shortcode form.
         const bookingForm = visitorPage.locator('.wpcb-booking-form-wrap [data-wpcb-booking-form]');
         await bookingForm.locator('[name="booking_type_id"]').selectOption({ label: 'Browser E2E' });
+        const selectedType = bookingForm.locator('[name="booking_type_id"] option:checked');
+        await expect(selectedType).toHaveAttribute('data-channel', 'phone');
+        const callerField = bookingForm.locator('[data-wpcb-field="who_calls"]');
+        await expect(callerField).toBeVisible();
+        await expect(callerField.locator('select')).toHaveValue('');
+        const phoneInput = bookingForm.locator('[name="phone"]');
+        await callerField.locator('select').selectOption('business_calls');
+        await expect(phoneInput).toHaveAttribute('readonly', '');
+        await callerField.locator('select').selectOption('customer_calls');
+        await expect(phoneInput).not.toHaveAttribute('readonly');
+        await expect(phoneInput).toBeVisible();
         const slotSelect = bookingForm.locator('[name="slot_token"]');
         await expect.poll(() => slotSelect.locator('option').count(), { timeout: 10000 }).toBeGreaterThan(1);
         const slotValues = await slotSelect.locator('option').evaluateAll((options) =>

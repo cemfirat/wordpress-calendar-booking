@@ -35,6 +35,12 @@ Booking types can map to one or more resources/staff through `wpcb_booking_type_
 
 Availability may be global, booking-type scoped or resource scoped. External calendar connections are routed per booking type/resource configuration so a provider blocks only the resources it is intended to represent.
 
+## Booking-channel semantics
+
+Booking behavior is selected by the persisted `booking_types.channel` value (`phone`, `online`, `in_person`, `custom` or `review`), never by an editable or translated type name. Phone caller choices likewise submit stable `business_calls` / `customer_calls` values separately from their administrator-editable labels. Server-side location and phone computation uses the channel, canonical caller value and trusted settings; submitted display fields cannot override the configured in-person address or business phone.
+
+Schema migration recognizes only the exact legacy seeded slug/name pairs. Renamed or otherwise ambiguous types remain `review`, which has generic behavior and is shown for administrator review. Legacy backups without a channel remain importable but restore those types as `review`; restore previews warn before applying. Only the exact historical default caller-label pair is automatically mapped. Other legacy caller options are flagged for administrator review and do not infer a direction from their text.
+
 ### Reservation concurrency
 
 Reservation writers are serialized **per resource** using `ResourceLock`. Independent resources therefore reserve concurrently.

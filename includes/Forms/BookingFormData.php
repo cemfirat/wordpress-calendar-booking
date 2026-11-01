@@ -2,6 +2,7 @@
 namespace Wpcb\Forms;
 
 use Wpcb\Admin\Settings;
+use Wpcb\Booking\BookingTypeRepository;
 use Wpcb\Support\BookingFormatter;
 
 final class BookingFormData {
@@ -23,6 +24,7 @@ final class BookingFormData {
         }
 
         $settings = Settings::get();
+        unset($meta['computed_location']);
         $meta['computed_location'] = $this->formatter->location(
             ['booking_type_id' => $bookingTypeId],
             $meta,
@@ -36,8 +38,11 @@ final class BookingFormData {
             );
         }
 
+        $type = (new BookingTypeRepository())->find($bookingTypeId);
         $phone = (string)($meta['phone'] ?? '');
-        if ($phone === '' && !empty($meta['who_calls']) && $meta['who_calls'] === 'Ich rufe an') {
+        if ($phone === '' && (string)($type->channel ?? 'review') === 'phone'
+            && ($meta['who_calls'] ?? '') === 'business_calls'
+        ) {
             $phone = (string)($settings['own_phone'] ?? '');
         }
         if (FieldContract::length($phone) > 100) {
