@@ -135,7 +135,7 @@ final class WaitingListController {
         nocache_headers();
         echo '<!doctype html><html><head><meta charset="' . esc_attr(get_bloginfo('charset'))
             . '"><meta name="robots" content="noindex,nofollow"><title>' . esc_html($title)
-            . '</title></head><body>' . $content . '</body></html>';
+            . '</title></head><body>' . $content . '</body></html>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $content is built by escaping renderers in this class.
         exit;
     }
 

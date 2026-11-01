@@ -488,7 +488,7 @@ class Admin {
             $events = $machine->adminEventsFor((string)$item->status);
             $retained = '1' === (string)($meta['privacy_retain'] ?? '');
 
-            echo '<tr><td>' . (int)$item->id . '</td><td>' . esc_html($item->full_name) . '</td><td>' . esc_html($item->email) . '</td><td>' . esc_html($item->slot_start) . '<br><small>' . max(1, (int)($item->party_size ?? 1)) . ' ' . esc_html__('Teilnehmer', 'wordpress-calendar-booking') . '</small></td><td>' . esc_html($item->status) . '</td><td>';
+            echo '<tr><td>' . (int)$item->id . '</td><td>' . esc_html($item->full_name) . '</td><td>' . esc_html($item->email) . '</td><td>' . esc_html($item->slot_start) . '<br><small>' . absint(max(1, (int)($item->party_size ?? 1))) . ' ' . esc_html__('Teilnehmer', 'wordpress-calendar-booking') . '</small></td><td>' . esc_html($item->status) . '</td><td>';
             echo '<form method="post">';
             wp_nonce_field('wpcb_admin_action');
             echo '<input type="hidden" name="wpcb_admin_action" value="booking_retention"><input type="hidden" name="id" value="' . (int)$item->id . '">';
@@ -732,7 +732,7 @@ class Admin {
     }
 
     private function row(string $label, string $field): void {
-        echo '<tr><th scope="row">' . esc_html($label) . '</th><td>' . $field . '</td></tr>';
+        echo '<tr><th scope="row">' . esc_html($label) . '</th><td>' . $field . '</td></tr>'; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Callers pass markup already escaped at construction.
     }
 
     private function renderTypesTable(array $items): void {
@@ -757,7 +757,7 @@ class Admin {
             echo '<tr><td>' . esc_html($i->name) . '</td><td>' . esc_html($i->slug) . '</td><td>'
                 . esc_html($this->channelLabel((string)($i->channel ?? 'review'))) . '</td><td>'
                 . (int)$i->duration_minutes . ' ' . esc_html__('Min.', 'wordpress-calendar-booking') . '</td><td>'
-                . max(1, (int)($i->capacity ?? 1)) . '</td><td>' . $payment . '</td><td>'
+                . absint(max(1, (int)($i->capacity ?? 1))) . '</td><td>' . $payment . '</td><td>' // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- $payment is built from number_format() and esc_html().
                 . esc_html($i->is_active ? __('Ja', 'wordpress-calendar-booking') : __('Nein', 'wordpress-calendar-booking')) . '</td><td>';
             echo '<a class="button button-small" href="' . esc_url(add_query_arg([
                 'page' => 'wpcb_types',

@@ -96,7 +96,7 @@ final class VideoMeetingAdminPage {
             }
             foreach ($connections as $connection) {
                 $id=(int)$connection->id;
-                echo '<p><label><input type="checkbox" name="connections['.$id.'][enabled]" value="1" ' . checked(isset($selected[$id]),true,false) . '> ';
+                echo '<p><label><input type="checkbox" name="connections['.absint($id).'][enabled]" value="1" ' . checked(isset($selected[$id]),true,false) . '> ';
                 echo esc_html((string)$connection->name . ' (' . (string)$connection->provider . ')') . '</label></p>';
             }
             echo '<p class="description">' . esc_html__('Für bestätigte Buchungen wird das Meeting asynchron über die Retry-Queue erzeugt. Ein Provider-Ausfall setzt die Buchung nicht zurück; persistierte Provider-Fehler erscheinen unten.', 'wordpress-calendar-booking') . '</p>';
@@ -135,7 +135,7 @@ final class VideoMeetingAdminPage {
         if(!is_array($config)) $config=[];
         echo '<form method="post" style="margin:10px 0;padding:12px;background:#fff;border:1px solid #ccd0d4">';
         wp_nonce_field('wpcb_video_action');
-        echo '<input type="hidden" name="wpcb_video_action" value="save_connection"><input type="hidden" name="connection_id" value="'.$id.'">';
+        echo '<input type="hidden" name="wpcb_video_action" value="save_connection"><input type="hidden" name="connection_id" value="'.absint($id).'">';
         echo '<p><label>' . esc_html__('Name', 'wordpress-calendar-booking') . ' <input type="text" name="name" required value="'.esc_attr((string)($connection->name ?? '')).'"></label> ';
         echo '<label>' . esc_html__('Provider', 'wordpress-calendar-booking') . ' <select name="provider">';
         foreach((new VideoMeetingProviderRegistry())->codes() as $code) {
@@ -149,7 +149,7 @@ final class VideoMeetingAdminPage {
         if($id>0){
             echo '<form method="post" style="margin-bottom:16px">';
             wp_nonce_field('wpcb_video_action');
-            echo '<input type="hidden" name="wpcb_video_action" value="delete_connection"><input type="hidden" name="connection_id" value="'.$id.'">';
+            echo '<input type="hidden" name="wpcb_video_action" value="delete_connection"><input type="hidden" name="connection_id" value="'.absint($id).'">';
             echo '<button class="button button-link-delete">' . esc_html__('Verbindung löschen', 'wordpress-calendar-booking') . '</button></form>';
         }
     }

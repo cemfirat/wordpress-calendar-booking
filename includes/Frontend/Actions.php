@@ -203,9 +203,12 @@ class Actions {
             . '"><meta name="robots" content="noindex,nofollow"><title>'
             . esc_html__('Formular prüfen', 'wordpress-calendar-booking') . '</title>';
         wp_head();
+        // $form is escaped by ComponentRenderer; $hookOutput is captured output of trusted action callbacks.
+        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped
         echo '</head><body><main class="wpcb-form-recovery"><h1>'
             . esc_html__('Formular prüfen', 'wordpress-calendar-booking')
             . '</h1>' . $hookOutput . $form . '</main>';
+        // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
         wp_footer();
         echo '</body></html>';
         exit;

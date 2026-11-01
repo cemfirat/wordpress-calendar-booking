@@ -186,7 +186,7 @@ final class BookingEntryGuard {
         echo '<main class="wpcb-public-action uk-section"><div class="uk-container uk-container-small">'
             . '<h1>' . esc_html($title) . '</h1><p>' . esc_html($message) . '</p>';
         if ($form !== '') {
-            echo $form; // Escaped by the shared component renderer, never a request value.
+            echo $form; // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Escaped by the shared component renderer, never a request value.
         } else {
             echo '<p><a class="uk-button uk-button-primary" data-wpcb-rebook href="'
                 . esc_url(self::freshBookingUrl()) . '">'

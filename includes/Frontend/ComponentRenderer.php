@@ -128,11 +128,14 @@ class ComponentRenderer {
                     <div class="uk-form-controls"><?php
                         $rawValue = $values[(string)$field->field_key] ?? '';
                         $fieldValue = is_scalar($rawValue) ? (string)$rawValue : '';
+                        // FieldInputRenderer escapes every attribute and value it emits.
+                        // phpcs:disable WordPress.Security.EscapeOutput.OutputNotEscaped
                         echo $this->fieldRenderer->render(
                             $field,
                             'wpcb_' . (string)$field->field_key . ($isModal ? '_modal' : ''),
                             $fieldValue
                         );
+                        // phpcs:enable WordPress.Security.EscapeOutput.OutputNotEscaped
                     ?></div>
                 </div>
             <?php endforeach; ?>
@@ -229,7 +232,7 @@ class ComponentRenderer {
                 <div class="wpcb-modal-panel uk-card uk-card-default uk-card-body" tabindex="-1" data-wpcb-modal-panel>
                     <button type="button" class="wpcb-modal-close" data-wpcb-close-modal aria-label="<?php echo esc_attr__('Close booking dialog', 'wordpress-calendar-booking'); ?>">&times;</button>
                     <h3 id="wpcb-booking-modal-title" class="uk-margin-small-bottom"><?php esc_html_e('Termin buchen', 'wordpress-calendar-booking'); ?></h3>
-                    <?php echo $this->renderBookingFormMarkup(true); ?>
+                    <?php echo $this->renderBookingFormMarkup(true); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped -- Markup is escaped by the shared component renderer. ?>
                 </div>
             </div>
         </div>

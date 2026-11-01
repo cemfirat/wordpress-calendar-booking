@@ -81,13 +81,14 @@ final class CustomerPortalController {
         }
         echo '<div class="uk-flex uk-flex-between uk-flex-middle uk-margin-bottom">';
         echo '<div><h2 class="uk-margin-remove">' . esc_html__('Meine Buchungen', 'wordpress-calendar-booking') . '</h2><div class="uk-text-meta">' . esc_html($email) . '</div></div>';
-        echo $this->postForm('wpcb_portal_logout', $returnUrl, $session, '<button class="uk-button uk-button-default" type="submit">' . esc_html__('Abmelden', 'wordpress-calendar-booking') . '</button>');
+        // postForm(), bookingDetail() and bookingList() return markup escaped at construction.
+        echo $this->postForm('wpcb_portal_logout', $returnUrl, $session, '<button class="uk-button uk-button-default" type="submit">' . esc_html__('Abmelden', 'wordpress-calendar-booking') . '</button>'); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         echo '</div>';
 
         if ($detailId > 0) {
             $booking = $this->ownedBooking($detailId, $email);
             if ($booking) {
-                echo $this->bookingDetail($booking, $returnUrl, $session);
+                echo $this->bookingDetail($booking, $returnUrl, $session); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
             } else {
                 echo '<div class="uk-alert-warning" uk-alert><p>' . esc_html__('Buchung nicht gefunden.', 'wordpress-calendar-booking') . '</p></div>';
             }
@@ -113,8 +114,8 @@ final class CustomerPortalController {
             }
         }
 
-        echo $this->bookingList(__('Bevorstehend', 'wordpress-calendar-booking'), $upcoming, $returnUrl);
-        echo $this->bookingList(__('Vergangen / beendet', 'wordpress-calendar-booking'), $past, $returnUrl);
+        echo $this->bookingList(__('Bevorstehend', 'wordpress-calendar-booking'), $upcoming, $returnUrl); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
+        echo $this->bookingList(__('Vergangen / beendet', 'wordpress-calendar-booking'), $past, $returnUrl); // phpcs:ignore WordPress.Security.EscapeOutput.OutputNotEscaped
         echo '</div>';
         return (string)ob_get_clean();
     }
