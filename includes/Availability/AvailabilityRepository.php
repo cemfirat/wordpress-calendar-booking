@@ -80,6 +80,6 @@ class AvailabilityRepository {
         }
 
         $sql .= ' ORDER BY date_start ASC, id ASC';
-        return $wpdb->get_results($wpdb->prepare($sql, ...$params));
+        return $wpdb->get_results($wpdb->prepare($sql, ...$params)); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Conditions are fixed fragments; all values are bound.
     }
 }

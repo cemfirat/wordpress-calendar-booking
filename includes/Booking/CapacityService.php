@@ -148,7 +148,7 @@ final class CapacityService {
         }
 
         $held = 0;
-        foreach ($wpdb->get_results($wpdb->prepare($sql, ...$params)) as $offer) {
+        foreach ($wpdb->get_results($wpdb->prepare($sql, ...$params)) as $offer) { // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Conditions are fixed fragments; all values are bound.
             $offerBuffers = $this->buffers->forSlot(
                 (int)$offer->booking_type_id,
                 $resourceId,

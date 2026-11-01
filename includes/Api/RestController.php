@@ -230,8 +230,8 @@ final class RestController {
 
         $countSql = "SELECT COUNT(*) FROM {$table} WHERE " . implode(' AND ', $where);
         $total = (int)($params
-            ? $wpdb->get_var($wpdb->prepare($countSql, ...$params))
-            : $wpdb->get_var($countSql));
+            ? $wpdb->get_var($wpdb->prepare($countSql, ...$params)) // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- WHERE parts are a fixed allow-list; values are bound.
+            : $wpdb->get_var($countSql)); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- No parameters: static allow-listed SQL only.
 
         $sql = "SELECT id, booking_uuid, booking_type_id, resource_id, slot_start, slot_end, status,
                        party_size, full_name, email, phone, source, lang, created_at, updated_at
@@ -240,7 +240,7 @@ final class RestController {
                 ORDER BY slot_start ASC, id ASC
                 LIMIT %d OFFSET %d";
         $queryParams = array_merge($params, [$perPage, $offset]);
-        $rows = $wpdb->get_results($wpdb->prepare($sql, ...$queryParams), ARRAY_A);
+        $rows = $wpdb->get_results($wpdb->prepare($sql, ...$queryParams), ARRAY_A); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- WHERE parts are a fixed allow-list; values are bound.
 
         return new \WP_REST_Response([
             'data' => $rows,

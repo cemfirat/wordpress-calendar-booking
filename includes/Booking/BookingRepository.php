@@ -196,8 +196,8 @@ class BookingRepository {
         }
 
         return $params
-            ? $wpdb->get_results($wpdb->prepare($sql, ...$params))
-            : $wpdb->get_results($sql);
+            ? $wpdb->get_results($wpdb->prepare($sql, ...$params)) // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Filter fragments are fixed; values are bound.
+            : $wpdb->get_results($sql); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- No parameters: static SQL only.
     }
 
     public function count(array $args = []): int {
@@ -206,8 +206,8 @@ class BookingRepository {
         $sql = "SELECT COUNT(*) FROM {$this->table}{$where}";
 
         return (int)($params
-            ? $wpdb->get_var($wpdb->prepare($sql, ...$params))
-            : $wpdb->get_var($sql));
+            ? $wpdb->get_var($wpdb->prepare($sql, ...$params)) // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Filter fragments are fixed; values are bound.
+            : $wpdb->get_var($sql)); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- No parameters: static SQL only.
     }
 
     /**
@@ -246,7 +246,7 @@ class BookingRepository {
         }
 
         $sql .= ' ORDER BY booking_id ASC, id ASC';
-        $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params));
+        $rows = $wpdb->get_results($wpdb->prepare($sql, ...$params)); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Placeholder list is generated; all values are bound.
         $meta = [];
 
         foreach ($rows as $row) {
@@ -356,7 +356,7 @@ class BookingRepository {
             $params[] = $ignoreId;
         }
         $sql .= ' ORDER BY slot_start ASC, id ASC';
-        return $wpdb->get_results($wpdb->prepare($sql, ...$params));
+        return $wpdb->get_results($wpdb->prepare($sql, ...$params)); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Placeholder list is generated from fixed statuses; all values are bound.
     }
 
     public function occupiedSeats(
@@ -385,7 +385,7 @@ class BookingRepository {
             $sql .= ' AND id != %d';
             $params[] = $ignoreId;
         }
-        return max(0, (int)$wpdb->get_var($wpdb->prepare($sql, ...$params)));
+        return max(0, (int)$wpdb->get_var($wpdb->prepare($sql, ...$params))); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Placeholder list is generated from fixed statuses; all values are bound.
     }
 
     public function hasConflict(
@@ -416,7 +416,7 @@ class BookingRepository {
             $sql .= ' AND id != %d';
             $params[] = $ignoreId;
         }
-        return (int)$wpdb->get_var($wpdb->prepare($sql, ...$params)) > 0;
+        return (int)$wpdb->get_var($wpdb->prepare($sql, ...$params)) > 0; // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Placeholder list is generated from fixed statuses; all values are bound.
     }
 
     public function moveWhenPositionMatches(
@@ -462,7 +462,7 @@ class BookingRepository {
             $params[] = $expectedResourceId;
         }
 
-        return 1 === (int)$wpdb->query($wpdb->prepare($sql, ...$params));
+        return 1 === (int)$wpdb->query($wpdb->prepare($sql, ...$params)); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Static SQL fragments; all values are bound.
     }
 
     private function log(int $bookingId, ?string $oldStatus, string $newStatus, string $context, string $changedBy, string $note): void {

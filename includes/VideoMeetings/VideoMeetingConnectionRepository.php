@@ -20,7 +20,7 @@ final class VideoMeetingConnectionRepository {
                 FROM {$this->table}";
         if ($activeOnly) $sql .= ' WHERE is_active = 1';
         $sql .= ' ORDER BY name ASC, id ASC';
-        return $wpdb->get_results($sql);
+        return $wpdb->get_results($sql); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Static SQL fragments and prefixed table name only; no user input.
     }
 
     public function find(int $id, bool $withCredentials = false): ?object {

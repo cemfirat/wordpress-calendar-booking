@@ -217,7 +217,7 @@ final class PrivacyService {
         // Anonymized rows use this reserved non-deliverable address shape.
         // Excluding them keeps every bounded retention run moving forward.
         $params = array_merge($statuses, [$cutoff, 'anonymized-%@example.invalid', self::RETAIN_META_KEY]);
-        $ids = $wpdb->get_col($wpdb->prepare($sql, ...$params));
+        $ids = $wpdb->get_col($wpdb->prepare($sql, ...$params)); // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Placeholder list is generated from a fixed status list; all values are bound.
 
         $count = 0;
         foreach ($ids as $bookingId) {

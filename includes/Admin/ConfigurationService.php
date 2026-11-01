@@ -54,6 +54,8 @@ final class ConfigurationService {
         }
 
         foreach (['bookings', 'booking_series', 'waiting_list'] as $suffix) {
+            // $suffix comes from the fixed list above; the id is bound via %d.
+            // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter
             $count = (int)$wpdb->get_var($wpdb->prepare(
                 "SELECT COUNT(*) FROM {$wpdb->prefix}wpcb_{$suffix} WHERE booking_type_id = %d",
                 $id

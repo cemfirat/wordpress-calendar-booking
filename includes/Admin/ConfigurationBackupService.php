@@ -1089,7 +1089,7 @@ final class ConfigurationBackupService {
         } else {
             $sql .= ' AND scope_id IS NULL';
         }
-        return $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A) ?: [];
+        return $wpdb->get_results($wpdb->prepare($sql, ...$params), ARRAY_A) ?: []; // phpcs:ignore PluginCheck.Security.DirectDB.UnescapedDBParameter -- Static SQL fragments and prefixed table; all values are bound.
     }
 
     private function exceptionRows(array $row, int $typeId, int $resourceId): array {
