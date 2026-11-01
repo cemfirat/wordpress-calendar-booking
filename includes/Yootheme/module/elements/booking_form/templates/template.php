@@ -1,4 +1,7 @@
 <?php
+if (!defined('ABSPATH')) {
+    exit;
+}
 $el = $this->el('div', [
     'class' => ['wpcb-yootheme-element', 'wpcb-yootheme-booking-form'],
 ]);
