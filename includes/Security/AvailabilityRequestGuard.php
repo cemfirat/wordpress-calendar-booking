@@ -53,6 +53,7 @@ final class AvailabilityRequestGuard {
             return new \WP_Error(
                 'wpcb_availability_days_invalid',
                 sprintf(
+                    /* translators: %d: maximum number of days. */
                     __('Der Verfügbarkeitszeitraum darf höchstens %d Tage umfassen.', 'wordpress-calendar-booking'),
                     $maxDays
                 ),
