@@ -193,4 +193,17 @@ $wpdb->update($wpdb->prefix . 'wpcb_bookings', ['reserved_until' => '2000-01-01 
 $paymentF = $payments->find((int)$paymentF->id);
 wpcb_lifecycle_assert($paymentF->status === 'refund_pending' && (int)$paymentF->refund_pending_minor === 5000, 'A paid booking whose hold expires unconfirmed is refunded.');
 
+$fixtureBookings = array_map('intval', $wpdb->get_col($wpdb->prepare("SELECT id FROM {$wpdb->prefix}wpcb_bookings WHERE source = %s", 'lifecycle-smoke')));
+foreach ($fixtureBookings as $fixtureBookingId) {
+    $fixturePayments = $wpdb->get_col($wpdb->prepare("SELECT id FROM {$wpdb->prefix}wpcb_payments WHERE booking_id = %d", $fixtureBookingId));
+    foreach ($fixturePayments as $fixturePaymentId) {
+        $wpdb->delete($wpdb->prefix . 'wpcb_payment_events', ['payment_id' => (int)$fixturePaymentId]);
+    }
+    foreach (['wpcb_payments', 'wpcb_tokens', 'wpcb_booking_status_log', 'wpcb_booking_meta'] as $fixtureTable) {
+        $wpdb->delete($wpdb->prefix . $fixtureTable, ['booking_id' => $fixtureBookingId]);
+    }
+    $wpdb->delete($wpdb->prefix . 'wpcb_bookings', ['id' => $fixtureBookingId]);
+}
+$wpdb->delete($wpdb->prefix . 'wpcb_booking_types', ['id' => $typeId]);
+
 WP_CLI::success('Stripe Checkout lifecycle smoke test passed.');
