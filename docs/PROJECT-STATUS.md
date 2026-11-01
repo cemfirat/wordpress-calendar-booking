@@ -78,8 +78,10 @@ warnings, 326 no-caching warnings, 11 slow-query warnings, one schema-change
 warning and five external-redirect warnings. Counts are finding totals and
 categories can overlap. The external redirects are to Stripe checkout after
 Stripe-host validation or to fixed Google/Microsoft OAuth endpoints; the
-uninstall queries remove plugin-owned data. No findings were suppressed. The
-check is active on PRs but is not yet a required ruleset check: the existing
-`main protection` ruleset still has its 11 original required checks. Issue #219
-remains open for reviewing warnings and the explicitly governed ruleset update.
-No version, release, installation, or deployment change was made.
+uninstall queries remove plugin-owned data. No findings were suppressed. On 2026-11-01 the Owner explicitly authorized
+adding `WordPress Plugin Check` to the existing `main protection` ruleset. The
+GitHub readback verified all 12 required contexts, strict main-only
+enforcement, no bypass actors, and no changes to the other rules. This status
+update's PR is the first PR evaluated under the expanded ruleset. Issue #219
+remains open for reviewing warnings; no version, release, installation, or
+deployment change was made.
